@@ -4,8 +4,12 @@
 # FX cache (auto-downloaded, no need to commit)
 data/fx_cache/
 
-# Output files (generated, not source)
-output/
+# Output files (generated, not source) — Python source files in output/ ARE committed
+output/*.csv
+output/*.txt
+output/*.xlsx
+output/*.html
+output/__pycache__/
 
 # Python cache
 __pycache__/

@@ -5,21 +5,30 @@ Move completed items to ## Done with the date.
 
 ---
 
-## 🔴 BLOCKING — Jessie's Tax Filing
+## 🔴 BLOCKING — Matthias's Tax Filing
 
 - [ ] **Add Matthias's IBKR account ID** to `config.yaml` account_map
-- [ ] **Verify KZ 937** for any current open accumulating ETF/fund positions via oekb.at
-- [ ] **Nichtmeldefonds check** — verify current open position ISINs at OeKB
-      Punitive treatment if unregistered: 27.5% on 90% of annual price increase
-- [ ] **Regelbesteuerungsoption** — Jessie has income in 2025 so standard 27.5% applies.
-      Still add `--regelbesteuerung` flag to tool for future use / other users.
+
+---
+
+## ✅ Jessie's 2025 Filing — Tool is ready
+
+Jessie's portfolio is individual stocks + cash transactions only. No accumulating ETFs,
+no funds, no REITs/BDCs. The following items are N/A for her current holdings and
+therefore not blocking her filing. Keeping them here for when fund support is added.
+
+- **KZ 937** — N/A (only applies to accumulating funds reporting via OeKB)
+- **Nichtmeldefonds check** — N/A (only applies to OeKB-unregistered funds)
+      Punitive treatment if ever relevant: 27.5% on 90% of annual price increase
+- **Regelbesteuerungsoption** — Jessie uses standard 27.5% KESt for 2025.
+      `--regelbesteuerung` flag still useful for future / other users → moved to 🟡 below.
 
 ---
 
 ## 🟡 Dashboard & Output
 
-- [ ] **Wire freedom dashboard into pipeline** — generate `output/{person}_{year}_freedom.html`
-      auto-populated with real dividend data from that run. Sliders stay interactive.
+- [x] **Wire freedom dashboard into pipeline** — generate `output/{person}_{year}_freedom.html`
+      auto-populated with real dividend data from that run. Sliders stay interactive. *(2026-05-01)*
 - [ ] **Excel "Freedom" tab** — 5th tab in dashboard.xlsx: year-over-year dividend bars,
       freedom progress bar, projection chart (static at default assumptions)
 - [ ] **WHT reclaim assistant** — per overwithheld dividend: country, authority,
@@ -58,6 +67,7 @@ Move completed items to ## Done with the date.
 
 - [ ] **Regelbesteuerungsoption mode** — `--regelbesteuerung` flag, recalculates
       at progressive income tax rate instead of flat 27.5% KESt
+      (N/A for Jessie 2025 — standard 27.5% applies; useful for future / other users)
 - [ ] **Verlustausgleich tracker** — year-by-year gain/loss table
 - [ ] **KZ 937 semi-automation** — OeKB API per ISIN for Ausschüttungsgleiche Erträge
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
@@ -107,4 +117,5 @@ Move completed items to ## Done with the date.
 - [x] ANX/EMWE — confirmed non-issue (transferred positions, below threshold) *(2026-05-01)*
 - [x] Dividend freedom dashboard — interactive HTML with sliders built *(2026-05-01)*
       Shows: passive salary, freedom %, milestones, projection, holdings breakdown
-      TODO: wire into pipeline + Excel tab (in 🟡 above)
+- [x] Wire freedom dashboard into pipeline output *(2026-05-01)*
+      Generates output/{person}_{year}_freedom.html with real dividend data

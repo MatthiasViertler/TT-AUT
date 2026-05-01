@@ -26,7 +26,17 @@ output:
   excel: true
   csv: true
   tax_summary: true
+  html: true
   console: true
+
+# Freedom Dashboard — projection slider defaults
+# Override portfolio_eur in config.local.yaml with your actual portfolio value
+freedom_dashboard:
+  portfolio_eur: 10000                # actual portfolio value — override in config.local.yaml
+  monthly_expenses_eur: 2000          # target monthly spending in retirement
+  monthly_contribution_eur: 500       # how much you add to the portfolio per month
+  yield_pct: 3.0                      # expected dividend yield %
+  growth_pct: 7.0                     # expected annual portfolio growth %
 
 # Account ID → person name mapping (used to auto-detect --person from broker exports)
 # Find your account ID in the BOF row of any IB Flex Query export
