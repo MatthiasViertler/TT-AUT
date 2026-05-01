@@ -80,18 +80,28 @@ DEFAULTS: dict[str, Any] = {
 
 
 def load_config(config_path: str = "config.yaml") -> dict[str, Any]:
-    """Load config file if it exists, merge with defaults."""
-    config = dict(DEFAULTS)  # start with a copy of defaults
+    """Load config file if it exists, merge with defaults.
+
+    Also loads config.local.yaml (next to config.yaml) if present — use it
+    for secrets like real account IDs that must not be committed to git.
+    """
+    config = dict(DEFAULTS)
 
     path = Path(config_path)
     if path.exists():
         with open(path) as f:
             user_config = yaml.safe_load(f) or {}
-        # Deep merge: user values override defaults, but nested dicts are merged
         _deep_merge(config, user_config)
         print(f"[config] Loaded: {path}")
     else:
         print(f"[config] No config file found at '{config_path}', using defaults.")
+
+    local_path = path.parent / (path.stem + ".local" + path.suffix)
+    if local_path.exists():
+        with open(local_path) as f:
+            local_config = yaml.safe_load(f) or {}
+        _deep_merge(config, local_config)
+        print(f"[config] Loaded local overrides: {local_path}")
 
     return config
 

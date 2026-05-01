@@ -17,6 +17,9 @@ __pycache__/
 data/*.csv
 data/*.xml
 
+# Local config overrides (real account IDs, personal settings — never commit)
+config.local.yaml
+
 # OS
 .DS_Store
 Thumbs.db
