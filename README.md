@@ -49,7 +49,7 @@ Edit `config.yaml` and add your IBKR account ID to `account_map`:
 ```yaml
 account_map:
   U11111111: Jessie      # find your account ID in the BOF row of any Flex Query export
-  U99999999: YourName
+  U22222222: Matthias
 ```
 
 ---

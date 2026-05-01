@@ -38,7 +38,7 @@ docs/                 Word documentation
 - Duplicate rows: same trade with CostBasis ±1.00 → deduped via raw_id
 
 ## Accounts
-- U11111111 → jessie (IBKR) — tested 2024/2025/2026 ✓
+- Jessie's IBKR account → tested 2024/2025/2026 ✓
 - Matthias's IBKR account ID → still needs adding to config.yaml
 
 ## Run
