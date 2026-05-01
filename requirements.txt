@@ -1,0 +1,14 @@
+# Kapitalertrag dependencies
+# Install with: pip install -r requirements.txt
+
+# Excel output
+openpyxl>=3.1.0
+
+# YAML config file support
+PyYAML>=6.0
+
+# Optional: faster CSV parsing for large IB exports (uncomment if needed)
+# pandas>=2.0.0
+
+# Optional: PDF parsing for brokers that only export PDFs (uncomment if needed)
+# pdfplumber>=0.10.0

@@ -1,0 +1,29 @@
+# Kapitalertrag — user configuration
+# Copy this file to config.yaml and edit as needed.
+# All values here override the built-in defaults in core/config.py.
+
+# Austrian KESt rate (27.5% as of 2016)
+kest_rate: 0.275
+
+# FX source: "ecb" (default, free, no API key) or "manual"
+fx_source: ecb
+fx_cache_dir: ./data/fx_cache
+
+# FX method: "daily" (Austrian law = ECB rate on transaction date)
+fx_method: daily
+
+# Max WHT creditable against Austrian KESt (§ 27a EStG)
+max_creditable_wht: 0.15
+
+# Treaty withholding tax rates by country.
+# Only override if you know a specific rate applies to your situation.
+# wht_treaty_rates:
+#   US: 0.15
+#   DE: 0.15
+
+# Output options: set to false to skip generating that file type
+output:
+  excel: true
+  csv: true
+  tax_summary: true
+  console: true

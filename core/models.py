@@ -1,0 +1,155 @@
+"""
+Core data models.
+All broker parsers convert their raw data into these normalized types.
+This is the lingua franca of the entire pipeline.
+"""
+
+from dataclasses import dataclass, field
+from datetime import date
+from decimal import Decimal
+from typing import Optional
+from enum import Enum
+
+
+class TransactionType(str, Enum):
+    DIVIDEND       = "dividend"
+    DIVIDEND_WHT   = "dividend_wht"   # Withholding tax deducted (negative amount)
+    BUY            = "buy"
+    SELL           = "sell"
+    INTEREST       = "interest"
+    CORPORATE_ACT  = "corporate_action"
+    FX_GAIN_LOSS   = "fx_gain_loss"
+    DEPOSIT        = "deposit"
+    WITHDRAWAL     = "withdrawal"
+    CASH_TRANSFER  = "cash_transfer"
+    FX_TRANSFER    = "fx_transfer"
+    UNKNOWN        = "unknown"
+
+
+class AssetClass(str, Enum):
+    STOCK   = "stock"
+    ETF     = "etf"
+    BOND    = "bond"
+    FUND    = "fund"
+    OPTION  = "option"
+    CASH    = "cash"
+    OTHER   = "other"
+
+
+class Domicile(str, Enum):
+    DOMESTIC  = "domestic"   # Austrian security (ISIN starts AT, or listed on Vienna SE)
+    FOREIGN   = "foreign"
+    UNKNOWN   = "unknown"
+
+
+@dataclass
+class NormalizedTransaction:
+    """
+    One broker event in a fully normalized, broker-agnostic representation.
+    All monetary amounts are in the ORIGINAL currency (orig_currency).
+    EUR equivalents (eur_amount etc.) are filled in by the FX enrichment step.
+    """
+    # Identity
+    broker:           str               # "ib", "degiro", "flatex", …
+    raw_id:           str               # Original broker transaction ID (for dedup)
+
+    # Timing
+    trade_date:       date
+    settle_date:      Optional[date]
+
+    # What
+    txn_type:         TransactionType
+    asset_class:      AssetClass
+
+    # Instrument
+    symbol:           str
+    isin:             Optional[str]
+    description:      str
+    country_code:     Optional[str]     # ISO 3166-1 alpha-2, e.g. "US", "DE"
+    domicile:         Domicile          # domestic (AT) vs foreign
+
+    # Position (for buys/sells)
+    quantity:         Optional[Decimal]
+    price:            Optional[Decimal]
+    price_currency:   Optional[str]
+
+    # Money
+    orig_currency:    str               # Currency of the transaction as booked
+    orig_amount:      Decimal           # Signed: positive = cash in, negative = cash out
+
+    # Costs
+    commission:       Decimal = Decimal(0)
+    commission_currency: Optional[str] = None
+
+    # Withholding tax (populated from broker data OR matched from dividend_wht rows)
+    wht_rate_actual:  Optional[Decimal] = None   # Rate actually applied by source country
+    wht_amount_orig:  Decimal = Decimal(0)       # Amount in orig_currency (positive)
+
+    # FX enrichment (filled by fx module)
+    fx_rate_to_eur:   Optional[Decimal] = None   # 1 orig_currency = N EUR on trade_date
+    eur_amount:       Optional[Decimal] = None
+    eur_commission:   Optional[Decimal] = None
+    eur_wht:          Optional[Decimal] = None
+
+    # Tax computed fields (filled by tax engine)
+    eur_gain_loss:    Optional[Decimal] = None   # For sells: proceeds - cost basis
+    eur_cost_basis:   Optional[Decimal] = None   # For sells: matched purchase cost
+
+    # Metadata
+    source_file:      str = ""
+    notes:            str = ""
+
+
+@dataclass
+class MatchedTrade:
+    """
+    A realized gain/loss: one SELL matched against one or more BUYs.
+    Austrian tax uses FIFO by default.
+    """
+    sell_txn:         NormalizedTransaction
+    buy_txns:         list[NormalizedTransaction] = field(default_factory=list)
+
+    eur_proceeds:     Decimal = Decimal(0)
+    eur_cost:         Decimal = Decimal(0)
+    eur_gain_loss:    Decimal = Decimal(0)    # positive = gain, negative = loss
+
+    domicile:         Domicile = Domicile.UNKNOWN
+
+
+@dataclass
+class TaxSummary:
+    """
+    The final aggregated output — maps directly to E1kv Kennziffern.
+    All amounts in EUR.
+    """
+    tax_year:         int
+    person_label:     str
+
+    # ── E1kv Kennziffern ──────────────────────────────────────────────────────
+    kz_862: Decimal = Decimal(0)   # Inländische Dividendenerträge
+    kz_863: Decimal = Decimal(0)   # Ausländische Dividendenerträge
+    kz_981: Decimal = Decimal(0)   # Inländische Kursgewinne
+    kz_994: Decimal = Decimal(0)   # Ausländische Kursgewinne
+    kz_891: Decimal = Decimal(0)   # Inländische Kursverluste (positive value, will be subtracted)
+    kz_892: Decimal = Decimal(0)   # Ausländische Kursverluste (positive value)
+    kz_898: Decimal = Decimal(0)   # Ausschüttungen Ausland
+    kz_937: Decimal = Decimal(0)   # Ausschüttungsgleiche Erträge Ausland
+    kz_899: Decimal = Decimal(0)   # Bereits bezahlte KESt für inländische WP im Ausland
+    kz_998: Decimal = Decimal(0)   # Bereits bezahlte Quellensteuer für ausländ. Dividenden
+
+    # ── Derived / informational ───────────────────────────────────────────────
+    total_dividends_eur:    Decimal = Decimal(0)
+    total_gains_eur:        Decimal = Decimal(0)
+    total_losses_eur:       Decimal = Decimal(0)
+    total_wht_paid_eur:     Decimal = Decimal(0)
+    net_taxable_eur:        Decimal = Decimal(0)
+
+    kest_due_eur:           Decimal = Decimal(0)   # 27.5% on net_taxable
+    wht_creditable_eur:     Decimal = Decimal(0)   # Min(wht_paid, treaty_max * gross)
+    kest_remaining_eur:     Decimal = Decimal(0)   # kest_due - wht_creditable
+
+    # ── Diagnostics ──────────────────────────────────────────────────────────
+    transaction_count:      int = 0
+    unmatched_sells:        int = 0    # Sells with no matching buy (warn user)
+    missing_fx_count:       int = 0    # Transactions where FX rate was unavailable
+    warnings:               list[str] = field(default_factory=list)

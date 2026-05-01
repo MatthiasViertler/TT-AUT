@@ -1,0 +1,25 @@
+# Virtual environment
+.venv/
+
+# FX cache (auto-downloaded, no need to commit)
+data/fx_cache/
+
+# Output files (generated, not source)
+output/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Sensitive data — NEVER commit broker exports
+data/*.csv
+data/*.xml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
