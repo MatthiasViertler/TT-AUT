@@ -83,11 +83,12 @@ class TaxEngine:
                 treaty_rate = self.wht_treaty.get(country, self.max_creditable_wht)
                 creditable = min(wht, gross * treaty_rate)
                 summary.kz_998 += creditable
-                if wht > creditable:
+                if wht - creditable > Decimal("0.05"):
                     summary.warnings.append(
                         f"WHT on {txn.symbol} ({txn.trade_date}): "
                         f"€{wht:.2f} paid, only €{creditable:.2f} creditable "
                         f"(treaty rate {treaty_rate:.0%} for {country or 'unknown country'})"
+                        f" — excess €{(wht - creditable):.2f} not creditable, reclaim from source country"
                     )
 
             summary.total_dividends_eur += gross

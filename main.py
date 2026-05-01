@@ -27,9 +27,10 @@ def main():
                         help="Path(s) to broker export file(s). Multiple files merged.")
     parser.add_argument("--year", type=int, required=True,
                         help="Tax year to calculate for (e.g. 2024)")
-    parser.add_argument("--person", default="self",
+    parser.add_argument("--person", default="auto",
                         help="Label for this person's data (e.g. 'self', 'wife'). "
-                             "Used in output filenames.")
+                             "Used in output filenames. Default: auto-detected from "
+                             "account ID via account_map in config.yaml.")
     parser.add_argument("--broker", default="auto",
                         help="Force broker parser: 'ib', 'degiro', 'flatex', or 'auto' (default)")
     parser.add_argument("--config", default="config.yaml",

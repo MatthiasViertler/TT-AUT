@@ -33,14 +33,41 @@ def run_pipeline(
 
     # ── 1. Parse all input files ──────────────────────────────────────────────
     all_transactions: list[NormalizedTransaction] = []
+    account_ids: set[str] = set()
+
     for path in input_paths:
-        txns = load_transactions(path, config, broker_hint)
+        txns, account_id = load_transactions(path, config, broker_hint)
         all_transactions.extend(txns)
-        print(f"  [parse]  {path.name}  →  {len(txns)} transactions")
+        if account_id:
+            account_ids.add(account_id)
+        print(f"  [parse]  {path.name}  →  {len(txns)} transactions"
+              + (f"  (account: {account_id})" if account_id else ""))
 
     if not all_transactions:
         print("  [warn]  No transactions loaded. Check your input files.")
         return
+
+    # Auto-resolve person label from config account map if not explicitly set
+    if person_label == "auto":
+        account_map = config.get("account_map", {})
+        resolved = set()
+        for aid in account_ids:
+            name = account_map.get(aid)
+            if name:
+                resolved.add(name)
+        if len(resolved) == 1:
+            person_label = resolved.pop()
+            print(f"  [person] Auto-detected: {person_label} (account: {', '.join(account_ids)})")
+        elif len(resolved) > 1:
+            person_label = "_".join(sorted(resolved))
+            print(f"  [person] Multiple accounts detected: {person_label}")
+        else:
+            # No mapping found — fall back to account ID itself
+            person_label = "_".join(sorted(account_ids)) if account_ids else "unknown"
+            print(f"  [person] No account mapping found — using: {person_label}")
+            print(f"           Add to config.yaml:  account_map:")
+            for aid in sorted(account_ids):
+                print(f"             {aid}: yourname")
 
     # Deduplicate by raw_id
     seen = set()

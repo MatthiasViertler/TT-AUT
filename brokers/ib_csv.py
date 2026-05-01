@@ -58,8 +58,27 @@ def detect(path: Path) -> bool:
         return False
 
 
-def parse(path: Path, config: dict) -> list[NormalizedTransaction]:
+def get_account_id(path: Path) -> Optional[str]:
+    """Extract account ID from BOF row (Flex Query) or Statement row (classic)."""
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
+        for line in f:
+            parts = line.strip().split(',')
+            marker = parts[0].strip('"')
+            if marker == "BOF" and len(parts) > 1:
+                return parts[1].strip('"')
+            if marker == "Statement" and len(parts) > 2:
+                # Classic format: Statement,Data,BrokerName,...,AccountID,...
+                for p in parts:
+                    p = p.strip('"')
+                    if p.startswith('U') and p[1:].isdigit():
+                        return p
+    return None
+
+
+def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Optional[str]]:
     """Parse an IB CSV Activity Statement into normalized transactions.
+
+    Returns (transactions, account_id).
 
     Supports two IB CSV formats:
     - Custom Flex Query format: BOF / HEADER / DATA / EOS rows, section code in col[1]
@@ -70,6 +89,8 @@ def parse(path: Path, config: dict) -> list[NormalizedTransaction]:
             "Trades","Data","Stocks","AAPL",...
     """
     log.info(f"IB parser: reading {path.name}")
+
+    account_id = get_account_id(path)
 
     # Section code → human name mapping for Flex Query format
     SECTION_CODE_MAP = {
@@ -127,8 +148,9 @@ def parse(path: Path, config: dict) -> list[NormalizedTransaction]:
     )
     transactions.extend(trade_txns)
 
-    log.info(f"IB parser: {len(transactions)} transactions parsed from {path.name}")
-    return transactions
+    log.info(f"IB parser: {len(transactions)} transactions parsed from {path.name} "
+             f"(account: {account_id})")
+    return transactions, account_id
 
 
 # ── Cash Transactions ─────────────────────────────────────────────────────────
@@ -298,7 +320,7 @@ def _parse_trades(rows: list[dict], config: dict,
 
         txn = NormalizedTransaction(
             broker="ib",
-            raw_id=f"ib_trade_{trade_date}_{symbol}_{action}_{proceeds}",
+            raw_id=f"ib_trade_{trade_date}_{symbol}_{action}_{proceeds}_{quantity}_{row.get('CostBasis','0')}",
             trade_date=trade_date,
             settle_date=None,
             txn_type=TransactionType(action_map.get(action, "unknown")),

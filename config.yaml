@@ -27,3 +27,11 @@ output:
   csv: true
   tax_summary: true
   console: true
+
+# Account ID → person name mapping (used to auto-detect --person from broker exports)
+# Find your account ID in the BOF row of any IB Flex Query export
+# For other brokers it will be parsed similarly once those parsers are added
+account_map:
+  U11111111: Jessie      # Jessie's IBKR account
+  U22222222: Matthias     # Add your own IBKR account ID here
+  # S12345678: Matthias      # SAXO account ID (when SAXO parser is added)

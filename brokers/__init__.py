@@ -23,9 +23,10 @@ _PARSER_MODULES = [
 
 
 def load_transactions(path: Path, config: dict,
-                      broker_hint: str = "auto") -> list[NormalizedTransaction]:
+                      broker_hint: str = "auto") -> tuple[list[NormalizedTransaction], str | None]:
     """
     Load and parse a broker export file.
+    Returns (transactions, account_id).
     broker_hint: "auto" | "ib" | "degiro" | "flatex"
     """
     import importlib
