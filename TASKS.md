@@ -132,7 +132,8 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
    ```
    This keeps full branch + diff history visible on GitHub.
 6. **Push** `main` to remote: `git push origin main`
-7. Regenerate `docs/` only if user-facing CLI behaviour changed
+7. **Update `README.md`** — reflect any new features, config options, or output files
+8. Regenerate `docs/` only if user-facing CLI behaviour changed
 
 ---
 
