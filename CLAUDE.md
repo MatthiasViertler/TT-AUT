@@ -10,15 +10,17 @@ Python 3.11+, openpyxl, PyYAML. Venv: `.venv/`. ECB FX rates cached in `data/fx_
 ## Structure
 ```
 main.py               CLI (argparse) — --person optional, defaults to "auto"
-core/config.py        loads config.yaml + defaults
+core/config.py        loads config.yaml + defaults (deep-merge with config.local.yaml)
 core/models.py        NormalizedTransaction, TaxSummary, enums
 core/fx.py            ECB FX fetcher + disk cache
 core/tax_engine.py    KESt rules, FIFO matching, WHT crediting
 core/pipeline.py      parse → FX → tax → output orchestration
 brokers/__init__.py   auto-detects broker format, returns (txns, account_id)
 brokers/ib_csv.py     IB Flex Query CSV parser
-output/writer.py      CSV / TXT / Excel output
-config.yaml           account_map: {account_id: person_name}
+output/writer.py      write_all() — orchestrates all output files
+output/freedom.py     Freedom dashboard HTML generator
+config.yaml           account_map, freedom_dashboard defaults, output flags
+config.local.yaml     NEVER committed — real account IDs, per-person freedom defaults
 docs/                 Word documentation
 ```
 
@@ -28,6 +30,8 @@ docs/                 Word documentation
 - WHT warning only fires if excess > €0.05 (suppresses rounding noise)
 - Domestic = ISIN starts AT or exchange WBAG/XWBO
 - KZ 937 NOT auto-calculated (needs OeKB data)
+- `freedom_dashboard` config section controls slider defaults in HTML output;
+  override portfolio_eur + per-person assumptions in config.local.yaml
 
 ## IB Flex Query format quirks
 - BOF row col[1] = account ID
@@ -39,29 +43,45 @@ docs/                 Word documentation
 
 ## Accounts
 - Jessie's IBKR account → tested 2024/2025/2026 ✓
-- Matthias's IBKR account ID → still needs adding to config.yaml
+- Matthias's IBKR account ID → in config.local.yaml (U22222222), not yet tested end-to-end
+- Matthias also has REITs/BDCs (Nichtmeldefonds): O, EPR, OHI, WPC, ARCC
+
+## Data files (not committed — see .gitignore)
+```
+data/2024-AUT-TAX-Divi-Trades-Report.csv   — Jessie IBKR Flex Query
+data/2025-AUT-TAX-Divi-Trades-Report.csv
+data/2026-AUT-TAX-Divi-Trades-Report.csv
+```
 
 ## Run
 ```bash
 source .venv/bin/activate  # VS Code terminal: auto-activated
-python main.py --input data/2024.csv data/2025.csv --year 2025
+python main.py --input data/2024-AUT-TAX-Divi-Trades-Report.csv data/2025-AUT-TAX-Divi-Trades-Report.csv --year 2025
 ```
 
 ## Output files (per run)
 - `output/{person}_{year}_tax_summary.txt`   — E1kv Kennziffern for FinanzOnline
 - `output/{person}_{year}_transactions.csv`  — full transaction log
 - `output/{person}_{year}_dashboard.xlsx`    — 4-tab Excel workbook
-- `output/{person}_{year}_freedom.html`      — dividend freedom dashboard (TODO)
+- `output/{person}_{year}_freedom.html`      — interactive financial independence dashboard
 
 ## Freedom dashboard (HTML)
-Built as interactive widget this session. Pre-populated with real dividend data.
-Sliders: monthly expenses, monthly contribution, portfolio yield, annual growth.
-Shows: passive income salary, freedom %, milestones, projection chart, holdings breakdown.
-TODO: wire into Python pipeline as generated output file + add Excel tab.
+Wired into pipeline. Pre-populated with real dividend data from the run.
+Sliders: current portfolio value, monthly expenses, contribution, yield, growth rate.
+Defaults from config.local.yaml freedom_dashboard section (Jessie: €40k portfolio, €1.2k/mo).
+Shows: freedom %, FIRE timeline card, milestones, 40yr projection chart, holdings table.
+
+## Matthias's E1kv (from consultant's Excel — screenshot 2026-05-02)
+Much more complex than Jessie's: REITs/BDCs (Nichtmeldefonds), capital losses offsetting gains.
+Full E1kv structure needed: sections 1.3.1–1.7, Saldo 1.3, Nichtmeldefonds block.
+KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distributions domestic),
+982/993/893–896 (derivatives), 171/173/175 (crypto), 942 (Lichtenstein), 984/900/901.
 
 ## Next up (priority order)
-1. Wire freedom dashboard HTML into pipeline output
-2. Add Excel "Freedom" tab (static snapshot of projection)
-3. Manual cost basis override (config.yaml) for transferred positions
-4. Cross-check vs IB FifoPnlRealized field
-5. Automated test suite
+1. Extended E1kv Excel output (full 1.3.1–1.7 structure + Saldo 1.3)
+2. Nichtmeldefonds support (config-driven: ISIN list + REIT/BDC type + punitive tax)
+3. Add Matthias's data files + run end-to-end
+4. Pytest test suite skeleton (tests/ with fixture CSVs)
+5. Excel "Freedom" tab (static snapshot)
+6. Manual cost basis override (config.yaml) for transferred positions
+7. --regelbesteuerung flag
