@@ -193,3 +193,18 @@ class TaxEngine:
         )
 
         summary.total_wht_paid_eur = summary.kz_998 + summary.kz_899
+
+        # Saldo aus Punkt 1.3 — net capital income per domicile
+        summary.saldo_inland = (
+            summary.kz_862 + summary.kz_897 + summary.kz_936
+            + summary.kz_981 + summary.kz_864
+            + summary.kz_982 + summary.kz_893
+            + summary.kz_171 + summary.kz_173
+            - summary.kz_891 - summary.kz_895 - summary.kz_175
+        )
+        summary.saldo_ausland = (
+            summary.kz_863 + summary.kz_898 + summary.kz_937
+            + summary.kz_994 + summary.kz_865
+            + summary.kz_993 + summary.kz_894
+            - summary.kz_892 - summary.kz_896
+        )
