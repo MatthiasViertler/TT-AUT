@@ -38,6 +38,25 @@ freedom_dashboard:
   yield_pct: 3.0                      # expected dividend yield %
   growth_pct: 7.0                     # expected annual portfolio growth %
 
+# Nichtmeldefonds — funds NOT registered with OeKB (US REITs, BDCs, foreign ETFs).
+# Tax: 27.5% on max(90% × annual price gain, 10% × Dec31 price) per share.
+# Shares held are inferred from transaction history automatically.
+# dec31_prices: closing price on Dec 31 in fund's native currency.
+#   → Look up in IBKR portfolio statement or finance.yahoo.com (Historical Data, Dec 31)
+#   → Prior year's Dec 31 price = Jan 1 of the current year
+#
+# nichtmeldefonds:
+#   - symbol: O
+#     isin: US7561091049
+#     name: Realty Income Corp
+#     type: REIT         # REIT | BDC | FUND
+#     currency: USD
+#     dec31_prices:
+#       2022: 64.05
+#       2023: 52.85
+#       2024: 53.45
+#       2025: 56.20
+
 # Account ID → person name mapping (used to auto-detect --person from broker exports)
 # Find your account ID in the BOF row of any IB Flex Query export
 # For other brokers it will be parsed similarly once those parsers are added

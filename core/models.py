@@ -101,6 +101,37 @@ class NormalizedTransaction:
 
 
 @dataclass
+class NichtmeldefondsResult:
+    """
+    Per-position Nichtmeldefonds (unregistered fund) result for one tax year.
+    Tax base: pauschal AE = max(90% × annual gain, 10% × Dec31 price) per share.
+    """
+    symbol:       str
+    isin:         str
+    name:         str
+    fund_type:    str            # "REIT", "BDC", "FUND"
+    currency:     str
+
+    shares_held:  Decimal        # at Dec 31 of tax year
+
+    price_jan1:   Optional[Decimal]   # Jan 1 (= prior Dec 31) in native currency
+    price_dec31:  Optional[Decimal]   # Dec 31 in native currency
+    fx_dec31:     Optional[Decimal]   # EUR/native on Dec 31
+
+    annual_gain_per_share:  Decimal = Decimal(0)
+    ae_90pct_per_share:     Decimal = Decimal(0)   # 90% × gain
+    ae_10pct_per_share:     Decimal = Decimal(0)   # 10% × dec31 price (minimum)
+    ae_per_share:           Decimal = Decimal(0)   # max of above two
+
+    ae_total_native:        Decimal = Decimal(0)
+    ae_total_eur:           Decimal = Decimal(0)
+    kest_due_eur:           Decimal = Decimal(0)
+    cost_basis_adj_eur:     Decimal = Decimal(0)   # = ae_total_eur (prevents double-tax on sale)
+
+    warning: str = ""
+
+
+@dataclass
 class MatchedTrade:
     """
     A realized gain/loss: one SELL matched against one or more BUYs.
@@ -184,6 +215,11 @@ class TaxSummary:
     kest_due_eur:           Decimal = Decimal(0)   # 27.5% on net_taxable
     wht_creditable_eur:     Decimal = Decimal(0)   # Min(wht_paid, treaty_max * gross)
     kest_remaining_eur:     Decimal = Decimal(0)   # kest_due - wht_creditable
+
+    # ── Nichtmeldefonds ───────────────────────────────────────────────────────
+    nichtmeldefonds:            list = field(default_factory=list)  # list[NichtmeldefondsResult]
+    nichtmeldefonds_ae_eur:     Decimal = Decimal(0)
+    nichtmeldefonds_kest_eur:   Decimal = Decimal(0)
 
     # ── Diagnostics ──────────────────────────────────────────────────────────
     transaction_count:      int = 0
