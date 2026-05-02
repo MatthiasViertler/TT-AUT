@@ -27,6 +27,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
 from core.models import NichtmeldefondsResult, NormalizedTransaction, TransactionType
+from core.price_fetcher import get_year_end_price
 
 log = logging.getLogger(__name__)
 ZERO      = Decimal("0")
@@ -70,15 +71,19 @@ def _calc_position(
     name      = entry.get("name", symbol)
     fund_type = entry.get("type", "FUND").upper()
     currency  = entry.get("currency", "USD").upper()
-    prices    = {str(k): Decimal(str(v)) for k, v in entry.get("dec31_prices", {}).items()}
+    fx_cache   = str(getattr(fx, "cache_dir", "./data/fx_cache"))
+    cache_dir  = fx_cache.replace("fx_cache", "price_cache")
+
+    # Manual overrides in config take precedence; auto-fetch fills the rest
+    manual_prices = {str(k): Decimal(str(v)) for k, v in entry.get("dec31_prices", {}).items()}
 
     shares = _net_shares_at_year_end(all_transactions, symbol, tax_year)
     if shares <= ZERO:
         log.debug(f"NMF {symbol}: no shares held at end of {tax_year}, skipping")
         return None
 
-    price_dec31 = prices.get(str(tax_year))
-    price_jan1  = prices.get(str(tax_year - 1))     # prior Dec 31 = current Jan 1
+    price_dec31 = manual_prices.get(str(tax_year)) or get_year_end_price(symbol, currency, tax_year, cache_dir)
+    price_jan1  = manual_prices.get(str(tax_year - 1)) or get_year_end_price(symbol, currency, tax_year - 1, cache_dir)
 
     # FX rate on Dec 31 (ECB may not publish on weekends — provider falls back to last available)
     dec31_date = date(tax_year, 12, 31)
@@ -86,8 +91,8 @@ def _calc_position(
 
     warning = ""
     if not price_dec31 or price_dec31 == ZERO:
-        warning = (f"No dec31_prices[{tax_year}] configured for {symbol} "
-                   f"— add to config nichtmeldefonds section")
+        warning = (f"Could not determine Dec 31 {tax_year} price for {symbol} "
+                   f"— yfinance fetch failed and no manual dec31_prices override set")
         log.warning(f"NMF {symbol}: {warning}")
         return NichtmeldefondsResult(
             symbol=symbol, isin=isin, name=name, fund_type=fund_type,
@@ -97,7 +102,7 @@ def _calc_position(
         )
 
     if not price_jan1 or price_jan1 == ZERO:
-        warning = (f"No dec31_prices[{tax_year - 1}] for {symbol} "
+        warning = (f"No prior-year price for {symbol} {tax_year - 1} "
                    f"— using 10% minimum only (may understate if price rose significantly)")
         log.warning(f"NMF {symbol}: {warning}")
         price_jan1 = ZERO

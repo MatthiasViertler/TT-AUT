@@ -41,21 +41,17 @@ freedom_dashboard:
 # Nichtmeldefonds — funds NOT registered with OeKB (US REITs, BDCs, foreign ETFs).
 # Tax: 27.5% on max(90% × annual price gain, 10% × Dec31 price) per share.
 # Shares held are inferred from transaction history automatically.
-# dec31_prices: closing price on Dec 31 in fund's native currency.
-#   → Look up in IBKR portfolio statement or finance.yahoo.com (Historical Data, Dec 31)
-#   → Prior year's Dec 31 price = Jan 1 of the current year
+# Year-end prices are fetched automatically from Yahoo Finance (no manual lookup needed).
+# Results cached in data/price_cache/ — delete the cache to force a refresh.
+#
+# Optional: dec31_prices overrides auto-fetch if you want to pin specific values.
 #
 # nichtmeldefonds:
-#   - symbol: O
-#     isin: US7561091049
-#     name: Realty Income Corp
-#     type: REIT         # REIT | BDC | FUND
-#     currency: USD
-#     dec31_prices:
-#       2022: 64.05
-#       2023: 52.85
-#       2024: 53.45
-#       2025: 56.20
+#   - symbol: O               # ticker symbol as on Yahoo Finance (required)
+#     isin: US7561091049      # ISIN (optional, for output only)
+#     name: Realty Income Corp  # display name (optional)
+#     type: REIT              # REIT | BDC | FUND
+#     currency: USD           # native currency of the fund
 
 # Account ID → person name mapping (used to auto-detect --person from broker exports)
 # Find your account ID in the BOF row of any IB Flex Query export
