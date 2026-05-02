@@ -5,7 +5,7 @@ Austrian capital gains tax calculator (Python CLI).
 Repo: https://github.com/MatthiasViertler/TT-AUT
 
 ## Stack
-Python 3.11+, openpyxl, PyYAML. Venv: `.venv/`. ECB FX rates cached in `data/fx_cache/`.
+Python 3.11+, openpyxl, PyYAML, yfinance. Venv: `.venv/`. ECB FX rates cached in `data/fx_cache/`. Year-end prices cached in `data/price_cache/`.
 
 ## Structure
 ```
@@ -14,6 +14,8 @@ core/config.py        loads config.yaml + defaults (deep-merge with config.local
 core/models.py        NormalizedTransaction, TaxSummary, enums
 core/fx.py            ECB FX fetcher + disk cache
 core/tax_engine.py    KESt rules, FIFO matching, WHT crediting
+core/nichtmeldefonds.py  § 186 InvFG pauschal AE calculation
+core/price_fetcher.py   Yahoo Finance year-end price fetch + cache (data/price_cache/)
 core/pipeline.py      parse → FX → tax → output orchestration
 brokers/__init__.py   auto-detects broker format, returns (txns, account_id)
 brokers/ib_csv.py     IB Flex Query CSV parser
@@ -77,10 +79,17 @@ Full E1kv structure needed: sections 1.3.1–1.7, Saldo 1.3, Nichtmeldefonds blo
 KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distributions domestic),
 982/993/893–896 (derivatives), 171/173/175 (crypto), 942 (Lichtenstein), 984/900/901.
 
+## Nichtmeldefonds (§ 186 InvFG) — fully implemented
+- AE = max(90% × annual gain, 10% × Dec31 price) per share × FX Dec31
+- KeSt = 27.5% × AE; AE added to cost basis (prevents double-tax on sale)
+- Prices auto-fetched from Yahoo Finance via yfinance; cached in data/price_cache/
+- Manual dec31_prices override still works if auto-fetch is wrong/unavailable
+- Config: just add symbol + type + currency under nichtmeldefonds: in config.yaml
+
 ## Next up (priority order)
-1. Extended E1kv Excel output (full 1.3.1–1.7 structure + Saldo 1.3)
-2. Nichtmeldefonds support (config-driven: ISIN list + REIT/BDC type + punitive tax)
-3. Add Matthias's data files + run end-to-end
+1. WHT reclaim assistant — per-country/year summary + BZSt line items (🔴 URGENT: 2022 DE deadline Dec 31, 2026)
+2. Add Matthias's IBKR data files + run end-to-end (needs actual Flex Query exports)
+3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
 4. Pytest test suite skeleton (tests/ with fixture CSVs)
 5. Excel "Freedom" tab (static snapshot)
 6. Manual cost basis override (config.yaml) for transferred positions
