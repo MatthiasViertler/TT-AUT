@@ -125,17 +125,54 @@ class TaxSummary:
     tax_year:         int
     person_label:     str
 
-    # ── E1kv Kennziffern ──────────────────────────────────────────────────────
-    kz_862: Decimal = Decimal(0)   # Inländische Dividendenerträge
-    kz_863: Decimal = Decimal(0)   # Ausländische Dividendenerträge
-    kz_981: Decimal = Decimal(0)   # Inländische Kursgewinne
-    kz_994: Decimal = Decimal(0)   # Ausländische Kursgewinne
-    kz_891: Decimal = Decimal(0)   # Inländische Kursverluste (positive value, will be subtracted)
+    # ── E1kv Kennziffern — Section 1.3.1 (Dividenden, Zinsen §27 Abs. 2) ───────
+    kz_862: Decimal = Decimal(0)   # Inländische Dividenden + Zinserträge
+    kz_863: Decimal = Decimal(0)   # Ausländische Dividenden + Zinserträge
+
+    # ── Section 1.3.2 (Kursgewinne §27 Abs. 3) ───────────────────────────────
+    kz_981: Decimal = Decimal(0)   # Inländische Kursgewinne 27.5%
+    kz_994: Decimal = Decimal(0)   # Ausländische Kursgewinne 27.5%
+    kz_864: Decimal = Decimal(0)   # Inländische Kursgewinne 25% (pre-2011 securities)
+    kz_865: Decimal = Decimal(0)   # Ausländische Kursgewinne 25%
+    kz_891: Decimal = Decimal(0)   # Inländische Kursverluste (positive value)
     kz_892: Decimal = Decimal(0)   # Ausländische Kursverluste (positive value)
-    kz_898: Decimal = Decimal(0)   # Ausschüttungen Ausland
-    kz_937: Decimal = Decimal(0)   # Ausschüttungsgleiche Erträge Ausland
-    kz_899: Decimal = Decimal(0)   # Bereits bezahlte KESt für inländische WP im Ausland
-    kz_998: Decimal = Decimal(0)   # Bereits bezahlte Quellensteuer für ausländ. Dividenden
+
+    # ── Section 1.3.3 (Derivate §27 Abs. 4) ──────────────────────────────────
+    kz_982: Decimal = Decimal(0)   # Inländische Derivate-Gewinne 27.5%
+    kz_993: Decimal = Decimal(0)   # Ausländische Derivate-Gewinne 27.5%
+    kz_893: Decimal = Decimal(0)   # Inländische Derivate-Gewinne 25%
+    kz_894: Decimal = Decimal(0)   # Ausländische Derivate-Gewinne 25%
+    kz_895: Decimal = Decimal(0)   # Inländische Derivate-Verluste
+    kz_896: Decimal = Decimal(0)   # Ausländische Derivate-Verluste
+
+    # ── Section 1.3.4 (Investmentfonds) ──────────────────────────────────────
+    kz_897: Decimal = Decimal(0)   # Inländische Fonds-Ausschüttungen 27.5%
+    kz_898: Decimal = Decimal(0)   # Ausländische Fonds-Ausschüttungen 27.5%
+    kz_936: Decimal = Decimal(0)   # Inländische Ausschüttungsgleiche Erträge
+    kz_937: Decimal = Decimal(0)   # Ausländische Ausschüttungsgleiche Erträge (requires OeKB)
+
+    # ── Section 1.3.5 (Kryptowährungen §27b) ─────────────────────────────────
+    kz_171: Decimal = Decimal(0)   # Krypto Laufende Einkünfte
+    kz_173: Decimal = Decimal(0)   # Krypto Kursgewinne
+    kz_175: Decimal = Decimal(0)   # Krypto Verluste
+
+    # ── Saldo aus Punkt 1.3 ───────────────────────────────────────────────────
+    saldo_inland:  Decimal = Decimal(0)   # Net domestic capital income
+    saldo_ausland: Decimal = Decimal(0)   # Net foreign capital income
+
+    # ── Section 1.4 (KESt bereits bezahlt) ───────────────────────────────────
+    kz_899: Decimal = Decimal(0)   # KESt für inländ. WP im Ausland bereits bezahlt
+
+    # ── Section 1.5 (Abgeltungssteuer) ───────────────────────────────────────
+    kz_942: Decimal = Decimal(0)   # Abgeltungssteuer Liechtenstein (N/A for most)
+
+    # ── Section 1.6 (Anzurechnende QSt 27.5%) ────────────────────────────────
+    kz_984: Decimal = Decimal(0)   # Anrechenbare QSt auf inländ. Einkünfte 27.5%
+    kz_998: Decimal = Decimal(0)   # Anrechenbare QSt auf ausländ. Einkünfte 27.5%
+
+    # ── Section 1.7 (Anzurechnende QSt 25%) ──────────────────────────────────
+    kz_900: Decimal = Decimal(0)   # Anrechenbare QSt auf inländ. Einkünfte 25%
+    kz_901: Decimal = Decimal(0)   # Anrechenbare QSt auf ausländ. Einkünfte 25%
 
     # ── Derived / informational ───────────────────────────────────────────────
     total_dividends_eur:    Decimal = Decimal(0)
