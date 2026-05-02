@@ -116,7 +116,8 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 1. Paste `CLAUDE.md` + `TASKS.md`
 2. Confirm today's focus task
 3. `git pull` if working across machines
-4. Create a feature branch if starting a non-trivial feature (`git checkout -b feature/name`)
+4. Create a feature branch if starting a non-trivial feature:
+   `git checkout -b feature/name && git push -u origin feature/name`
 
 ## 📋 End-of-Session Checklist
 
@@ -124,7 +125,8 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 2. **Update `TASKS.md`** — completed → Done with date, add newly discovered tasks
 3. **Run tests** — `pytest tests/` (once test suite exists; failing tests block commit)
 4. **Commit meaningful checkpoints** — don't wait until end of session; commit after each feature
-5. **Merge feature branch** → main when feature is complete and tested
+5. **Merge feature branch** → main when complete and tested;
+   delete remote branch: `git push origin --delete feature/name`
 6. **Push** to remote
 7. Regenerate `docs/` only if user-facing CLI behaviour changed
 
