@@ -7,6 +7,9 @@ openpyxl>=3.1.0
 # YAML config file support
 PyYAML>=6.0
 
+# Year-end price auto-fetch for Nichtmeldefonds (Yahoo Finance, no API key)
+yfinance>=0.2.0
+
 # Optional: faster CSV parsing for large IB exports (uncomment if needed)
 # pandas>=2.0.0
 
