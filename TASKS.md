@@ -38,10 +38,13 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       auto-populated with real dividend data from that run. Sliders stay interactive. *(2026-05-01)*
 - [ ] **Excel "Freedom" tab** — 5th tab in dashboard.xlsx: year-over-year dividend bars,
       freedom progress bar, projection chart (static at default assumptions)
-- [ ] **WHT reclaim assistant** — per overwithheld dividend: country, authority,
-      form, claimable amount, filing deadline
-      DE: BZSt / Antrag auf Erstattung (4yr) → bzst.de
+- [ ] **WHT reclaim assistant** 🔴 HIGH PRIORITY — Matthias has 4 years of DE excess WHT
+      to reclaim (BZSt 4yr window: 2022–2025 all still valid). Data already computed.
+      Output: per-country per-year summary + per-dividend line items ready for BZSt form.
+      Also needed: Ansässigkeitsbescheinigung (Austrian Finanzamt) + broker tax certs (manual).
+      DE: BZSt / "Antrag auf Erstattung der deutschen Kapitalertragsteuer" (4yr) → bzst.de
       DK: SKAT / Form 06.003 (3yr) → skat.dk
+      NL: Belastingdienst (3yr), US: generally N/A if DBA 15% already applied
 
 ---
 
@@ -85,7 +88,20 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ---
 
-## 🔵 v2.x — New Brokers (after Jessie's filing complete)
+## 🔵 Usability & Automation
+
+- [ ] **`--input-dir` folder scanning** — accept a directory instead of individual files;
+      auto-detect broker per file; load all years for FIFO, filter output to `--year`
+      Foundation for GUI folder-picker later.
+- [ ] **IBKR Flex Web Service auto-fetch** — configure token + query_id in config.local.yaml,
+      `python main.py --fetch-ibkr --year 2025` pulls report directly, no browser needed
+- [ ] **Local web UI** — Flask/FastAPI + HTML; folder picker, pipeline progress, inline results,
+      download buttons. One command to start. No CLI knowledge required.
+- [ ] **FinanzOnline XML output** — machine-readable upload format for direct e-filing
+
+---
+
+## 🔵 v2.x — New Brokers
 
 - [ ] SAXO parser (`brokers/saxo.py`) — need sample export first
 - [ ] E*Trade parser (`brokers/etrade.py`) — need sample export first
