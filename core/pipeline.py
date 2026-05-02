@@ -10,6 +10,7 @@ from pathlib import Path
 from brokers import load_transactions
 from core.fx import FXRateProvider
 from core.models import NormalizedTransaction, TransactionType
+from core.nichtmeldefonds import calculate_nichtmeldefonds
 from core.tax_engine import TaxEngine
 from output.writer import write_all
 
@@ -107,6 +108,28 @@ def run_pipeline(
     summary = engine.calculate(all_transactions)
     summary.missing_fx_count = missing_fx
     print(f"  [tax]    Calculated for {summary.transaction_count} transactions in {tax_year}")
+
+    # ── 3b. Nichtmeldefonds (pauschal AE) ─────────────────────────────────────
+    nmf_results = calculate_nichtmeldefonds(config, tax_year, all_transactions, fx)
+    if nmf_results:
+        summary.nichtmeldefonds = nmf_results
+        summary.nichtmeldefonds_ae_eur   = sum(r.ae_total_eur  for r in nmf_results)
+        summary.nichtmeldefonds_kest_eur = sum(r.kest_due_eur  for r in nmf_results)
+        # AE flows into KZ 937 (ausschüttungsgleiche Erträge Ausland) and saldo
+        summary.kz_937          += summary.nichtmeldefonds_ae_eur
+        summary.saldo_ausland   += summary.nichtmeldefonds_ae_eur
+        summary.net_taxable_eur += summary.nichtmeldefonds_ae_eur
+        summary.kest_due_eur    += summary.nichtmeldefonds_kest_eur
+        summary.kest_remaining_eur = max(
+            ZERO,
+            (summary.kest_due_eur - summary.wht_creditable_eur).quantize(Decimal("0.01"))
+        )
+        positions_ok    = sum(1 for r in nmf_results if not r.warning)
+        positions_warn  = sum(1 for r in nmf_results if r.warning)
+        print(f"  [nmf]    Nichtmeldefonds: {len(nmf_results)} position(s), "
+              f"AE = EUR {summary.nichtmeldefonds_ae_eur:,.2f}, "
+              f"KeSt = EUR {summary.nichtmeldefonds_kest_eur:,.2f}"
+              + (f"  ⚠ {positions_warn} missing price(s)" if positions_warn else ""))
 
     # ── 4. Output ─────────────────────────────────────────────────────────────
     write_all(

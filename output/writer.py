@@ -203,6 +203,11 @@ def _write_excel(txns: list[NormalizedTransaction],
                   and t.trade_date.year == summary.tax_year]
     _fill_transactions_sheet(wtr, trade_txns, summary.tax_year, title="Trades")
 
+    # ── Tab 5: Nichtmeldefonds (only if positions exist) ──────────────────────
+    if summary.nichtmeldefonds:
+        wnmf = wb.create_sheet("Nichtmeldefonds")
+        _fill_nichtmeldefonds_sheet(wnmf, summary)
+
     wb.save(path)
 
 
@@ -514,4 +519,115 @@ def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
             ws.cell(row_idx, col_idx).number_format = '#,##0.00'
 
 
+# ── Nichtmeldefonds tab ───────────────────────────────────────────────────────
+
+def _fill_nichtmeldefonds_sheet(ws, summary) -> None:
+    from openpyxl.styles import Font as OFont
+
+    ws.column_dimensions["A"].width = 8    # Symbol
+    ws.column_dimensions["B"].width = 6    # Type
+    ws.column_dimensions["C"].width = 28   # Name
+    ws.column_dimensions["D"].width = 5    # Ccy
+    ws.column_dimensions["E"].width = 10   # Shares
+    ws.column_dimensions["F"].width = 12   # Jan 1 price
+    ws.column_dimensions["G"].width = 12   # Dec 31 price
+    ws.column_dimensions["H"].width = 11   # Annual gain/sh
+    ws.column_dimensions["I"].width = 10   # AE/sh (90%)
+    ws.column_dimensions["J"].width = 10   # AE/sh (10%)
+    ws.column_dimensions["K"].width = 10   # AE/sh used
+    ws.column_dimensions["L"].width = 13   # AE total native
+    ws.column_dimensions["M"].width = 11   # FX Dec31
+    ws.column_dimensions["N"].width = 13   # AE total EUR
+    ws.column_dimensions["O"].width = 13   # KeSt EUR
+    ws.column_dimensions["P"].width = 13   # Cost basis +
+
+    headers = [
+        "Symbol", "Type", "Name", "Ccy", "Shares",
+        "Jan 1 Price", "Dec 31 Price", "Gain/Share",
+        "AE 90%/sh", "AE 10%/sh", "AE/share",
+        f"AE ({summary.tax_year} native)", "FX Dec31",
+        "AE (EUR)", "KeSt 27.5% (EUR)", "Cost Basis +"
+    ]
+
+    # Header row
+    ws.append(headers)
+    for col_idx, _ in enumerate(headers, 1):
+        cell = ws.cell(1, col_idx)
+        cell.font = _font(bold=True, color=WHITE)
+        cell.fill = _hfill(SECTION_FILL)
+        cell.alignment = _center()
+        cell.border = _border()
+
+    # Data rows
+    for r in summary.nichtmeldefonds:
+        def fv(v):
+            return float(v) if v else None
+
+        row_data = [
+            r.symbol,
+            r.fund_type,
+            r.name,
+            r.currency,
+            float(r.shares_held),
+            fv(r.price_jan1),
+            fv(r.price_dec31),
+            fv(r.annual_gain_per_share),
+            fv(r.ae_90pct_per_share),
+            fv(r.ae_10pct_per_share),
+            fv(r.ae_per_share),
+            fv(r.ae_total_native),
+            fv(r.fx_dec31),
+            fv(r.ae_total_eur),
+            fv(r.kest_due_eur),
+            fv(r.cost_basis_adj_eur),
+        ]
+        ws.append(row_data)
+        row_idx = ws.max_row
+
+        # Formatting
+        ws.cell(row_idx, 1).font = _font(bold=True)       # symbol bold
+        for col_idx in [6, 7, 8, 9, 10, 11, 12]:
+            ws.cell(row_idx, col_idx).number_format = '#,##0.00'
+        ws.cell(row_idx, 13).number_format = '0.0000'     # FX rate
+        for col_idx in [14, 15, 16]:
+            ws.cell(row_idx, col_idx).number_format = '#,##0.00 "EUR"'
+            ws.cell(row_idx, col_idx).font = _font(bold=(col_idx == 15))
+        ws.cell(row_idx, 15).fill = _hfill(WARN_FILL)     # KeSt highlight
+
+        if r.warning:
+            ws.cell(row_idx, 1).font = OFont(color="C00000", bold=True)
+
+        for col_idx in range(1, 17):
+            ws.cell(row_idx, col_idx).border = _border()
+
+    # Totals row
+    total_row = ws.max_row + 1
+    ws.cell(total_row, 13).value = "TOTAL"
+    ws.cell(total_row, 13).font = _font(bold=True)
+    ws.cell(total_row, 14).value = float(summary.nichtmeldefonds_ae_eur)
+    ws.cell(total_row, 14).number_format = '#,##0.00 "EUR"'
+    ws.cell(total_row, 14).font = _font(bold=True)
+    ws.cell(total_row, 14).fill = _hfill(LIGHT_FILL)
+    ws.cell(total_row, 15).value = float(summary.nichtmeldefonds_kest_eur)
+    ws.cell(total_row, 15).number_format = '#,##0.00 "EUR"'
+    ws.cell(total_row, 15).font = _font(bold=True)
+    ws.cell(total_row, 15).fill = _hfill(WARN_FILL)
+    for col_idx in [14, 15]:
+        ws.cell(total_row, col_idx).border = _border()
+
+    # Notes
+    note_row = total_row + 2
+    notes = [
+        f"KZ 937 (Ausschüttungsgleiche Erträge Ausland) = {float(summary.nichtmeldefonds_ae_eur):,.2f} EUR  →  KeSt = {float(summary.nichtmeldefonds_kest_eur):,.2f} EUR",
+        "Cost Basis + = Erhöhung der steuerlichen Anschaffungskosten um die AE (verhindert Doppelbesteuerung beim Verkauf).",
+        "AE/share = max(90% × Jahresgewinn/Anteil,  10% × Jahresendkurs/Anteil)   per § 186 Abs. 2 InvFG.",
+        "Preise (dec31_prices in config) manuell eintragen: Jahresschlusskurs lt. IBKR-Portfolioaufstellung oder Yahoo Finance.",
+    ]
+    for i, note in enumerate(notes):
+        ws.merge_cells(f"A{note_row + i}:P{note_row + i}")
+        c = ws.cell(note_row + i, 1)
+        c.value = note
+        c.font = OFont(color="666666", italic=True, size=9)
+
+    ws.freeze_panes = "A2"
 
