@@ -118,16 +118,28 @@ def _write_tax_summary(s: TaxSummary, path: Path) -> None:
         "",
         "  ENTER THESE VALUES INTO FINANZONLINE / E1kv FORM:",
         "",
+        f"  ── 1.3.1 Dividenden + Zinsen ─────────────────────────────",
         f"  KZ 862   Inländ. Dividendenerträge          EUR {s.kz_862:>12,.2f}",
         f"  KZ 863   Ausländ. Dividendenerträge          EUR {s.kz_863:>12,.2f}",
-        f"  KZ 981   Inländ. Kursgewinne                 EUR {s.kz_981:>12,.2f}",
-        f"  KZ 994   Ausländ. Kursgewinne                EUR {s.kz_994:>12,.2f}",
+        f"  ── 1.3.2 Kursgewinne / Kursverluste ──────────────────────",
+        f"  KZ 981   Inländ. Kursgewinne (27,5%)        EUR {s.kz_981:>12,.2f}",
+        f"  KZ 994   Ausländ. Kursgewinne (27,5%)        EUR {s.kz_994:>12,.2f}",
+        f"  KZ 864   Inländ. Kursgewinne (25%)          EUR {s.kz_864:>12,.2f}",
+        f"  KZ 865   Ausländ. Kursgewinne (25%)          EUR {s.kz_865:>12,.2f}",
         f"  KZ 891   Inländ. Kursverluste                EUR {s.kz_891:>12,.2f}",
         f"  KZ 892   Ausländ. Kursverluste               EUR {s.kz_892:>12,.2f}",
-        f"  KZ 898   Ausschüttungen (Ausland)            EUR {s.kz_898:>12,.2f}",
+        f"  ── 1.3.4 Investmentfonds ─────────────────────────────────",
+        f"  KZ 897   Inländ. Fonds-Ausschüttungen       EUR {s.kz_897:>12,.2f}",
+        f"  KZ 898   Ausländ. Fonds-Ausschüttungen       EUR {s.kz_898:>12,.2f}",
+        f"  KZ 936   Ausschüttungsgleiche Ertr. (Inl.)  EUR {s.kz_936:>12,.2f}",
         f"  KZ 937   Ausschüttungsgleiche Ertr. (Ausl.)  EUR {s.kz_937:>12,.2f}",
+        f"  ── Saldo aus Punkt 1.3 ───────────────────────────────────",
+        f"  Saldo Inländisch                             EUR {s.saldo_inland:>12,.2f}",
+        f"  Saldo Ausländisch                            EUR {s.saldo_ausland:>12,.2f}",
+        f"  ── 1.4 / 1.6 Bereits bezahlte Steuer ────────────────────",
         f"  KZ 899   KESt inländ. WP im Ausland          EUR {s.kz_899:>12,.2f}",
-        f"  KZ 998   Quellensteuer ausländ. Div.         EUR {s.kz_998:>12,.2f}",
+        f"  KZ 984   QSt inländ. Einkünfte (27,5%)      EUR {s.kz_984:>12,.2f}",
+        f"  KZ 998   QSt ausländ. Einkünfte (27,5%)      EUR {s.kz_998:>12,.2f}",
         "",
         "─" * 62,
         f"  Net taxable income                           EUR {s.net_taxable_eur:>12,.2f}",
@@ -196,13 +208,16 @@ def _write_excel(txns: list[NormalizedTransaction],
 
 # ── Excel helpers ─────────────────────────────────────────────────────────────
 
-HEADER_FILL  = "1F3864"   # dark navy
-ACCENT_FILL  = "2E75B6"   # mid blue
-LIGHT_FILL   = "DEEAF1"   # pale blue
-WARN_FILL    = "FFF2CC"   # yellow
-GREEN_FILL   = "E2EFDA"
-RED_FILL     = "FCE4D6"
-WHITE        = "FFFFFF"
+HEADER_FILL   = "1F3864"   # dark navy — main title
+SECTION_FILL  = "FFC000"   # amber — E1kv section headers (1.3.1, 1.3.2 …)
+SUBSECT_FILL  = "FFE090"   # light amber — sub-labels within a section
+ACCENT_FILL   = "2E75B6"   # mid blue — summary headers
+LIGHT_FILL    = "DEEAF1"   # pale blue
+SALDO_FILL    = "D6E4F7"   # light blue-grey — Saldo row
+WARN_FILL     = "FFF2CC"   # yellow
+GREEN_FILL    = "E2EFDA"
+RED_FILL      = "FCE4D6"
+WHITE         = "FFFFFF"
 
 
 def _hfill(color): return PatternFill("solid", fgColor=color)
@@ -216,70 +231,225 @@ def _right():  return Alignment(horizontal="right",  vertical="center")
 
 
 def _fill_summary_sheet(ws, s: TaxSummary) -> None:
-    ws.column_dimensions["A"].width = 8
-    ws.column_dimensions["B"].width = 46
-    ws.column_dimensions["C"].width = 18
+    # Column layout: A=section, B=KZ, C=description, D=Inländisch, E=Ausländisch
+    ws.column_dimensions["A"].width = 7
+    ws.column_dimensions["B"].width = 6
+    ws.column_dimensions["C"].width = 52
+    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["E"].width = 18
 
-    def hdr(row, text, color=HEADER_FILL):
-        ws.merge_cells(f"A{row}:C{row}")
-        c = ws[f"A{row}"]
+    row = [1]  # mutable counter
+
+    def _r():
+        r = row[0]
+        row[0] += 1
+        return r
+
+    def title(text):
+        r = _r()
+        ws.merge_cells(f"A{r}:E{r}")
+        c = ws[f"A{r}"]
         c.value = text
         c.font = _font(bold=True, color=WHITE, size=12)
-        c.fill = _hfill(color)
+        c.fill = _hfill(HEADER_FILL)
         c.alignment = _center()
-        ws.row_dimensions[row].height = 22
+        ws.row_dimensions[r].height = 24
 
-    def kz(row, kennziffer, label, value, fill=None):
-        ws[f"A{row}"] = kennziffer
-        ws[f"A{row}"].font = _font(bold=True)
-        ws[f"A{row}"].alignment = _center()
-        ws[f"B{row}"] = label
-        ws[f"B{row}"].font = _font()
-        ws[f"C{row}"] = float(value)
-        ws[f"C{row}"].number_format = '#,##0.00 "EUR"'
-        ws[f"C{row}"].alignment = _right()
-        if fill:
-            for col in "ABC":
-                ws[f"{col}{row}"].fill = _hfill(fill)
+    def col_headers():
+        r = _r()
+        for col, txt in [("A", ""), ("B", "KZ"), ("C", ""), ("D", "Inländisch EUR"), ("E", "Ausländisch EUR")]:
+            c = ws[f"{col}{r}"]
+            c.value = txt
+            c.font = _font(bold=True, color=WHITE, size=10)
+            c.fill = _hfill(ACCENT_FILL)
+            c.alignment = _center()
+            c.border = _border()
 
-    def blank(row):
-        ws.row_dimensions[row].height = 6
+    def section(code, text):
+        r = _r()
+        ws[f"A{r}"] = code
+        ws[f"A{r}"].font = _font(bold=True, size=10)
+        ws[f"A{r}"].fill = _hfill(SECTION_FILL)
+        ws[f"A{r}"].alignment = _center()
+        ws.merge_cells(f"B{r}:E{r}")
+        c = ws[f"B{r}"]
+        c.value = text
+        c.font = _font(bold=True, size=10)
+        c.fill = _hfill(SECTION_FILL)
+        ws.row_dimensions[r].height = 18
 
-    hdr(1, f"E1kv — Kapitalvermögen  |  {s.person_label}  |  {s.tax_year}")
-    blank(2)
-    hdr(3, "DIVIDENDEN", ACCENT_FILL)
-    kz(4, "862", "Inländische Dividendenerträge",        s.kz_862, LIGHT_FILL)
-    kz(5, "863", "Ausländische Dividendenerträge",       s.kz_863)
-    blank(6)
-    hdr(7, "KURSGEWINNE / KURSVERLUSTE", ACCENT_FILL)
-    kz(8, "981", "Inländische Kursgewinne",              s.kz_981, LIGHT_FILL)
-    kz(9, "994", "Ausländische Kursgewinne",             s.kz_994)
-    kz(10,"891", "Inländische Kursverluste",             s.kz_891, RED_FILL)
-    kz(11,"892", "Ausländische Kursverluste",            s.kz_892, RED_FILL)
-    blank(12)
-    hdr(13,"AUSSCHÜTTUNGEN", ACCENT_FILL)
-    kz(14,"898", "Ausschüttungen (Ausland)",             s.kz_898, LIGHT_FILL)
-    kz(15,"937", "Ausschüttungsgleiche Erträge (Ausl.)", s.kz_937, WARN_FILL)
-    blank(16)
-    hdr(17,"BEREITS BEZAHLTE STEUER", ACCENT_FILL)
-    kz(18,"899", "KESt für inländ. WP im Ausland",      s.kz_899, LIGHT_FILL)
-    kz(19,"998", "Quellensteuer ausländ. Dividenden",   s.kz_998, GREEN_FILL)
-    blank(20)
-    hdr(21,"BERECHNUNG", ACCENT_FILL)
-    kz(22,"",    "Steuerpflichtiger Gesamtbetrag",       s.net_taxable_eur, LIGHT_FILL)
-    kz(23,"",    "KESt (27,5%)",                         s.kest_due_eur)
-    kz(24,"",    "Anrechenbare Quellensteuer",           s.wht_creditable_eur, GREEN_FILL)
-    kz(25,"",    "Verbleibende KESt",                    s.kest_remaining_eur, WARN_FILL)
+    def kz_row(kz_in, kz_out, label, val_in, val_out, fill=None, warn=False):
+        r = _r()
+        ws[f"A{r}"].fill = _hfill(fill or WHITE)
+        ws[f"B{r}"] = f"{kz_in}/{kz_out}" if kz_in and kz_out else (kz_in or kz_out or "")
+        ws[f"B{r}"].font = _font(bold=True, size=10)
+        ws[f"B{r}"].alignment = _center()
+        ws[f"B{r}"].fill = _hfill(fill or WHITE)
+        ws[f"C{r}"] = label
+        ws[f"C{r}"].font = _font(size=10, color="C00000" if warn else "000000")
+        ws[f"C{r}"].fill = _hfill(WARN_FILL if warn else (fill or WHITE))
+        for col, val in [("D", val_in), ("E", val_out)]:
+            c = ws[f"{col}{r}"]
+            if val is not None:
+                c.value = float(val)
+                c.number_format = '#,##0.00'
+            c.alignment = _right()
+            c.fill = _hfill(WARN_FILL if warn else (fill or WHITE))
+            if val is not None and float(val) < 0:
+                c.font = Font(color="C00000", size=10)
+        for col in "ABCDE":
+            ws[f"{col}{r}"].border = _border()
 
-    # Borders
-    for row in range(3, 26):
+    def saldo_row(val_in, val_out):
+        r = _r()
+        ws.merge_cells(f"A{r}:C{r}")
+        c = ws[f"A{r}"]
+        c.value = "Saldo aus Punkt 1.3"
+        c.font = _font(bold=True, size=10)
+        c.fill = _hfill(SALDO_FILL)
+        c.alignment = _center()
+        for col, val in [("D", val_in), ("E", val_out)]:
+            cell = ws[f"{col}{r}"]
+            cell.value = float(val)
+            cell.number_format = '#,##0.00'
+            cell.alignment = _right()
+            cell.font = _font(bold=True, size=10,
+                              color="C00000" if float(val) < 0 else "000000")
+            cell.fill = _hfill(SALDO_FILL)
+            cell.border = _border()
         for col in "ABC":
-            ws[f"{col}{row}"].border = _border()
+            ws[f"{col}{r}"].border = _border()
+        ws.row_dimensions[r].height = 18
 
-    # Warning about KZ 937
-    ws["A27"] = "⚠  KZ 937 nicht automatisch berechnet — OeKB-Daten erforderlich"
-    ws["A27"].font = Font(color="C00000", italic=True, size=10)
-    ws.merge_cells("A27:C27")
+    def summary_row(label, val_in, val_out, fill=None):
+        r = _r()
+        ws.merge_cells(f"A{r}:C{r}")
+        c = ws[f"A{r}"]
+        c.value = label
+        c.font = _font(bold=True, size=10)
+        c.fill = _hfill(fill or LIGHT_FILL)
+        c.alignment = _center()
+        for col, val in [("D", val_in), ("E", val_out)]:
+            cell = ws[f"{col}{r}"]
+            if val is not None:
+                cell.value = float(val)
+                cell.number_format = '#,##0.00'
+            cell.alignment = _right()
+            cell.font = _font(bold=True, size=10)
+            cell.fill = _hfill(fill or LIGHT_FILL)
+            cell.border = _border()
+        for col in "ABC":
+            ws[f"{col}{r}"].border = _border()
+        ws.row_dimensions[r].height = 18
+
+    def blank():
+        r = _r()
+        ws.row_dimensions[r].height = 5
+
+    # ── Title + column headers ────────────────────────────────────────────────
+    title(f"E1kv — Kapitalvermögen  |  {s.person_label}  |  {s.tax_year}")
+    col_headers()
+
+    # ── 1.3.1 Dividenden + Zinsen ─────────────────────────────────────────────
+    section("1.3.1", "Einkünfte aus der Überlassung von Kapital "
+            "(§ 27 Abs. 2 — Dividenden, Zinsen aus Wertpapieren, 27,5%)")
+    kz_row("862", "863", "Dividendenerträge + Zinsen", s.kz_862, s.kz_863)
+    blank()
+
+    # ── 1.3.2 Kursgewinne ─────────────────────────────────────────────────────
+    section("1.3.2", "Einkünfte aus realisierten Wertsteigerungen von Kapitalvermögen (§ 27 Abs. 3)")
+    kz_row("981", "994", "Überschüsse — besonderer Steuersatz 27,5%",
+           s.kz_981, s.kz_994, fill=GREEN_FILL if (s.kz_981 + s.kz_994) > 0 else None)
+    kz_row("864", "865", "Überschüsse — besonderer Steuersatz 25% (Wertpapiere vor 2011)",
+           s.kz_864, s.kz_865)
+    kz_row("891", "892", "Verluste",
+           -s.kz_891 if s.kz_891 else None, -s.kz_892 if s.kz_892 else None,
+           fill=RED_FILL if (s.kz_891 + s.kz_892) > 0 else None)
+    blank()
+
+    # ── 1.3.3 Derivate ────────────────────────────────────────────────────────
+    section("1.3.3", "Einkünfte aus verbrieften Derivaten (§ 27 Abs. 4)")
+    kz_row("982", "993", "Überschüsse — 27,5%", s.kz_982, s.kz_993)
+    kz_row("893", "894", "Überschüsse — 25%",   s.kz_893, s.kz_894)
+    kz_row("895", "896", "Verluste",
+           -s.kz_895 if s.kz_895 else None, -s.kz_896 if s.kz_896 else None,
+           fill=RED_FILL if (s.kz_895 + s.kz_896) > 0 else None)
+    blank()
+
+    # ── 1.3.4 Investmentfonds ─────────────────────────────────────────────────
+    section("1.3.4", "Einkünfte aus Investmentfonds und Immobilieninvestmentfonds (§ 27 Abs. 3+4 InvFG)")
+    kz_row("897", "898", "Ausschüttungen — 27,5%", s.kz_897, s.kz_898)
+    kz_row("936", "937", "Ausschüttungsgleiche Erträge — 27,5%  ⚠ OeKB-Daten erforderlich",
+           s.kz_936, s.kz_937, warn=(s.kz_937 == 0))
+    blank()
+
+    # ── 1.3.5 Kryptowährungen ─────────────────────────────────────────────────
+    section("1.3.5", "Einkünfte aus Kryptowährungen (§ 27b)")
+    kz_row("171",  "",    "Laufende Einkünfte (Mining, Staking)", s.kz_171, None)
+    kz_row("173",  "",    "Überschüsse aus Wertsteigerungen",     s.kz_173, None)
+    kz_row("175",  "",    "Verluste",
+           -s.kz_175 if s.kz_175 else None, None,
+           fill=RED_FILL if s.kz_175 > 0 else None)
+    blank()
+
+    # ── Saldo 1.3 ─────────────────────────────────────────────────────────────
+    saldo_row(s.saldo_inland, s.saldo_ausland)
+    blank()
+
+    # ── 1.4 KESt bereits bezahlt ──────────────────────────────────────────────
+    section("1.4", "Kapitalertragssteuer, soweit sie auf die inländischen Kapitaleinküfte entfällt")
+    kz_row("899", "", "KESt für inländ. WP, die im Ausland gehalten werden",
+           s.kz_899, None, fill=LIGHT_FILL)
+    blank()
+
+    # ── 1.5 Abgeltungssteuer ──────────────────────────────────────────────────
+    section("1.5", "Abgeltungssteuer nach den Steuerabkommen mit Liechtenstein")
+    kz_row("942", "", "Abgeltungssteuer Liechtenstein", s.kz_942, None)
+    blank()
+
+    # ── 1.6 Anrechenbare QSt 27.5% ───────────────────────────────────────────
+    section("1.6", "Anzurechnende ausländ. (Quellen)Steuer auf Einkünfte — Steuersatz 27,5%")
+    kz_row("984", "998", "Anzurechnende Quellensteuer",
+           s.kz_984, s.kz_998, fill=GREEN_FILL if s.kz_998 > 0 else None)
+    blank()
+
+    # ── 1.7 Anrechenbare QSt 25% ─────────────────────────────────────────────
+    section("1.7", "Anzurechnende ausländ. (Quellen)Steuer auf Einkünfte — Steuersatz 25%")
+    kz_row("900", "901", "Anzurechnende Quellensteuer 25%", s.kz_900, s.kz_901)
+    blank()
+
+    # ── Calculation summary ───────────────────────────────────────────────────
+    r = _r()
+    ws.merge_cells(f"A{r}:E{r}")
+    c = ws[f"A{r}"]
+    c.value = "BERECHNUNG"
+    c.font = _font(bold=True, color=WHITE, size=11)
+    c.fill = _hfill(ACCENT_FILL)
+    c.alignment = _center()
+    ws.row_dimensions[r].height = 20
+
+    net = s.saldo_inland + s.saldo_ausland
+    summary_row("Steuerpflichtiger Gesamtbetrag (Saldo 1.3 gesamt)", net, None, LIGHT_FILL)
+    summary_row("KESt (27,5%)", s.kest_due_eur, None)
+    summary_row("Anzurechnende Quellensteuer (KZ 998)", s.wht_creditable_eur, None, GREEN_FILL)
+    summary_row("Verbleibende KESt zu bezahlen", s.kest_remaining_eur, None, WARN_FILL)
+    blank()
+
+    # ── Notes ─────────────────────────────────────────────────────────────────
+    notes_row = row[0]
+    notes = [
+        "⚠  KZ 936/937 (Ausschüttungsgleiche Erträge) werden NICHT automatisch berechnet — OeKB-Daten erforderlich.",
+        "⚠  Nichtmeldefonds (REITs, BDCs): Sonderbehandlung — wird in einem eigenen Abschnitt ausgewiesen (noch nicht implementiert).",
+        "    Verluste (KZ 891/892) werden hier als negative Werte dargestellt; in FinanzOnline als Absolutbeträge eintragen.",
+        "    Diese Ausgabe ist informativ. Bitte mit Steuerberater:in abstimmen.",
+    ]
+    for i, note in enumerate(notes):
+        r = row[0] + i
+        ws.merge_cells(f"A{r}:E{r}")
+        c = ws[f"A{r}"]
+        c.value = note
+        c.font = Font(color="666666", italic=True, size=9)
+        ws.row_dimensions[r].height = 14
 
 
 def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
