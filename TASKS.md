@@ -7,7 +7,14 @@ Move completed items to ## Done with the date.
 
 ## 🔴 BLOCKING — Matthias's Tax Filing
 
-- [ ] **Add Matthias's IBKR account ID** to `config.yaml` account_map
+- [ ] **Add Matthias's IBKR account ID** to `config.yaml` account_map ← already in config.local.yaml, needs data files
+- [ ] **Extended E1kv output** — full 1.3.1–1.7 section structure + Saldo 1.3 in Excel + TXT
+      KZ currently missing: 864/865 (25% gains), 982/993/893–896 (derivatives),
+      171/173/175 (crypto), 942 (Lichtenstein), 984/900/901
+- [ ] **Nichtmeldefonds support** — config-driven ISIN list (REIT/BDC type),
+      punitive tax: 27.5% on 90% of annual price gain + min 27.5% on 10% of year-end value
+      Matthias has: O, EPR, OHI, WPC, ARCC
+- [ ] **Get Matthias's broker export files** + run end-to-end test
 
 ---
 
@@ -54,12 +61,14 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       per-trade value, warn if difference > €1.00
 - [ ] **Negative position check** — warn if net holding goes negative (sell > bought)
 - [ ] **FX rate sanity check** — warn if ECB rate deviates >20% from prior day
-- [ ] **Automated test suite** (`tests/`) — fixture CSVs covering:
+- [ ] **Pytest skeleton** (`tests/`) — start this session, grow with each feature.
+      Fixture CSVs to cover:
       - Dividend + WHT matching
       - Multi-year FIFO (buy 2024, sell 2026)
       - Domestic vs foreign classification
       - Duplicate row deduplication
       - WHT warning threshold
+      Rule: every new feature ships with at least one test.
 
 ---
 
@@ -91,13 +100,17 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 1. Paste `CLAUDE.md` + `TASKS.md`
 2. Confirm today's focus task
 3. `git pull` if working across machines
+4. Create a feature branch if starting a non-trivial feature (`git checkout -b feature/name`)
 
 ## 📋 End-of-Session Checklist
 
-1. Update `CLAUDE.md` if any behaviour changed
-2. Update `TASKS.md` (completed → Done, add newly discovered)
-3. Regenerate `docs/` if user-facing behaviour changed
-4. Commit + push
+1. **Update `CLAUDE.md`** — always, every session (keep it concise; remove stale info)
+2. **Update `TASKS.md`** — completed → Done with date, add newly discovered tasks
+3. **Run tests** — `pytest tests/` (once test suite exists; failing tests block commit)
+4. **Commit meaningful checkpoints** — don't wait until end of session; commit after each feature
+5. **Merge feature branch** → main when feature is complete and tested
+6. **Push** to remote
+7. Regenerate `docs/` only if user-facing CLI behaviour changed
 
 ---
 
