@@ -26,6 +26,7 @@ except ImportError:
 
 from core.models import NormalizedTransaction, TaxSummary, TransactionType
 from output.freedom import write_freedom_html
+from output.wht_reclaim import write_wht_reclaim_report
 
 log = logging.getLogger(__name__)
 ZERO = Decimal("0")
@@ -63,6 +64,13 @@ def write_all(
         p = output_dir / f"{slug}_freedom.html"
         write_freedom_html(transactions, summary, p, config)
         print(f"  [out]    {p}")
+
+    if opts.get("wht_reclaim", True) and config.get("at_residency_start_year"):
+        p = output_dir / f"{slug}_wht_reclaim.txt"
+        write_wht_reclaim_report(transactions, config, summary.tax_year,
+                                  summary.person_label, p)
+        if p.exists() and p.stat().st_size > 0:
+            print(f"  [out]    {p}")
 
 
 # ── CSV ───────────────────────────────────────────────────────────────────────
