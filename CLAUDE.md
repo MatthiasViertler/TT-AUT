@@ -100,9 +100,11 @@ KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distribution
 1. **Run Matthias end-to-end** — add OPT filter + P911 Return of Capital fix first, then
    `python main.py --input data/matthias_*.csv --year 2025`; account ID U7251654 in config.local.yaml
 2. **WHT reclaim assistant** — per-country/year summary + per-dividend BZSt line items
-   (🔴 URGENT: 2022 DE deadline Dec 31, 2026 — approx €192 at risk; total reclaim ≈€1,568)
-   BZSt filing docs already prepared (docs/BZSt_Erstattungsantrag_Matthias.docx etc.)
-   Ansässigkeitsbescheinigung (ZS-AD) request should be sent ASAP — 2–4 week lead time
+   ⚠️  Matthias was German tax resident 2020–2023, Austrian from 2024. WHT reclaim
+   window = **2024 and 2025 only** (earlier BZSt docs showing 2022–2025 are WRONG).
+   BZSt filing docs need correction: docs/BZSt_Erstattungsantrag_Matthias.docx
+   Ansässigkeitsbescheinigung (ZS-AD) being filed at Finanzamt 2026-05-03.
+   2026 WHT: file in Jan 2027 for complete year (deadline 2030, no urgency).
 3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
 4. Pytest test suite skeleton (tests/ with fixture CSVs)
 5. Excel "Freedom" tab (static snapshot)
