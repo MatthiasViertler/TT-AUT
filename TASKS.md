@@ -5,26 +5,25 @@ Move completed items to ## Done with the date.
 
 ---
 
-## 🔴 BLOCKING — Matthias's Tax Filing
+## 🔴 URGENT — France 2024 Reclaim Deadline
 
-Do these in order before the first end-to-end run:
+- [ ] **File France 2024 WHT reclaim** — deadline 2026-12-31 (241 days). Excess: EUR 12.06.
+      Cerfa n°12816 (Formulaire 5000 + 5001). Verify applicable WHT rate first.
+      Stocks: MC (FR0000121014, EUR 7.00 excess), SAF (FR0000073272, EUR 5.06 excess).
 
-- [ ] **Add OPT filter to `brokers/ib_csv.py`** — silently drop rows where AssetClass == 'OPT';
-      log count at INFO level. Derivatives KZ deferred intentionally.
-- [ ] **Handle P911 Return of Capital** — detect `Type == "Return of Capital"` in CTRN section;
-      treat as cost basis adjustment (skip taxing as dividend). Log warning if encountered.
-- [ ] **Run Matthias end-to-end** — `python main.py --input data/matthias_*.csv --year 2025`
-      Account ID U7251654 already in config.local.yaml. Exports: 2021–2025 (no 2020).
-      Expected special cases: BAYN reversal (2021), GAZ (Russian ADR, worthless), P911 RoC (2025).
-- [ ] **WHT reclaim assistant output** — per-country/year dividend summary + per-dividend
-      line items formatted for BZSt attachment (and equivalent for other countries).
-      ⚠️  RESIDENCY CORRECTION: Matthias was German tax resident 2020–2023, Austrian from 2024.
-      Claimable years = **2024 and 2025 only**. Earlier docs showing 2022–2025 are WRONG.
-      DE (BZSt): file for 2024 + 2025. Deadline 2028/2029 — no urgency.
-      DK (SKAT Form 06.003): Novo Nordisk confirmed → 12% excess (27% − 15% DBA). 3yr window (2024 → deadline 31.12.2027).
-      FR: skip — French WHT ~12.8% already below 15% DBA cap.
-      2026: file in Jan 2027 for complete year (deadline 2030).
-      ZS-AD (AT residency cert): being filed at Finanzamt 2026-05-03.
+---
+
+## ✅ Matthias's Tax Filing — DONE (2026-05-04)
+
+- [x] **Add OPT filter to `brokers/ib_csv.py`** — silently drop AssetClass == 'OPT' *(2026-05-04)*
+- [x] **Handle P911 Return of Capital** — "return of capital" in description → skip group *(2026-05-04)*
+      P911 2024: EUR 2.31/sh (€115.50 total), P911 2025: EUR 1.49/sh (€74.66 total) — both skipped ✓
+- [x] **Run Matthias end-to-end** — `python main.py --input data/matthias_*.csv --year 2025` ✓ *(2026-05-04)*
+      Special cases resolved: BAYN reversal ✓, 1COV/1CO tender (symbol_aliases) ✓, VNA 'd' normalization ✓
+      SOLV (Solventum spin-off): no buy record → cost basis 0, minor impact. Needs manual_cost_basis feature.
+- [x] **WHT reclaim assistant output** (`output/wht_reclaim.py`) *(2026-05-04)*
+      Total reclaimable EUR 852.14 (DE: 775.00, DK: 37.91, FR: 39.24)
+      ⚠️ France 2024 deadline 2026-12-31 — moved to 🔴 above.
 
 ---
 
@@ -46,29 +45,26 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 - [x] **Wire freedom dashboard into pipeline** — generate `output/{person}_{year}_freedom.html`
       auto-populated with real dividend data from that run. Sliders stay interactive. *(2026-05-01)*
+- [x] **WHT reclaim assistant** — `output/wht_reclaim.py`, wired into writer.py *(2026-05-04)*
+      Per-country/year report with treaty rates, deadlines, per-stock breakdown.
 - [ ] **Excel "Freedom" tab** — 5th tab in dashboard.xlsx: year-over-year dividend bars,
       freedom progress bar, projection chart (static at default assumptions)
-- [ ] **WHT reclaim assistant** 🔴 HIGH PRIORITY — Matthias has 4 years of DE excess WHT
-      to reclaim (BZSt 4yr window: 2022–2025 all still valid). Data already computed.
-      Output: per-country per-year summary + per-dividend line items ready for BZSt form.
-      Also needed: Ansässigkeitsbescheinigung (Austrian Finanzamt) + broker tax certs (manual).
-      DE: BZSt / "Antrag auf Erstattung der deutschen Kapitalertragsteuer" (4yr) → bzst.de
-      DK: SKAT / Form 06.003 (3yr) → skat.dk
-      NL: Belastingdienst (3yr), US: generally N/A if DBA 15% already applied
 
 ---
 
 ## 🟡 Tool: Correctness & Robustness
 
 - [ ] **Manual cost basis override** — config.yaml entry for positions transferred
-      from another broker (no purchase record in IB exports)
+      from another broker (no purchase record in IB exports). Needed for:
+      - SOLV (Solventum, 3M spin-off 2024): received shares via corporate action, no IB BUY record
+      - Possibly GAZ (Russian ADR) if/when disposal is ever recognized
       ```yaml
       manual_cost_basis:
-        - symbol: EXAMPLE
-          isin: XX0000000000
-          purchase_date: 2022-03-15
-          quantity: 100
-          cost_eur: 5000.00
+        - symbol: SOLV
+          isin: US83444N1028
+          purchase_date: 2024-07-02   # spin-off date
+          quantity: 14                 # adjust to actual
+          cost_eur: 0.00              # or FMV at spin-off
       ```
 - [ ] **Cross-check vs IB FifoPnlRealized** — compare our FIFO P&L against IB's
       per-trade value, warn if difference > €1.00
@@ -149,6 +145,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## ✅ Done
 
+- [x] Matthias end-to-end run — TT-AUT BOS/EOS parser, OPT filter, P911 RoC, DE 'd' normalization *(2026-05-04)*
+      symbol_aliases for tender offers (1COV/1CO Covestro); VNA FIFO fix; all years 2021–2026
+- [x] WHT reclaim assistant — `output/wht_reclaim.py`; EUR 852.14 total reclaimable *(2026-05-04)*
 - [x] Extended E1kv output — full 1.3.1–1.7 structure + Saldo 1.3 in Excel + TXT *(2026-05-02)*
 - [x] Nichtmeldefonds support (§ 186 InvFG) — pauschal AE, auto price-fetch via yfinance *(2026-05-02)*
       Config: symbol + type + currency only; prices cached in data/price_cache/
