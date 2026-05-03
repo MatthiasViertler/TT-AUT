@@ -53,6 +53,11 @@ freedom_dashboard:
 #     type: REIT              # REIT | BDC | FUND
 #     currency: USD           # native currency of the fund
 
+# Symbol aliases for corporate actions (tender offers, mergers) where IB assigns a new
+# temporary ticker/ISIN for the sell event. Maps sell-symbol → buy-symbol for FIFO matching.
+# symbol_aliases:
+#   NEWTICKER: OLDTICKER    # e.g. tender offer: bought as OLDTICKER, sold as NEWTICKER
+
 # Account ID → person name mapping (used to auto-detect --person from broker exports)
 # Find your account ID in the BOF row of any IB Flex Query export
 # For other brokers it will be parsed similarly once those parsers are added
