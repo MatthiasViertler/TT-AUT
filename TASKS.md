@@ -21,7 +21,7 @@ Do these in order before the first end-to-end run:
       ⚠️  RESIDENCY CORRECTION: Matthias was German tax resident 2020–2023, Austrian from 2024.
       Claimable years = **2024 and 2025 only**. Earlier docs showing 2022–2025 are WRONG.
       DE (BZSt): file for 2024 + 2025. Deadline 2028/2029 — no urgency.
-      DK (SKAT Form 06.003): check if Matthias holds Danish stocks → 12% excess (27% - 15% DBA).
+      DK (SKAT Form 06.003): Novo Nordisk confirmed → 12% excess (27% − 15% DBA). 3yr window (2024 → deadline 31.12.2027).
       FR: skip — French WHT ~12.8% already below 15% DBA cap.
       2026: file in Jan 2027 for complete year (deadline 2030).
       ZS-AD (AT residency cert): being filed at Finanzamt 2026-05-03.
