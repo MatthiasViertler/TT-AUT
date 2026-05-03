@@ -34,6 +34,9 @@ docs/                 Word documentation
 - KZ 937 NOT auto-calculated (needs OeKB data)
 - `freedom_dashboard` config section controls slider defaults in HTML output;
   override portfolio_eur + per-person assumptions in config.local.yaml
+- **OPT rows (AssetClass=OPT) — SKIPPED intentionally.** Filtered out during parsing.
+  Derivatives KZ (982/993/893–896) deferred. OPT data present in Matthias's exports
+  from 2023 onward (EUREX calls/puts on IFX, ALV, VNA, VER, BAYN).
 
 ## IB Flex Query format quirks
 - BOF row col[1] = account ID
@@ -45,8 +48,15 @@ docs/                 Word documentation
 
 ## Accounts
 - Jessie's IBKR account → tested 2024/2025/2026 ✓
-- Matthias's IBKR account ID → in config.local.yaml (U7251654), not yet tested end-to-end
-- Matthias also has REITs/BDCs (Nichtmeldefonds): O, EPR, OHI, WPC, ARCC
+- Matthias's IBKR account ID: U7251654 (in config.local.yaml) — end-to-end run NOT yet done
+- Matthias's exports available: 2021, 2022, 2023, 2024, 2025, 2026 (partial)
+- **2020 intentionally excluded** — IBKR UK/IE split year, nothing tax-relevant. FIFO starts 2021.
+- Matthias has REITs/BDCs (Nichtmeldefonds): O, EPR, OHI, WPC, ARCC
+- Matthias's symbols (STK): ALV, AIR, BAS, BAYN, BMW, FRE, GAZ, HEN3, HOT, IFX, KHC,
+  LIN, LMT, IBKR, MC, MMM, MUV2, NOV, OMV, P911, RIO1, RDSB, SAF, SHL, SIE, UNVB,
+  VER, VOW3, AVGO, ABEC
+- Special cases to handle: P911 Return of Capital (cost basis adj, not dividend),
+  GAZ (Russian ADR — sanctions, likely worthless), BAYN reversal/re-booking in 2021
 
 ## Data files (not committed — see .gitignore)
 ```
@@ -87,8 +97,12 @@ KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distribution
 - Config: just add symbol + type + currency under nichtmeldefonds: in config.yaml
 
 ## Next up (priority order)
-1. WHT reclaim assistant — per-country/year summary + BZSt line items (🔴 URGENT: 2022 DE deadline Dec 31, 2026)
-2. Add Matthias's IBKR data files + run end-to-end (needs actual Flex Query exports)
+1. **Run Matthias end-to-end** — add OPT filter + P911 Return of Capital fix first, then
+   `python main.py --input data/matthias_*.csv --year 2025`; account ID U7251654 in config.local.yaml
+2. **WHT reclaim assistant** — per-country/year summary + per-dividend BZSt line items
+   (🔴 URGENT: 2022 DE deadline Dec 31, 2026 — approx €192 at risk; total reclaim ≈€1,568)
+   BZSt filing docs already prepared (docs/BZSt_Erstattungsantrag_Matthias.docx etc.)
+   Ansässigkeitsbescheinigung (ZS-AD) request should be sent ASAP — 2–4 week lead time
 3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
 4. Pytest test suite skeleton (tests/ with fixture CSVs)
 5. Excel "Freedom" tab (static snapshot)
