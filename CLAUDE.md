@@ -39,6 +39,17 @@ docs/                 Word documentation
   from 2023 onward (EUREX calls/puts on IFX, ALV, VNA, VER, BAYN).
 
 ## IB Flex Query format quirks
+
+**TT-AUT export (BOS/EOS format)** — Matthias's exports (2021–2026):
+- BOF col[1] = account ID; BOF col[5] = year-end date (fallback for CTRN rows with no DateTime)
+- BOS/EOS markers wrap each section; row after BOS = plain header, rows after = plain data
+- CTRN rows have NO Date/Time → grouped by (symbol, per_share_str, currency) and netted
+- WHT amounts are negative in source; `wht_held = -sum(whts)` to get positive withheld amount
+- Return of Capital detected via description substring "return of capital" → entire group skipped
+- PER_SHARE_RE extracts grouping key: `r'([A-Z]{3}\s+\d+(?:\.\d+)?\s+PER\s+SHARE)'`
+- BAYN 2021 reversal/re-booking: netting correctly resolves [70, −70, 70.01] → 70.01
+
+**HEADER/DATA format** — Jessie's exports:
 - BOF row col[1] = account ID
 - Section codes: TRNT=Trades, CTRN=Cash Transactions
 - Field names: CurrencyPrimary, DateTime, TradePrice, IBCommission, AssetClass
@@ -48,27 +59,42 @@ docs/                 Word documentation
 
 ## Accounts
 - Jessie's IBKR account → tested 2024/2025/2026 ✓
-- Matthias's IBKR account ID: U22222222 (in config.local.yaml) — end-to-end run NOT yet done
-- Matthias's exports available: 2021, 2022, 2023, 2024, 2025, 2026 (partial)
+- Matthias's IBKR account ID: U22222222 (in config.local.yaml) — **end-to-end run done ✓ (2026-05-04)**
+- Matthias's exports available: 2021, 2022, 2023, 2024, 2025, 2026 (partial) → in `data/matthias_*.csv`
 - **2020 intentionally excluded** — IBKR UK/IE split year, nothing tax-relevant. FIFO starts 2021.
 - Matthias has REITs/BDCs (Nichtmeldefonds): O, EPR, OHI, WPC, ARCC
 - Matthias's symbols (STK): ALV, AIR, BAS, BAYN, BMW, FRE, GAZ, HEN3, HOT, IFX, KHC,
   LIN, LMT, IBKR, MC, MMM, MUV2, NOV, OMV, P911, RIO1, RDSB, SAF, SHL, SIE, UNVB,
-  VER, VOW3, AVGO, ABEC
-- Special cases to handle: P911 Return of Capital (cost basis adj, not dividend),
-  GAZ (Russian ADR — sanctions, likely worthless), BAYN reversal/re-booking in 2021
+  VER, VOW3, AVGO, ABEC, SOLV (Solventum — 3M spin-off, no buy record → cost basis 0)
+- Special cases handled: P911 Return of Capital (2024: EUR 2.31/sh, 2025: EUR 1.49/sh — both skipped ✓),
+  BAYN reversal/re-booking 2021 (netting resolves correctly ✓), VNA 'd' suffix normalization ✓,
+  1COV/1CO Covestro tender offer (symbol_aliases) ✓
+- **DE symbol normalization**: IB appends 'd' to German-exchange tickers (ALVd → ALV). Stripped by
+  `_normalize_de_symbol()` when `isin.startswith("DE") and symbol.endswith("d")`.
+- **symbol_aliases** (config.local.yaml): maps tender/merger sell-symbol → normalized buy-symbol.
+  Currently: `1CO: 1COV` (Covestro tender 2025). Used by tax engine for FIFO matching.
+- GAZ (Russian ADR) — held, likely worthless. No sale event; no tax impact yet.
 
 ## Data files (not committed — see .gitignore)
 ```
 data/2024-AUT-TAX-Divi-Trades-Report.csv   — Jessie IBKR Flex Query
 data/2025-AUT-TAX-Divi-Trades-Report.csv
 data/2026-AUT-TAX-Divi-Trades-Report.csv
+data/matthias_2021.csv                      — Matthias IBKR TT-AUT exports
+data/matthias_2022.csv
+data/matthias_2023.csv
+data/matthias_2024.csv
+data/matthias_2025.csv
+data/matthias_2026.csv
 ```
 
 ## Run
 ```bash
 source .venv/bin/activate  # VS Code terminal: auto-activated
+# Jessie:
 python main.py --input data/2024-AUT-TAX-Divi-Trades-Report.csv data/2025-AUT-TAX-Divi-Trades-Report.csv --year 2025
+# Matthias:
+python main.py --input data/matthias_2021.csv data/matthias_2022.csv data/matthias_2023.csv data/matthias_2024.csv data/matthias_2025.csv data/matthias_2026.csv --year 2025
 ```
 
 ## Output files (per run)
@@ -76,6 +102,7 @@ python main.py --input data/2024-AUT-TAX-Divi-Trades-Report.csv data/2025-AUT-TA
 - `output/{person}_{year}_transactions.csv`  — full transaction log
 - `output/{person}_{year}_dashboard.xlsx`    — 4-tab Excel workbook
 - `output/{person}_{year}_freedom.html`      — interactive financial independence dashboard
+- `output/{person}_{year}_wht_reclaim.txt`   — WHT reclaim report (only if at_residency_start_year set)
 
 ## Freedom dashboard (HTML)
 Wired into pipeline. Pre-populated with real dividend data from the run.
@@ -97,16 +124,17 @@ KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distribution
 - Config: just add symbol + type + currency under nichtmeldefonds: in config.yaml
 
 ## Next up (priority order)
-1. **Run Matthias end-to-end** — add OPT filter + P911 Return of Capital fix first, then
-   `python main.py --input data/matthias_*.csv --year 2025`; account ID U22222222 in config.local.yaml
-2. **WHT reclaim assistant** — per-country/year summary + per-dividend BZSt line items
-   ⚠️  Matthias was German tax resident 2020–2023, Austrian from 2024. WHT reclaim
-   window = **2024 and 2025 only** (earlier BZSt docs showing 2022–2025 are WRONG).
-   BZSt filing docs need correction: docs/BZSt_Erstattungsantrag_Matthias.docx
-   Ansässigkeitsbescheinigung (ZS-AD) being filed at Finanzamt 2026-05-03.
-   2026 WHT: file in Jan 2027 for complete year (deadline 2030, no urgency).
-3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
-4. Pytest test suite skeleton (tests/ with fixture CSVs)
-5. Excel "Freedom" tab (static snapshot)
-6. Manual cost basis override (config.yaml) for transferred positions
-7. --regelbesteuerung flag
+1. **Manual cost basis override** — needed for SOLV (Solventum 3M spin-off, no buy record in IB).
+   Config entry: `manual_cost_basis: [{symbol, isin, purchase_date, quantity, cost_eur}]`.
+2. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
+3. Pytest test suite skeleton (tests/ with fixture CSVs)
+4. Excel "Freedom" tab (5th tab in dashboard.xlsx, static snapshot)
+5. --regelbesteuerung flag
+
+## WHT reclaim status (Matthias, as of 2026-05-04)
+- Implemented: `output/wht_reclaim.py` — generates per-country/year reclaim report
+- 2024 residency start: only 2024+ dividends included (German resident 2020–2023)
+- **Total reclaimable: EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
+- ⚠️  **France 2024 deadline: 2026-12-31** (241 days) — verify WHT rate before filing
+- Ansässigkeitsbescheinigung (ZS-AD): filed at Finanzamt 2026-05-03 (confirm receipt)
+- 2026 partial data included in report; file in Jan 2027 (deadline 2030, no urgency)
