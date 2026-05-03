@@ -16,11 +16,15 @@ Do these in order before the first end-to-end run:
 - [ ] **Run Matthias end-to-end** — `python main.py --input data/matthias_*.csv --year 2025`
       Account ID U22222222 already in config.local.yaml. Exports: 2021–2025 (no 2020).
       Expected special cases: BAYN reversal (2021), GAZ (Russian ADR, worthless), P911 RoC (2025).
-- [ ] **WHT reclaim assistant output** 🔴 URGENT (2022 DE deadline: 31.12.2026 ≈ €192)
-      Per-country/year dividend summary + per-dividend line items formatted for BZSt attachment.
-      BZSt filing docs already prepared: `docs/BZSt_Erstattungsantrag_Matthias.docx`
-      Total reclaim potential: ≈€1,568 across 2022–2025 (DE only; other countries TBD)
-      Ansässigkeitsbescheinigung (ZS-AD) must be requested from Wohnsitzfinanzamt NOW — 2–4 week lead time!
+- [ ] **WHT reclaim assistant output** — per-country/year dividend summary + per-dividend
+      line items formatted for BZSt attachment (and equivalent for other countries).
+      ⚠️  RESIDENCY CORRECTION: Matthias was German tax resident 2020–2023, Austrian from 2024.
+      Claimable years = **2024 and 2025 only**. Earlier docs showing 2022–2025 are WRONG.
+      DE (BZSt): file for 2024 + 2025. Deadline 2028/2029 — no urgency.
+      DK (SKAT Form 06.003): check if Matthias holds Danish stocks → 12% excess (27% - 15% DBA).
+      FR: skip — French WHT ~12.8% already below 15% DBA cap.
+      2026: file in Jan 2027 for complete year (deadline 2030).
+      ZS-AD (AT residency cert): being filed at Finanzamt 2026-05-03.
 
 ---
 
