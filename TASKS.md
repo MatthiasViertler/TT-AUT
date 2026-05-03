@@ -7,14 +7,20 @@ Move completed items to ## Done with the date.
 
 ## 🔴 BLOCKING — Matthias's Tax Filing
 
-- [ ] **Add Matthias's IBKR account ID** to `config.yaml` account_map ← already in config.local.yaml, needs data files
-- [ ] **Extended E1kv output** — full 1.3.1–1.7 section structure + Saldo 1.3 in Excel + TXT
-      KZ currently missing: 864/865 (25% gains), 982/993/893–896 (derivatives),
-      171/173/175 (crypto), 942 (Lichtenstein), 984/900/901
-- [ ] **Nichtmeldefonds support** — config-driven ISIN list (REIT/BDC type),
-      punitive tax: 27.5% on 90% of annual price gain + min 27.5% on 10% of year-end value
-      Matthias has: O, EPR, OHI, WPC, ARCC
-- [ ] **Get Matthias's broker export files** + run end-to-end test
+Do these in order before the first end-to-end run:
+
+- [ ] **Add OPT filter to `brokers/ib_csv.py`** — silently drop rows where AssetClass == 'OPT';
+      log count at INFO level. Derivatives KZ deferred intentionally.
+- [ ] **Handle P911 Return of Capital** — detect `Type == "Return of Capital"` in CTRN section;
+      treat as cost basis adjustment (skip taxing as dividend). Log warning if encountered.
+- [ ] **Run Matthias end-to-end** — `python main.py --input data/matthias_*.csv --year 2025`
+      Account ID U22222222 already in config.local.yaml. Exports: 2021–2025 (no 2020).
+      Expected special cases: BAYN reversal (2021), GAZ (Russian ADR, worthless), P911 RoC (2025).
+- [ ] **WHT reclaim assistant output** 🔴 URGENT (2022 DE deadline: 31.12.2026 ≈ €192)
+      Per-country/year dividend summary + per-dividend line items formatted for BZSt attachment.
+      BZSt filing docs already prepared: `docs/BZSt_Erstattungsantrag_Matthias.docx`
+      Total reclaim potential: ≈€1,568 across 2022–2025 (DE only; other countries TBD)
+      Ansässigkeitsbescheinigung (ZS-AD) must be requested from Wohnsitzfinanzamt NOW — 2–4 week lead time!
 
 ---
 
@@ -139,6 +145,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## ✅ Done
 
+- [x] Extended E1kv output — full 1.3.1–1.7 structure + Saldo 1.3 in Excel + TXT *(2026-05-02)*
+- [x] Nichtmeldefonds support (§ 186 InvFG) — pauschal AE, auto price-fetch via yfinance *(2026-05-02)*
+      Config: symbol + type + currency only; prices cached in data/price_cache/
 - [x] Initial build — parser, FX, tax engine, Excel output *(2026-05-01)*
 - [x] Fix IB Flex Query format (BOF/HEADER/DATA, field name mismatches) *(2026-05-01)*
 - [x] Fix FX cache returning strings not Decimals *(2026-05-01)*
