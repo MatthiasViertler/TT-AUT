@@ -522,6 +522,17 @@ def _parse_trades(rows: list[dict], config: dict,
         domicile     = _classify_domicile(isin, country_code, exchange)
         asset_class  = IB_ASSET_CLASS_MAP.get(asset_class_raw, AssetClass.OTHER)
 
+        # Capture IB's FIFO PnL for SELL cross-check (HEADER/DATA format only)
+        broker_fifo_pnl_eur = None
+        if action == "SELL":
+            raw_pnl = row.get("FifoPnlRealized", "").strip()
+            if raw_pnl and raw_pnl not in ("", "0"):
+                try:
+                    fx = _parse_decimal(row.get("FXRateToBase", "1") or "1")
+                    broker_fifo_pnl_eur = _parse_decimal(raw_pnl) * fx
+                except Exception:
+                    pass
+
         txn = NormalizedTransaction(
             broker="ib",
             raw_id=f"ib_trade_{trade_date}_{symbol}_{action}_{proceeds}_{quantity}_{row.get('CostBasis','0')}",
@@ -541,6 +552,7 @@ def _parse_trades(rows: list[dict], config: dict,
             orig_amount=proceeds,
             commission=commission,
             commission_currency=currency,
+            broker_fifo_pnl_eur=broker_fifo_pnl_eur,
             source_file=source,
         )
         results.append(txn)
