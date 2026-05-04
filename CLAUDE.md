@@ -73,6 +73,9 @@ Account IDs below are **placeholders only** — real IDs are in `config.local.ya
 - Matthias's symbols (STK): ALV, AIR, BAS, BAYN, BMW, FRE, GAZ, HEN3, HOT, IFX, KHC,
   LIN, LMT, IBKR, MC, MMM, MUV2, NOV, OMV, P911, RIO1, RDSB, SAF, SHL, SIE, UNVB,
   VER, VOW3, AVGO, ABEC, SOLV (Solventum — 3M spin-off, no buy record → cost basis 0)
+- **New 2025 additions** (from IBKR German Tax Report): HENSOLDT (DE000HAG0005),
+  RENK (DE000RENK730), RHEINMETALL (DE0007030009), TKMS (DE000TKMS001),
+  4SC (DE000A3E5C40), DRONESHIELD (AU000000DRO2), BLACKSKY (US09263B2079)
 - Special cases handled: P911 Return of Capital (2024: EUR 2.31/sh, 2025: EUR 1.49/sh — both skipped ✓),
   BAYN reversal/re-booking 2021 (netting resolves correctly ✓), VNA 'd' suffix normalization ✓,
   1COV/1CO Covestro tender offer (symbol_aliases) ✓
@@ -130,13 +133,19 @@ KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distribution
 - Manual dec31_prices override still works if auto-fetch is wrong/unavailable
 - Config: just add symbol + type + currency under nichtmeldefonds: in config.yaml
 
+## Testing
+- `python -m pytest tests/` — 47 tests, all green
+- `pytest>=9.0.0` in requirements.txt
+- **Rule**: every new feature ships with at least one test (fixture CSV + assertion)
+- Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess — confirmed against
+  IBKR German Tax Report (report ID 126354004/20251231, Line 7)
+
 ## Next up (priority order)
 1. **Manual cost basis override** — needed for SOLV (Solventum 3M spin-off, no buy record in IB).
    Config entry: `manual_cost_basis: [{symbol, isin, purchase_date, quantity, cost_eur}]`.
-2. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
-3. Pytest test suite skeleton (tests/ with fixture CSVs)
-4. Excel "Freedom" tab (5th tab in dashboard.xlsx, static snapshot)
-5. --regelbesteuerung flag
+2. Excel "Freedom" tab (5th tab in dashboard.xlsx, static snapshot)
+3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
+4. --regelbesteuerung flag
 
 ## WHT reclaim status (Matthias, as of 2026-05-04)
 - Implemented: `output/wht_reclaim.py` — generates per-country/year reclaim report
