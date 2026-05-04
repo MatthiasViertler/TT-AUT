@@ -47,37 +47,22 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       auto-populated with real dividend data from that run. Sliders stay interactive. *(2026-05-01)*
 - [x] **WHT reclaim assistant** — `output/wht_reclaim.py`, wired into writer.py *(2026-05-04)*
       Per-country/year report with treaty rates, deadlines, per-stock breakdown.
-- [ ] **Excel "Freedom" tab** — 5th tab in dashboard.xlsx: year-over-year dividend bars,
-      freedom progress bar, projection chart (static at default assumptions)
+- [x] **Excel "Freedom" tab** — tab in dashboard.xlsx: key metrics, per-symbol holdings,
+      10-year projection table (portfolio × yield/growth + monthly contribution) *(2026-05-04)*
 
 ---
 
 ## 🟡 Tool: Correctness & Robustness
 
-- [ ] **Manual cost basis override** — config.yaml entry for positions transferred
-      from another broker (no purchase record in IB exports). Needed for:
-      - SOLV (Solventum, 3M spin-off 2024): received shares via corporate action, no IB BUY record
-      - Possibly GAZ (Russian ADR) if/when disposal is ever recognized
-      ```yaml
-      manual_cost_basis:
-        - symbol: SOLV
-          isin: US83444N1028
-          purchase_date: 2024-07-02   # spin-off date
-          quantity: 14                 # adjust to actual
-          cost_eur: 0.00              # or FMV at spin-off
-      ```
+- [x] **Manual cost basis override** — `manual_cost_basis` in config.local.yaml; lots injected
+      into FIFO queue in date order alongside real buys. 8 tests. *(2026-05-04)*
+      SOLV configured as cost_eur=0 until 3M spin-off allocation ratio confirmed.
 - [ ] **Cross-check vs IB FifoPnlRealized** — compare our FIFO P&L against IB's
       per-trade value, warn if difference > €1.00
 - [ ] **Negative position check** — warn if net holding goes negative (sell > bought)
 - [ ] **FX rate sanity check** — warn if ECB rate deviates >20% from prior day
-- [ ] **Pytest skeleton** (`tests/`) — start this session, grow with each feature.
-      Fixture CSVs to cover:
-      - Dividend + WHT matching
-      - Multi-year FIFO (buy 2024, sell 2026)
-      - Domestic vs foreign classification
-      - Duplicate row deduplication
-      - WHT warning threshold
-      Rule: every new feature ships with at least one test.
+- [x] **Pytest skeleton** (`tests/`) — 55 tests across parser, WHT reclaim, sanity, manual
+      cost basis. Rule: every new feature ships with at least one test. *(2026-05-04)*
 
 ---
 
