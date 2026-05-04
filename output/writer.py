@@ -1,16 +1,18 @@
 """
 Output module.
-Generates four artefacts per run:
+Generates five artefacts per run:
 
 1.  {person}_{year}_transactions.csv   — full normalized transaction log
 2.  {person}_{year}_tax_summary.txt    — E1kv Kennziffern, ready to copy into FinanzOnline
 3.  {person}_{year}_dashboard.xlsx     — Excel workbook with dashboard + detail tabs
 4.  {person}_{year}_freedom.html       — interactive financial independence dashboard
+5.  {person}_{year}_summary.json       — machine-readable snapshot for year-over-year tracking
 
 openpyxl is used for Excel (pure Python, no COM/xlwings dependency).
 """
 
 import csv
+import json
 import logging
 from datetime import datetime
 from decimal import Decimal
@@ -41,6 +43,11 @@ def write_all(
     slug = f"{summary.person_label}_{summary.tax_year}"
     opts = config.get("output", {})
 
+    # Save machine-readable snapshot first so Excel Overview tab can include current year
+    p = output_dir / f"{slug}_summary.json"
+    _save_summary_json(summary, p)
+    print(f"  [out]    {p}")
+
     if opts.get("csv", True):
         p = output_dir / f"{slug}_transactions.csv"
         _write_csv(transactions, p)
@@ -53,8 +60,9 @@ def write_all(
 
     if opts.get("excel", True):
         if OPENPYXL_AVAILABLE:
+            history = _load_history(summary.person_label, output_dir)
             p = output_dir / f"{slug}_dashboard.xlsx"
-            _write_excel(transactions, summary, p, config)
+            _write_excel(transactions, summary, p, config, history)
             print(f"  [out]    {p}")
         else:
             log.warning("openpyxl not installed — skipping Excel output. "
@@ -71,6 +79,40 @@ def write_all(
                                   summary.person_label, p)
         if p.exists() and p.stat().st_size > 0:
             print(f"  [out]    {p}")
+
+
+# ── Summary JSON (Verlustausgleich history) ───────────────────────────────────
+
+_SUMMARY_FIELDS = [
+    "total_dividends_eur", "total_gains_eur", "total_losses_eur",
+    "net_taxable_eur", "kest_due_eur", "wht_creditable_eur", "kest_remaining_eur",
+    "kz_862", "kz_863", "kz_981", "kz_994", "kz_891", "kz_892",
+]
+
+
+def _save_summary_json(summary: TaxSummary, path: Path) -> None:
+    data: dict = {
+        "tax_year": summary.tax_year,
+        "person_label": summary.person_label,
+    }
+    for field in _SUMMARY_FIELDS:
+        data[field] = str(getattr(summary, field))
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _load_history(person_label: str, output_dir: Path) -> list[dict]:
+    """Return all saved year snapshots for this person, sorted by year ascending."""
+    if not output_dir.exists():
+        return []
+    entries = []
+    for p in output_dir.glob(f"{person_label}_*_summary.json"):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if data.get("person_label") == person_label:
+                entries.append(data)
+        except Exception:
+            pass
+    return sorted(entries, key=lambda x: x.get("tax_year", 0))
 
 
 # ── CSV ───────────────────────────────────────────────────────────────────────
@@ -183,7 +225,9 @@ def _write_tax_summary(s: TaxSummary, path: Path) -> None:
 # ── Excel Dashboard ───────────────────────────────────────────────────────────
 
 def _write_excel(txns: list[NormalizedTransaction],
-                 summary: TaxSummary, path: Path, config: dict | None = None) -> None:
+                 summary: TaxSummary, path: Path,
+                 config: dict | None = None,
+                 history: list[dict] | None = None) -> None:
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -193,29 +237,33 @@ def _write_excel(txns: list[NormalizedTransaction],
     ws.title = "E1kv Summary"
     _fill_summary_sheet(ws, summary)
 
-    # ── Tab 2: All Transactions ───────────────────────────────────────────────
+    # ── Tab 2: Year-over-year overview (Verlustausgleich) ─────────────────────
+    wo = wb.create_sheet("Overview")
+    _fill_overview_sheet(wo, history or [], summary.tax_year)
+
+    # ── Tab 3: All Transactions ───────────────────────────────────────────────
     wt = wb.create_sheet("Transactions")
     _fill_transactions_sheet(wt, txns, summary.tax_year)
 
-    # ── Tab 3: Dividends only ─────────────────────────────────────────────────
+    # ── Tab 4: Dividends only ─────────────────────────────────────────────────
     wd = wb.create_sheet("Dividends")
     div_txns = [t for t in txns
                 if t.txn_type == TransactionType.DIVIDEND
                 and t.trade_date.year == summary.tax_year]
     _fill_transactions_sheet(wd, div_txns, summary.tax_year, title="Dividends")
 
-    # ── Tab 4: Trades only ────────────────────────────────────────────────────
+    # ── Tab 5: Trades only ────────────────────────────────────────────────────
     wtr = wb.create_sheet("Trades")
     trade_txns = [t for t in txns
                   if t.txn_type in (TransactionType.BUY, TransactionType.SELL)
                   and t.trade_date.year == summary.tax_year]
     _fill_transactions_sheet(wtr, trade_txns, summary.tax_year, title="Trades")
 
-    # ── Tab 5: Freedom (static snapshot at config assumptions) ───────────────
+    # ── Tab 6: Freedom (static snapshot at config assumptions) ───────────────
     wf = wb.create_sheet("Freedom")
     _fill_freedom_sheet(wf, div_txns, summary, config or {})
 
-    # ── Tab 6: Nichtmeldefonds (only if positions exist) ──────────────────────
+    # ── Tab 7: Nichtmeldefonds (only if positions exist) ──────────────────────
     if summary.nichtmeldefonds:
         wnmf = wb.create_sheet("Nichtmeldefonds")
         _fill_nichtmeldefonds_sheet(wnmf, summary)
@@ -529,6 +577,134 @@ def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
     for row_idx in range(2, ws.max_row + 1):
         for col_idx in eur_cols:
             ws.cell(row_idx, col_idx).number_format = '#,##0.00'
+
+
+# ── Overview tab (Verlustausgleich) ──────────────────────────────────────────
+
+_OV_COLS = [
+    ("Year",          8),
+    ("Dividends",    14),
+    ("Cap Gains",    14),
+    ("Cap Losses",   14),
+    ("Net Taxable",  14),
+    ("KeSt 27.5%",   14),
+    ("WHT Credited", 14),
+    ("KeSt Remaining", 15),
+]
+
+
+def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
+    # Column widths
+    for i, (_, w) in enumerate(_OV_COLS, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    person = history[0]["person_label"] if history else ""
+    years  = [str(e.get("tax_year", "")) for e in history]
+    yr_range = f"{years[0]}–{years[-1]}" if len(years) > 1 else (years[0] if years else "")
+
+    row = [1]
+
+    def _r():
+        r = row[0]; row[0] += 1; return r
+
+    # Title
+    r = _r()
+    ncols = len(_OV_COLS)
+    ws.merge_cells(f"A{r}:{get_column_letter(ncols)}{r}")
+    c = ws[f"A{r}"]
+    c.value = f"Verlustausgleich Übersicht  |  {person}  |  {yr_range}"
+    c.font = _font(bold=True, color=WHITE, size=12)
+    c.fill = _hfill(HEADER_FILL)
+    c.alignment = _center()
+    ws.row_dimensions[r].height = 24
+
+    # Header row
+    r = _r()
+    for col_idx, (label, _) in enumerate(_OV_COLS, 1):
+        c = ws.cell(r, col_idx, label)
+        c.font = _font(bold=True, color=WHITE, size=10)
+        c.fill = _hfill(ACCENT_FILL)
+        c.alignment = _center()
+        c.border = _border()
+    ws.row_dimensions[r].height = 18
+
+    def _d(entry: dict, key: str) -> float:
+        try:
+            return float(Decimal(entry.get(key, "0") or "0"))
+        except Exception:
+            return 0.0
+
+    # Data rows
+    totals = [0.0] * (len(_OV_COLS) - 1)  # skip Year column
+    for entry in history:
+        yr       = entry.get("tax_year")
+        divs     = _d(entry, "total_dividends_eur")
+        gains    = _d(entry, "total_gains_eur")
+        losses   = _d(entry, "total_losses_eur")
+        net      = _d(entry, "net_taxable_eur")
+        kest     = _d(entry, "kest_due_eur")
+        wht      = _d(entry, "wht_creditable_eur")
+        remain   = _d(entry, "kest_remaining_eur")
+
+        is_current = (yr == current_year)
+        row_fill = LIGHT_FILL if is_current else WHITE
+
+        r = _r()
+        c = ws.cell(r, 1, yr)
+        c.font = _font(bold=is_current, size=10)
+        c.fill = _hfill(row_fill)
+        c.alignment = _center()
+        c.border = _border()
+
+        for col_idx, val, color in [
+            (2, divs,   None),
+            (3, gains,  GREEN_FILL if gains > 0 else None),
+            (4, -losses, RED_FILL if losses > 0 else None),
+            (5, net,    None),
+            (6, kest,   None),
+            (7, wht,    GREEN_FILL if wht > 0 else None),
+            (8, remain, WARN_FILL if remain > 0.01 else GREEN_FILL),
+        ]:
+            cell = ws.cell(r, col_idx, val)
+            cell.number_format = '#,##0.00'
+            cell.alignment = _right()
+            cell.font = _font(bold=is_current, size=10,
+                              color="C00000" if val < -0.005 else "000000")
+            cell.fill = _hfill(color or (LIGHT_FILL if is_current else WHITE))
+            cell.border = _border()
+
+        totals[0] += divs
+        totals[1] += gains
+        totals[2] += losses
+        totals[3] += net
+        totals[4] += kest
+        totals[5] += wht
+        totals[6] += remain
+
+        ws.row_dimensions[r].height = 16
+
+    if not history:
+        return
+
+    # Totals row
+    r = _r()
+    c = ws.cell(r, 1, "TOTAL")
+    c.font = _font(bold=True, size=10, color=WHITE)
+    c.fill = _hfill(ACCENT_FILL)
+    c.alignment = _center()
+    c.border = _border()
+
+    signed_totals = [totals[0], totals[1], -totals[2], totals[3], totals[4], totals[5], totals[6]]
+    for col_idx, val in enumerate(signed_totals, 2):
+        cell = ws.cell(r, col_idx, val)
+        cell.number_format = '#,##0.00'
+        cell.alignment = _right()
+        cell.font = _font(bold=True, size=10, color=WHITE)
+        cell.fill = _hfill(ACCENT_FILL)
+        cell.border = _border()
+    ws.row_dimensions[r].height = 18
+
+    ws.freeze_panes = "A3"
 
 
 # ── Freedom tab ──────────────────────────────────────────────────────────────
