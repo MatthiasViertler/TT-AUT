@@ -58,6 +58,18 @@ freedom_dashboard:
 # Set in config.local.yaml to avoid committing personal residency data.
 # at_residency_start_year: 2024
 
+# Manual cost basis for positions with no buy record in IB
+# (e.g. spin-offs, positions transferred from another broker, inherited shares)
+# cost_eur = total cost basis in EUR for all shares (not per-share)
+# purchase_date = acquisition date in YYYY-MM-DD (use spin-off effective date for spin-offs)
+# Set real values in config.local.yaml to avoid committing personal data.
+# manual_cost_basis:
+#   - symbol: SOLV              # Solventum — 3M spin-off 2024-04-01, no IB buy record
+#     isin: US83444M1018
+#     purchase_date: 2024-04-01
+#     quantity: 10
+#     cost_eur: 0.00            # spin-off cost basis = 0 until 3M allocation ratio confirmed
+
 # Symbol aliases for corporate actions (tender offers, mergers) where IB assigns a new
 # temporary ticker/ISIN for the sell event. Maps sell-symbol → buy-symbol for FIFO matching.
 # symbol_aliases:
