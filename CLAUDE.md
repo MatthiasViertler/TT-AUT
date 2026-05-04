@@ -57,9 +57,16 @@ docs/                 Word documentation
 - Type strings (CTRN): "Dividends", "Withholding Tax", "Broker Interest Received"
 - Duplicate rows: same trade with CostBasis ±1.00 → deduped via raw_id
 
+## Security rule — NEVER violate
+**Never write real account IDs, API keys, passwords, ISINs tied to a person, or any other PII
+into committed files.** Use placeholders (U11111111, U22222222) in CLAUDE.md/config.yaml.
+Real values live ONLY in `config.local.yaml` (gitignored). This applies to CLAUDE.md, TASKS.md,
+config.yaml, output files, and any other committed file. Treat account IDs like API keys.
+
 ## Accounts
-- Jessie's IBKR account → tested 2024/2025/2026 ✓
-- Matthias's IBKR account ID: U22222222 (in config.local.yaml) — **end-to-end run done ✓ (2026-05-04)**
+Account IDs below are **placeholders only** — real IDs are in `config.local.yaml` (gitignored).
+- Jessie's IBKR account → placeholder U11111111 → tested 2024/2025/2026 ✓
+- Matthias's IBKR account → placeholder U22222222 → **end-to-end run done ✓ (2026-05-04)**
 - Matthias's exports available: 2021, 2022, 2023, 2024, 2025, 2026 (partial) → in `data/matthias_*.csv`
 - **2020 intentionally excluded** — IBKR UK/IE split year, nothing tax-relevant. FIFO starts 2021.
 - Matthias has REITs/BDCs (Nichtmeldefonds): O, EPR, OHI, WPC, ARCC
