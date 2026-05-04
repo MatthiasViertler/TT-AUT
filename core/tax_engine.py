@@ -123,20 +123,32 @@ class TaxEngine:
                                 all_buys: list[NormalizedTransaction],
                                 sells: list[NormalizedTransaction],
                                 summary: TaxSummary) -> None:
-        # Build FIFO queues per symbol
-        fifo: dict[str, deque] = defaultdict(deque)
-        for buy in sorted(all_buys, key=lambda t: t.trade_date):
+        # Collect all lots: real buys + manual cost basis overrides
+        # Each entry: (date, symbol, qty, cost_per_unit)
+        lots: list[tuple] = []
+        for buy in all_buys:
             qty = buy.quantity or ZERO
-            cost_per_unit = (
-                ((buy.eur_amount or ZERO).copy_abs() + (buy.eur_commission or ZERO))
-                / qty
-            ) if qty else ZERO
-            fifo[buy.symbol].append({
-                "date": buy.trade_date,
-                "qty_remaining": qty,
-                "cost_per_unit": cost_per_unit,
-                "txn": buy,
-            })
+            if not qty:
+                continue
+            cpu = (
+                ((buy.eur_amount or ZERO).copy_abs() + (buy.eur_commission or ZERO)) / qty
+            )
+            lots.append((buy.trade_date, buy.symbol, qty, cpu))
+
+        from datetime import date as date_t
+        for entry in self.config.get("manual_cost_basis", []):
+            qty = Decimal(str(entry["quantity"]))
+            cost = Decimal(str(entry["cost_eur"]))
+            d = entry["purchase_date"]
+            if not isinstance(d, date_t):
+                d = date_t.fromisoformat(str(d))
+            cpu = cost / qty if qty else ZERO
+            lots.append((d, entry["symbol"], qty, cpu))
+
+        # Build FIFO queues in chronological order
+        fifo: dict[str, deque] = defaultdict(deque)
+        for d, sym, qty, cpu in sorted(lots, key=lambda x: x[0]):
+            fifo[sym].append({"date": d, "qty_remaining": qty, "cost_per_unit": cpu})
 
         for sell in sorted(sells, key=lambda t: t.trade_date):
             qty_to_match = (sell.quantity or ZERO).copy_abs()
