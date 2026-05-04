@@ -38,6 +38,9 @@ class TaxEngine:
         self.max_creditable_wht = Decimal(str(config["max_creditable_wht"]))
         self.wht_treaty = {k: Decimal(str(v))
                            for k, v in config.get("wht_treaty_rates", {}).items()}
+        # Maps sell symbol → buy symbol for corporate actions that change ticker/ISIN
+        # e.g. tender offers where IB assigns a new temporary symbol
+        self.symbol_aliases: dict[str, str] = config.get("symbol_aliases", {})
 
     # ── Entry Point ───────────────────────────────────────────────────────────
 
@@ -121,7 +124,8 @@ class TaxEngine:
             commission = sell.eur_commission or ZERO
 
             cost_matched = ZERO
-            queue = fifo.get(sell.symbol, deque())
+            effective_symbol = self.symbol_aliases.get(sell.symbol, sell.symbol)
+            queue = fifo.get(effective_symbol, deque())
 
             while qty_to_match > ZERO and queue:
                 lot = queue[0]

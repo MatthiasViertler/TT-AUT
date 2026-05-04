@@ -1,25 +1,25 @@
 """
 Interactive Brokers parser.
-Handles IB Activity Statement exports in CSV format (Flex Query).
+Handles IB Activity Statement exports in CSV format.
 
-How to get your IB export:
-1. Log in to Client Portal → Reports → Flex Queries
-2. Create a new Activity Flex Query with sections:
-   - Trades (FIFO cost basis, all fields)
-   - Cash Transactions (dividends, WHT, interest)
-   - Open Positions (optional, for dashboard)
-3. Run query → Download CSV (or XML — XML parser is in ib_xml.py)
+Supported formats:
+1. Flex Query HEADER/DATA: each row prefixed HEADER/DATA, section code in col[1].
+   CTRN includes DateTime. Used by default Flex Query exports (e.g. Jessie's files).
+2. TT-AUT Export BOS/EOS: BOS/EOS section markers, plain header row after BOS,
+   no date in CTRN. Cash transactions matched using per-share netting (Matthias's files).
+3. Classic Activity Statement: SectionName/Header/Data rows.
 
-The CSV has a multi-section format where each section starts with a header row.
-We detect sections by their first column value.
+TT-AUT netting: groups CTRN rows by (symbol, per_share_str, currency), nets all dividend
+and WHT amounts within each group. Handles reversals, quarterly same-rate dividends,
+and Return of Capital (P911-style) naturally without special-casing.
 """
 
 import csv
 import logging
 import re
+from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from io import StringIO
 from pathlib import Path
 from typing import Optional
 
@@ -30,7 +30,6 @@ from core.models import (
 log = logging.getLogger(__name__)
 
 
-# Map IB asset class codes → our AssetClass
 IB_ASSET_CLASS_MAP = {
     "STK": AssetClass.STOCK,
     "ETF": AssetClass.ETF,
@@ -41,8 +40,21 @@ IB_ASSET_CLASS_MAP = {
     "FUND": AssetClass.FUND,
 }
 
-# Countries whose exchanges indicate domestic AT listing
 AT_EXCHANGE_PATTERNS = {"VSE", "WBAG", "XWBO"}
+
+ZERO = Decimal("0")
+ISIN_RE = re.compile(r'\b([A-Z]{2}[A-Z0-9]{10})\b')
+
+# Matches "USD 1.51 PER SHARE" or "EUR 0.81683669 PER SHARE" in IB descriptions
+PER_SHARE_RE = re.compile(r'([A-Z]{3}\s+\d+(?:\.\d+)?\s+PER\s+SHARE)', re.IGNORECASE)
+
+FULL_TYPE_MAP = {
+    "Withholding Tax":               "DIVNRA",
+    "Dividends":                     "DIV",
+    "Payment In Lieu Of A Dividend": "DIV",
+    "Broker Interest Received":      "CINT",
+    "Deposits/Withdrawals":          "DEP",
+}
 
 
 def detect(path: Path) -> bool:
@@ -50,8 +62,6 @@ def detect(path: Path) -> bool:
     try:
         with open(path, encoding="utf-8-sig", errors="replace") as f:
             head = f.read(512)
-        # Flex Query custom format: starts with BOF record
-        # Classic Activity Statement: starts with "Statement,Header"
         return (head.startswith('"BOF"') or head.startswith('BOF,') or
                 "Interactive Brokers" in head or "Statement,Header" in head)
     except Exception:
@@ -67,7 +77,6 @@ def get_account_id(path: Path) -> Optional[str]:
             if marker == "BOF" and len(parts) > 1:
                 return parts[1].strip('"')
             if marker == "Statement" and len(parts) > 2:
-                # Classic format: Statement,Data,BrokerName,...,AccountID,...
                 for p in parts:
                     p = p.strip('"')
                     if p.startswith('U') and p[1:].isdigit():
@@ -80,19 +89,15 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
 
     Returns (transactions, account_id).
 
-    Supports two IB CSV formats:
-    - Custom Flex Query format: BOF / HEADER / DATA / EOS rows, section code in col[1]
-      e.g.  "HEADER","TRNT","Symbol","ISIN",...
-            "DATA","TRNT","U1234","EUR",...
-    - Classic Activity Statement format: SectionName / Header / Data rows
-      e.g.  "Trades","Header","Asset Category","Symbol",...
-            "Trades","Data","Stocks","AAPL",...
+    Supports three IB CSV formats:
+    - TT-AUT Export BOS/EOS: plain header/data rows within BOS/EOS markers
+    - Flex Query HEADER/DATA: row-prefixed section rows
+    - Classic Activity Statement: SectionName/Header/Data rows
     """
     log.info(f"IB parser: reading {path.name}")
 
     account_id = get_account_id(path)
 
-    # Section code → human name mapping for Flex Query format
     SECTION_CODE_MAP = {
         "TRNT": "Trades",
         "CTRN": "Cash Transactions",
@@ -101,6 +106,11 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
     sections: dict[str, list[dict]] = {}
     current_headers: list[str] = []
     current_section: str = ""
+    bof_end_date: Optional[date] = None
+
+    # BOS/EOS state for TT-AUT format: None | "header_next" | "data"
+    bos_state: Optional[str] = None
+    bos_section: str = ""
 
     with open(path, encoding="utf-8-sig", errors="replace") as f:
         reader = csv.reader(f)
@@ -110,7 +120,40 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
             marker = row[0].strip()
             col1   = row[1].strip() if len(row) > 1 else ""
 
-            # ── Flex Query format ──────────────────────────────────────────
+            # BOF: extract year-end date (col[5]) — used as fallback date for TT-AUT CTRN
+            if marker == "BOF":
+                if len(row) > 5:
+                    try:
+                        bof_end_date = _parse_ib_date(row[5].strip())
+                    except Exception:
+                        pass
+                continue
+
+            # TT-AUT BOS/EOS section markers
+            if marker == "BOS":
+                bos_section = SECTION_CODE_MAP.get(col1, col1)
+                sections.setdefault(bos_section, [])
+                bos_state = "header_next"
+                continue
+
+            if marker == "EOS":
+                bos_state = None
+                bos_section = ""
+                continue
+
+            # In BOS/EOS mode: next row after BOS = header, then plain data rows
+            if bos_state == "header_next":
+                current_headers = [c.strip() for c in row]
+                current_section = bos_section
+                bos_state = "data"
+                continue
+
+            if bos_state == "data":
+                record = dict(zip(current_headers, [c.strip() for c in row]))
+                sections[bos_section].append(record)
+                continue
+
+            # Flex Query HEADER/DATA format
             if marker == "HEADER":
                 section_code = col1
                 current_section = SECTION_CODE_MAP.get(section_code, section_code)
@@ -121,7 +164,7 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
                 record = dict(zip(current_headers, [c.strip() for c in row[2:]]))
                 sections[current_section].append(record)
 
-            # ── Classic Activity Statement format ──────────────────────────
+            # Classic Activity Statement format
             elif col1 == "Header":
                 current_section = marker
                 current_headers = [c.strip() for c in row[2:]]
@@ -133,16 +176,11 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
 
     transactions: list[NormalizedTransaction] = []
 
-    # ── Cash Transactions (dividends, WHT, interest) ──────────────────────────
     cash_txns = _parse_cash_transactions(
-        sections.get("Cash Transactions", []), config, str(path)
+        sections.get("Cash Transactions", []), config, str(path), bof_end_date
     )
+    transactions.extend(cash_txns)
 
-    # Match WHT rows against their dividend rows
-    matched = _match_wht_to_dividends(cash_txns)
-    transactions.extend(matched)
-
-    # ── Trades ────────────────────────────────────────────────────────────────
     trade_txns = _parse_trades(
         sections.get("Trades", []), config, str(path)
     )
@@ -155,26 +193,43 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
 
 # ── Cash Transactions ─────────────────────────────────────────────────────────
 
-def _parse_cash_transactions(rows: list[dict], config: dict,
-                              source: str) -> list[NormalizedTransaction]:
+def _parse_cash_transactions(
+    rows: list[dict],
+    config: dict,
+    source: str,
+    fallback_date: Optional[date] = None,
+) -> list[NormalizedTransaction]:
+    """Route to dated or netted parser based on whether CTRN rows have a date field."""
+    if not rows:
+        return []
+
+    has_dates = any(
+        row.get("Date/Time") or row.get("DateTime") or row.get("Date")
+        for row in rows[:10]
+    )
+
     action_map = config.get("ib_action_map", {})
 
-    # Your Flex Query uses full Type strings — map them to internal codes
-    FULL_TYPE_MAP = {
-        "Withholding Tax":          "DIVNRA",
-        "Dividends":                "DIV",
-        "Payment In Lieu Of A Dividend": "DIV",
-        "Broker Interest Received": "CINT",
-        "Deposits/Withdrawals":     "DEP",
-    }
+    if has_dates:
+        raw = _parse_cash_rows_dated(rows, config, source, action_map)
+        return _match_wht_to_dividends(raw)
+    else:
+        return _parse_cash_rows_netted(rows, config, source, fallback_date, action_map)
 
+
+def _parse_cash_rows_dated(
+    rows: list[dict],
+    config: dict,
+    source: str,
+    action_map: dict,
+) -> list[NormalizedTransaction]:
+    """Parse CTRN rows that have a Date/Time field (Flex Query format)."""
     results = []
 
     for row in rows:
-        raw_type = row.get("Type", "").strip()
-        # Normalise to short code first, then look up in action_map
+        raw_type   = row.get("Type", "").strip()
         short_code = FULL_TYPE_MAP.get(raw_type, raw_type)
-        mapped = action_map.get(short_code, "unknown")
+        mapped     = action_map.get(short_code, "unknown")
         if mapped not in config.get("taxable_types", []):
             continue
 
@@ -184,23 +239,22 @@ def _parse_cash_transactions(rows: list[dict], config: dict,
             log.warning(f"IB: Skipping row with unparseable date: {row}")
             continue
 
-        # Flex Query uses CurrencyPrimary; classic uses Currency — handle both
-        currency = (row.get("CurrencyPrimary") or row.get("Currency") or "").strip()
-        amount   = _parse_decimal(row.get("Amount", "0"))
-        symbol   = row.get("Symbol", "").strip()
-
-        # ISIN: prefer direct field, fall back to extracting from description
-        isin = (row.get("ISIN") or "").strip() or _extract_isin(row.get("Description", ""))
-        description  = row.get("Description", "").strip()
+        currency    = (row.get("CurrencyPrimary") or row.get("Currency") or "").strip()
+        amount      = _parse_decimal(row.get("Amount", "0"))
+        symbol      = row.get("Symbol", "").strip()
+        isin        = (row.get("ISIN") or "").strip() or _extract_isin(row.get("Description", ""))
+        description = row.get("Description", "").strip()
+        symbol = _normalize_de_symbol(symbol, isin or None)
         country_code = _country_from_isin(isin) if isin else _country_from_description(description)
         domicile     = _classify_domicile(isin, country_code, row.get("Exchange", ""))
 
         txn_type = TransactionType(mapped)
 
-        # WHT rows come in as negative amounts; store absolute value in wht field
         wht_amount = ZERO
         if txn_type == TransactionType.DIVIDEND_WHT:
-            wht_amount = amount.copy_abs()
+            # IB WHT: negative amount = withheld; negate → positive stored value.
+            # Refund rows (positive amount) produce negative stored value → reduces total WHT.
+            wht_amount = -amount
             amount = ZERO
 
         txn = NormalizedTransaction(
@@ -228,20 +282,166 @@ def _parse_cash_transactions(rows: list[dict], config: dict,
     return results
 
 
+def _parse_cash_rows_netted(
+    rows: list[dict],
+    config: dict,
+    source: str,
+    fallback_date: Optional[date],
+    action_map: dict,
+) -> list[NormalizedTransaction]:
+    """
+    TT-AUT format: no dates in CTRN. Net by (symbol, per_share_str, currency).
+
+    Reversals cancel out in the net. Quarterly same-rate dividends sum correctly.
+    Return of Capital groups (any description contains "Return of Capital") are skipped.
+    WHT rows (negative amounts in IB) are negated to get positive withheld amounts.
+    """
+    if fallback_date is None:
+        log.warning(f"IB: No BOF date available for {source} — cannot parse undated CTRN rows")
+        return []
+
+    groups: dict[tuple, dict] = defaultdict(lambda: {
+        "divs": [],
+        "whts": [],
+        "isin": "",
+        "currency": "",
+        "all_descriptions": [],
+        "short_code": "",
+        "mapped": "",
+    })
+
+    for row in rows:
+        raw_type   = row.get("Type", "").strip()
+        short_code = FULL_TYPE_MAP.get(raw_type, raw_type)
+        mapped     = action_map.get(short_code, "unknown")
+        if mapped not in config.get("taxable_types", []):
+            continue
+
+        amount      = _parse_decimal(row.get("Amount", "0"))
+        symbol      = row.get("Symbol", "").strip()
+        description = row.get("Description", "").strip()
+        currency    = (row.get("CurrencyPrimary") or row.get("Currency") or "").strip()
+        isin        = (row.get("ISIN") or "").strip()
+
+        symbol = _normalize_de_symbol(symbol, isin or None)
+        per_share = _extract_per_share(description) or description[:60]
+        key = (symbol, per_share, currency)
+        grp = groups[key]
+
+        if not grp["currency"]:
+            grp["currency"] = currency
+        if not grp["isin"] and isin:
+            grp["isin"] = isin
+        grp["all_descriptions"].append(description)
+
+        if mapped == "dividend_wht":
+            grp["whts"].append(amount)
+        else:
+            grp["divs"].append(amount)
+            if not grp["short_code"]:
+                grp["short_code"] = short_code
+                grp["mapped"] = mapped
+
+    results = []
+
+    for (symbol, per_share, currency), grp in groups.items():
+        # Skip Return of Capital — treat as cost basis adjustment, not taxable income
+        if any("return of capital" in d.lower() for d in grp["all_descriptions"]):
+            net_roc = sum(grp["divs"], ZERO)
+            log.warning(
+                f"IB: {symbol} '{per_share}' flagged as Return of Capital "
+                f"(net {net_roc:.2f} {currency}) — skipping; adjusts cost basis, not taxable"
+            )
+            continue
+
+        net_div  = sum(grp["divs"], ZERO)
+        # WHT amounts in TT-AUT are negative (withheld) or positive (refund)
+        net_wht  = sum(grp["whts"], ZERO)
+        wht_held = -net_wht   # positive = net withheld, negative = net refund
+
+        # Skip fully-reversed or zero groups
+        if net_div == ZERO and wht_held <= ZERO:
+            continue
+
+        isin        = grp["isin"]
+        country_code = _country_from_isin(isin) if isin else None
+        domicile    = _classify_domicile(isin, country_code, "")
+        description = next((d for d in grp["all_descriptions"] if d), per_share)
+
+        if net_div != ZERO:
+            mapped     = grp["mapped"]
+            short_code = grp["short_code"]
+            if not mapped:
+                continue
+            txn_type    = TransactionType(mapped)
+            orig_amount = net_div
+        else:
+            # WHT with no matching dividend — keep as standalone
+            short_code  = "DIVNRA"
+            txn_type    = TransactionType.DIVIDEND_WHT
+            orig_amount = ZERO
+
+        wht_rate: Optional[Decimal] = None
+        if net_div > ZERO and wht_held > ZERO:
+            wht_rate = (wht_held / net_div).quantize(Decimal("0.0001"))
+
+        txn = NormalizedTransaction(
+            broker="ib",
+            raw_id=f"ib_cash_{fallback_date}_{symbol}_{short_code}_{per_share}",
+            trade_date=fallback_date,
+            settle_date=None,
+            txn_type=txn_type,
+            asset_class=AssetClass.STOCK,
+            symbol=symbol,
+            isin=isin or None,
+            description=description,
+            country_code=country_code,
+            domicile=domicile,
+            quantity=None,
+            price=None,
+            price_currency=None,
+            orig_currency=currency,
+            orig_amount=orig_amount,
+            wht_amount_orig=max(ZERO, wht_held),
+            wht_rate_actual=wht_rate,
+            source_file=source,
+        )
+        results.append(txn)
+
+    return results
+
+
+def _extract_per_share(description: str) -> str:
+    """Extract the 'CUR X.XX PER SHARE' token from an IB cash transaction description."""
+    m = PER_SHARE_RE.search(description)
+    return m.group(1).upper() if m else ""
+
+
+def _normalize_de_symbol(symbol: str, isin: Optional[str]) -> str:
+    """Strip the trailing 'd' suffix IB appends to German-exchange listings.
+
+    IB adds a lowercase 'd' to tickers for stocks traded on German exchanges
+    (e.g. ALVd, VNAd, BAYNd). The same stock can appear with or without the
+    suffix in different exports, breaking FIFO matching. Strip it when the
+    ISIN confirms this is a German-domiciled stock (DE prefix).
+    """
+    if isin and isin.startswith("DE") and symbol.endswith("d") and len(symbol) > 1:
+        return symbol[:-1]
+    return symbol
+
+
 def _match_wht_to_dividends(
         txns: list[NormalizedTransaction]) -> list[NormalizedTransaction]:
     """
-    IB reports WHT as separate rows with type DIVIDEND_WHT.
-    Match each WHT row to its dividend or interest row (same date, same currency)
-    and merge the WHT in. Orphaned WHT rows (e.g. on broker credit interest)
-    are kept as standalone DIVIDEND_WHT entries so they still feed KZ 998/899.
+    For dated (Flex Query) format: match each WHT row to its dividend or interest row
+    by (symbol, date) and merge the WHT in. Orphaned WHT rows are kept standalone.
     """
-    divs    = [t for t in txns if t.txn_type == TransactionType.DIVIDEND]
-    ints    = [t for t in txns if t.txn_type == TransactionType.INTEREST]
-    whts    = [t for t in txns if t.txn_type == TransactionType.DIVIDEND_WHT]
-    others  = [t for t in txns if t.txn_type not in
-               (TransactionType.DIVIDEND, TransactionType.DIVIDEND_WHT,
-                TransactionType.INTEREST)]
+    divs   = [t for t in txns if t.txn_type == TransactionType.DIVIDEND]
+    ints   = [t for t in txns if t.txn_type == TransactionType.INTEREST]
+    whts   = [t for t in txns if t.txn_type == TransactionType.DIVIDEND_WHT]
+    others = [t for t in txns if t.txn_type not in
+              (TransactionType.DIVIDEND, TransactionType.DIVIDEND_WHT,
+               TransactionType.INTEREST)]
 
     # Build lookup: (symbol, date) → dividend txn
     div_map: dict[tuple, NormalizedTransaction] = {}
@@ -265,7 +465,6 @@ def _match_wht_to_dividends(
                     wht.wht_amount_orig / gross
                 ).quantize(Decimal("0.0001"))
         elif int_key in int_map:
-            # WHT on broker interest (e.g. Austrian KESt on EUR credit interest)
             int_map[int_key].wht_amount_orig += wht.wht_amount_orig
         else:
             log.debug(f"IB: Unmatched WHT row: {wht.symbol!r} on {wht.trade_date} — kept standalone")
@@ -280,11 +479,18 @@ def _parse_trades(rows: list[dict], config: dict,
                   source: str) -> list[NormalizedTransaction]:
     results = []
     action_map = config.get("ib_action_map", {})
+    opt_skipped = 0
 
     for row in rows:
-        # Skip FX cash conversion rows (EUR.USD etc.) — not taxable equity trades
         asset_class_raw = row.get("AssetClass", row.get("Asset Class", "")).strip().upper()
+
+        # Skip FX cash conversion rows — not taxable equity trades
         if asset_class_raw == "CASH":
+            continue
+
+        # Skip options — derivatives KZ (982/993/893–896) deferred intentionally
+        if asset_class_raw == "OPT":
+            opt_skipped += 1
             continue
 
         action = row.get("Buy/Sell", "").strip().upper()
@@ -292,20 +498,16 @@ def _parse_trades(rows: list[dict], config: dict,
             continue
 
         try:
-            # Flex Query: DateTime field;  Classic: Date/Time or TradeDate
             trade_date = _parse_ib_date(
                 row.get("DateTime") or row.get("Date/Time") or row.get("TradeDate", "")
             )
         except Exception:
             continue
 
-        # Flex Query: CurrencyPrimary;  Classic: Currency
         currency   = (row.get("CurrencyPrimary") or row.get("Currency") or "").strip()
         quantity   = _parse_decimal(row.get("Quantity", "0"))
-        # Flex Query: TradePrice;  Classic: T. Price
         price      = _parse_decimal(row.get("TradePrice") or row.get("T. Price") or "0")
         proceeds   = _parse_decimal(row.get("Proceeds", "0"))
-        # Flex Query: IBCommission;  Classic: Comm/Fee or IBCommission
         commission = _parse_decimal(
             row.get("IBCommission") or row.get("Comm/Fee") or "0"
         ).copy_abs()
@@ -313,6 +515,8 @@ def _parse_trades(rows: list[dict], config: dict,
         isin        = (row.get("ISIN") or "").strip() or None
         description = row.get("Description", "").strip()
         exchange    = row.get("Exchange", "").strip()
+
+        symbol = _normalize_de_symbol(symbol, isin)
 
         country_code = _country_from_isin(isin) if isin else None
         domicile     = _classify_domicile(isin, country_code, exchange)
@@ -341,23 +545,21 @@ def _parse_trades(rows: list[dict], config: dict,
         )
         results.append(txn)
 
+    if opt_skipped:
+        log.info(f"IB: skipped {opt_skipped} OPT rows in {Path(source).name} "
+                 f"(derivatives KZ deferred)")
+
     return results
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-ZERO = Decimal("0")
-
-ISIN_RE = re.compile(r'\b([A-Z]{2}[A-Z0-9]{10})\b')
-
-
 def _parse_ib_date(s: str) -> date:
     if not s:
         raise ValueError("Empty date string")
-    # Normalise: IB Flex uses semicolon as date/time separator e.g. "2025-01-02;07:43:28"
+    # IB Flex uses semicolon as date/time separator e.g. "2025-01-02;07:43:28"
     # Classic format uses comma e.g. "2025-01-02, 07:43:28"
     s = s.strip().replace(";", " ").split(",")[0].strip()
-    # Take only the date portion (first 10 chars) regardless of time part
     date_part = s[:10]
     for fmt in ("%Y-%m-%d", "%Y%m%d", "%m/%d/%Y", "%d.%m.%Y"):
         try:
@@ -390,7 +592,6 @@ def _country_from_isin(isin: Optional[str]) -> Optional[str]:
 
 def _country_from_description(description: str) -> Optional[str]:
     """Heuristic: try to extract country from IB description strings."""
-    # IB sometimes includes exchange like "(XNAS)" in descriptions
     m = re.search(r'\(([A-Z]{4})\)', description)
     if m:
         mic = m.group(1)

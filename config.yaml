@@ -53,6 +53,16 @@ freedom_dashboard:
 #     type: REIT              # REIT | BDC | FUND
 #     currency: USD           # native currency of the fund
 
+# Austrian residency start year for WHT reclaim report.
+# Only dividends from this year onward are included (prior years = not Austrian resident).
+# Set in config.local.yaml to avoid committing personal residency data.
+# at_residency_start_year: 2024
+
+# Symbol aliases for corporate actions (tender offers, mergers) where IB assigns a new
+# temporary ticker/ISIN for the sell event. Maps sell-symbol → buy-symbol for FIFO matching.
+# symbol_aliases:
+#   NEWTICKER: OLDTICKER    # e.g. tender offer: bought as OLDTICKER, sold as NEWTICKER
+
 # Account ID → person name mapping (used to auto-detect --person from broker exports)
 # Find your account ID in the BOF row of any IB Flex Query export
 # For other brokers it will be parsed similarly once those parsers are added
