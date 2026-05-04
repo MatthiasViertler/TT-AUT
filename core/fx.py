@@ -56,15 +56,44 @@ class FXRateProvider:
             return self._memory[key]
 
         # Try nearest trading day (ECB doesn't publish weekends/holidays)
+        rate = None
+        rate_date = None
         for delta in range(5):
             check_date = on_date - timedelta(days=delta)
-            rate = self._lookup(currency, check_date)
-            if rate is not None:
-                self._memory[key] = rate
-                return rate
+            r = self._lookup(currency, check_date)
+            if r is not None:
+                rate = r
+                rate_date = check_date
+                break
 
-        log.warning(f"FX: No rate found for {currency} around {on_date}")
-        return None
+        if rate is None:
+            log.warning(f"FX: No rate found for {currency} around {on_date}")
+            return None
+
+        self._memory[key] = rate
+        assert rate_date is not None
+        self._sanity_check_rate(currency, rate_date, rate)
+        return rate
+
+    def _sanity_check_rate(self, currency: str, on_date: date,
+                            rate: Decimal) -> None:
+        """Warn if rate deviates >20% from the nearest prior cached rate."""
+        cache = self._load_cache(currency, on_date.year)
+        for delta in range(1, 8):
+            prev_date = on_date - timedelta(days=delta)
+            prev_str = str(prev_date)
+            if prev_str in cache:
+                prev_rate = Decimal(str(cache[prev_str]))
+                if prev_rate == Decimal("0"):
+                    return
+                change = abs(rate - prev_rate) / prev_rate
+                if change > Decimal("0.20"):
+                    log.warning(
+                        f"FX sanity: {currency} on {on_date} = {rate:.6f} EUR "
+                        f"(prev {prev_date} = {prev_rate:.6f}, "
+                        f"change = {float(change):.1%}) — verify rate source"
+                    )
+                return  # only check the nearest prior day found
 
     def get_annual_average(self, currency: str, year: int) -> Optional[Decimal]:
         """Annual average rate — sometimes used as a fallback."""

@@ -110,15 +110,15 @@ python main.py --input data/matthias_2021.csv data/matthias_2022.csv data/matthi
 ## Output files (per run)
 - `output/{person}_{year}_tax_summary.txt`   — E1kv Kennziffern for FinanzOnline
 - `output/{person}_{year}_transactions.csv`  — full transaction log
-- `output/{person}_{year}_dashboard.xlsx`    — 4-tab Excel workbook
+- `output/{person}_{year}_dashboard.xlsx`    — Excel workbook (E1kv Summary, Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds])
 - `output/{person}_{year}_freedom.html`      — interactive financial independence dashboard
 - `output/{person}_{year}_wht_reclaim.txt`   — WHT reclaim report (only if at_residency_start_year set)
 
-## Freedom dashboard (HTML)
-Wired into pipeline. Pre-populated with real dividend data from the run.
-Sliders: current portfolio value, monthly expenses, contribution, yield, growth rate.
-Defaults from config.local.yaml freedom_dashboard section (Jessie: €40k portfolio, €1.2k/mo).
-Shows: freedom %, FIRE timeline card, milestones, 40yr projection chart, holdings table.
+## Freedom dashboard (HTML + Excel tab)
+HTML: interactive, sliders for portfolio/expenses/contribution/yield/growth.
+Excel "Freedom" tab: static snapshot — key metrics, per-symbol holdings breakdown, 10-year
+projection table (portfolio × yield_pct, growth_pct, +monthly_contribution/mo).
+Both populated from config freedom_dashboard section; override in config.local.yaml.
 
 ## Matthias's E1kv (from consultant's Excel — screenshot 2026-05-02)
 Much more complex than Jessie's: REITs/BDCs (Nichtmeldefonds), capital losses offsetting gains.
@@ -133,24 +133,26 @@ KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distribution
 - Manual dec31_prices override still works if auto-fetch is wrong/unavailable
 - Config: just add symbol + type + currency under nichtmeldefonds: in config.yaml
 
-## Manual cost basis override
-- Config key: `manual_cost_basis` (list) in config.local.yaml
-- Fields: symbol, isin, purchase_date (YYYY-MM-DD or date object), quantity, cost_eur (total, not per-share)
-- Lots injected into FIFO queue in chronological order alongside real buys
-- Use case: SOLV (Solventum 3M spin-off 2024-04-01, no buy record in IB); cost_eur=0 until
-  3M cost allocation ratio confirmed
+## Correctness checks (all emit warnings, never block output)
+- **FIFO cross-check**: `broker_fifo_pnl_eur` captured from HEADER/DATA SELL rows; warns if
+  our computed gain differs from IB's FifoPnlRealized by > €1.00 (rounding noise suppressed)
+- **Negative position**: warns if total sells > total buys per symbol across all input years;
+  respects `symbol_aliases`; known limitation: manual_cost_basis lots not counted
+- **FX sanity**: warns (log) if ECB rate deviates >20% from nearest prior cached rate;
+  no extra API calls — only compares against already-cached rates
 
 ## Testing
-- `python -m pytest tests/` — 55 tests, all green
+- `python -m pytest tests/` — 65 tests, all green
 - `pytest>=9.0.0` in requirements.txt
 - **Rule**: every new feature ships with at least one test (fixture CSV + assertion)
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess — confirmed against
   IBKR German Tax Report (report ID 126354004/20251231, Line 7)
 
 ## Next up (priority order)
-1. Excel "Freedom" tab (5th tab in dashboard.xlsx, static snapshot)
-2. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
-3. --regelbesteuerung flag
+1. Usability: `--input-dir` folder scanning
+2. Tax: Verlustausgleich tracker (year-by-year gain/loss table)
+3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
+4. --regelbesteuerung flag
 
 ## WHT reclaim status (Matthias, as of 2026-05-04)
 - Implemented: `output/wht_reclaim.py` — generates per-country/year reclaim report

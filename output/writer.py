@@ -54,7 +54,7 @@ def write_all(
     if opts.get("excel", True):
         if OPENPYXL_AVAILABLE:
             p = output_dir / f"{slug}_dashboard.xlsx"
-            _write_excel(transactions, summary, p)
+            _write_excel(transactions, summary, p, config)
             print(f"  [out]    {p}")
         else:
             log.warning("openpyxl not installed — skipping Excel output. "
@@ -183,7 +183,7 @@ def _write_tax_summary(s: TaxSummary, path: Path) -> None:
 # ── Excel Dashboard ───────────────────────────────────────────────────────────
 
 def _write_excel(txns: list[NormalizedTransaction],
-                 summary: TaxSummary, path: Path) -> None:
+                 summary: TaxSummary, path: Path, config: dict | None = None) -> None:
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -211,7 +211,11 @@ def _write_excel(txns: list[NormalizedTransaction],
                   and t.trade_date.year == summary.tax_year]
     _fill_transactions_sheet(wtr, trade_txns, summary.tax_year, title="Trades")
 
-    # ── Tab 5: Nichtmeldefonds (only if positions exist) ──────────────────────
+    # ── Tab 5: Freedom (static snapshot at config assumptions) ───────────────
+    wf = wb.create_sheet("Freedom")
+    _fill_freedom_sheet(wf, div_txns, summary, config or {})
+
+    # ── Tab 6: Nichtmeldefonds (only if positions exist) ──────────────────────
     if summary.nichtmeldefonds:
         wnmf = wb.create_sheet("Nichtmeldefonds")
         _fill_nichtmeldefonds_sheet(wnmf, summary)
@@ -525,6 +529,219 @@ def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
     for row_idx in range(2, ws.max_row + 1):
         for col_idx in eur_cols:
             ws.cell(row_idx, col_idx).number_format = '#,##0.00'
+
+
+# ── Freedom tab ──────────────────────────────────────────────────────────────
+
+_FD_DEFAULTS = {
+    "portfolio_eur": 10000,
+    "monthly_expenses_eur": 2000,
+    "monthly_contribution_eur": 500,
+    "yield_pct": 3.0,
+    "growth_pct": 7.0,
+}
+
+GREEN_DARK  = "375623"
+BLUE_LIGHT2 = "BDD7EE"
+PROJ_FILL   = "E7F0FC"
+
+
+def _fill_freedom_sheet(
+    ws,
+    div_txns: list[NormalizedTransaction],
+    summary: TaxSummary,
+    config: dict,
+) -> None:
+    fd = {**_FD_DEFAULTS, **config.get("freedom_dashboard", {})}
+
+    portfolio     = float(fd["portfolio_eur"])
+    monthly_exp   = float(fd["monthly_expenses_eur"])
+    monthly_cont  = float(fd["monthly_contribution_eur"])
+    yield_pct     = float(fd["yield_pct"]) / 100.0
+    growth_pct    = float(fd["growth_pct"]) / 100.0
+
+    annual_div    = float(summary.total_dividends_eur)
+    monthly_div   = annual_div / 12.0
+    freedom_pct   = (monthly_div / monthly_exp * 100.0) if monthly_exp else 0.0
+
+    # Column widths
+    ws.column_dimensions["A"].width = 32
+    ws.column_dimensions["B"].width = 18
+    ws.column_dimensions["C"].width = 18
+    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["E"].width = 14
+
+    row = [1]
+
+    def _r():
+        r = row[0]; row[0] += 1; return r
+
+    def _cell(r, col, value=None, bold=False, color="000000", size=11,
+              fill=None, fmt=None, align="left", border=False):
+        c = ws.cell(r, col, value)
+        c.font = _font(bold=bold, color=color, size=size)
+        if fill:
+            c.fill = _hfill(fill)
+        if fmt:
+            c.number_format = fmt
+        c.alignment = Alignment(horizontal=align, vertical="center")
+        if border:
+            c.border = _border()
+        return c
+
+    # ── Title ─────────────────────────────────────────────────────────────────
+    r = _r()
+    ws.merge_cells(f"A{r}:E{r}")
+    c = ws[f"A{r}"]
+    c.value = f"Financial Freedom  |  {summary.person_label}  |  {summary.tax_year}"
+    c.font = _font(bold=True, color=WHITE, size=13)
+    c.fill = _hfill(HEADER_FILL)
+    c.alignment = _center()
+    ws.row_dimensions[r].height = 26
+
+    r = _r()
+    ws.merge_cells(f"A{r}:E{r}")
+    c = ws[f"A{r}"]
+    c.value = (f"Generated: {datetime.now().strftime('%Y-%m-%d')}  |  "
+               f"Actual dividends {summary.tax_year}  |  "
+               f"Projection: {fd['yield_pct']}% yield · {fd['growth_pct']}% growth · "
+               f"€{fd['monthly_contribution_eur']:,.0f}/mo contribution")
+    c.font = _font(color="555555", size=9)
+    c.alignment = Alignment(horizontal="center")
+    ws.row_dimensions[r].height = 14
+
+    row[0] += 1  # blank spacer
+
+    # ── Key Metrics ───────────────────────────────────────────────────────────
+    r = _r()
+    ws.merge_cells(f"A{r}:E{r}")
+    c = ws[f"A{r}"]
+    c.value = "KEY METRICS"
+    c.font = _font(bold=True, color=WHITE, size=10)
+    c.fill = _hfill(ACCENT_FILL)
+    c.alignment = _center()
+    ws.row_dimensions[r].height = 18
+
+    metrics = [
+        ("Annual Dividends (actual)",      annual_div,   '#,##0.00 "EUR"', None),
+        ("Monthly Dividends (actual)",      monthly_div,  '#,##0.00 "EUR"', None),
+        ("Monthly Expenses (config)",       monthly_exp,  '#,##0.00 "EUR"', None),
+        ("Monthly Surplus / Deficit",       monthly_div - monthly_exp,
+         '#,##0.00 "EUR"', GREEN_FILL if monthly_div >= monthly_exp else RED_FILL),
+        ("Freedom %",                       freedom_pct,  '0.0"%"',          None),
+        ("Portfolio Value (config)",        portfolio,    '#,##0 "EUR"',     LIGHT_FILL),
+    ]
+    for label, val, fmt, fill in metrics:
+        r = _r()
+        _cell(r, 1, label, bold=True, size=10, fill=fill or WHITE, border=True)
+        c = _cell(r, 2, val, bold=True, size=10, fill=fill or WHITE,
+                  fmt=fmt, align="right", border=True)
+        if label == "Freedom %" :
+            pct = min(val, 100.0)
+            bar_fill = GREEN_FILL if pct >= 100 else (SECTION_FILL if pct >= 50 else LIGHT_FILL)
+            for col in range(3, 6):
+                ws.cell(r, col).fill = _hfill(bar_fill if col <= 2 + int(pct / 33.4) + 1 else WHITE)
+        ws.row_dimensions[r].height = 16
+
+    row[0] += 1  # blank
+
+    # ── Holdings breakdown ────────────────────────────────────────────────────
+    r = _r()
+    ws.merge_cells(f"A{r}:E{r}")
+    c = ws[f"A{r}"]
+    c.value = f"DIVIDEND HOLDINGS  —  {summary.tax_year}"
+    c.font = _font(bold=True, color=WHITE, size=10)
+    c.fill = _hfill(ACCENT_FILL)
+    c.alignment = _center()
+    ws.row_dimensions[r].height = 18
+
+    # header
+    r = _r()
+    for col, txt in [(1, "Symbol"), (2, "Annual EUR"), (3, "Monthly EUR"), (4, "% of Total"), (5, "Payments")]:
+        _cell(r, col, txt, bold=True, color=WHITE, size=9, fill=ACCENT_FILL, align="center", border=True)
+    ws.row_dimensions[r].height = 15
+
+    # aggregate per symbol
+    acc: dict[str, dict] = {}
+    for t in div_txns:
+        if t.symbol not in acc:
+            acc[t.symbol] = {"annual": ZERO, "payments": 0}
+        acc[t.symbol]["annual"] += t.eur_amount or ZERO
+        acc[t.symbol]["payments"] += 1
+
+    total_div_dec = sum(v["annual"] for v in acc.values())
+
+    for sym, data in sorted(acc.items(), key=lambda x: -x[1]["annual"]):
+        r = _r()
+        ann = float(data["annual"])
+        pct = float(data["annual"] / total_div_dec * 100) if total_div_dec else 0
+        _cell(r, 1, sym, bold=True, size=9, fill=WHITE, border=True)
+        _cell(r, 2, ann, size=9, fill=WHITE, fmt='#,##0.00', align="right", border=True)
+        _cell(r, 3, ann / 12, size=9, fill=WHITE, fmt='#,##0.00', align="right", border=True)
+        _cell(r, 4, pct, size=9, fill=WHITE, fmt='0.0"%"', align="right", border=True)
+        _cell(r, 5, data["payments"], size=9, fill=WHITE, align="center", border=True)
+        ws.row_dimensions[r].height = 14
+
+    # totals
+    r = _r()
+    _cell(r, 1, "TOTAL", bold=True, size=9, fill=LIGHT_FILL, border=True)
+    _cell(r, 2, float(total_div_dec), bold=True, size=9, fill=LIGHT_FILL,
+          fmt='#,##0.00', align="right", border=True)
+    _cell(r, 3, float(total_div_dec) / 12, bold=True, size=9, fill=LIGHT_FILL,
+          fmt='#,##0.00', align="right", border=True)
+    _cell(r, 4, 100.0, bold=True, size=9, fill=LIGHT_FILL, fmt='0.0"%"',
+          align="right", border=True)
+    ws.row_dimensions[r].height = 14
+
+    row[0] += 1  # blank
+
+    # ── 10-Year Projection ────────────────────────────────────────────────────
+    r = _r()
+    ws.merge_cells(f"A{r}:E{r}")
+    c = ws[f"A{r}"]
+    c.value = "10-YEAR PROJECTION  (static at config assumptions)"
+    c.font = _font(bold=True, color=WHITE, size=10)
+    c.fill = _hfill(ACCENT_FILL)
+    c.alignment = _center()
+    ws.row_dimensions[r].height = 18
+
+    r = _r()
+    for col, txt in [(1, "Year"), (2, "Portfolio EUR"), (3, "Annual Divs EUR"),
+                     (4, "Monthly Divs EUR"), (5, "Freedom %")]:
+        _cell(r, col, txt, bold=True, color=WHITE, size=9, fill=ACCENT_FILL, align="center", border=True)
+    ws.row_dimensions[r].height = 15
+
+    port = portfolio
+    for i in range(11):
+        yr = summary.tax_year + i
+        ann_d = port * yield_pct if i > 0 else annual_div
+        mo_d  = ann_d / 12.0
+        fp    = mo_d / monthly_exp * 100.0 if monthly_exp else 0.0
+        fill  = GREEN_FILL if fp >= 100 else (PROJ_FILL if i % 2 == 0 else WHITE)
+
+        r = _r()
+        _cell(r, 1, yr,    bold=(i == 0), size=9, fill=fill, align="center", border=True)
+        _cell(r, 2, port,  size=9, fill=fill, fmt='#,##0', align="right", border=True)
+        _cell(r, 3, ann_d, size=9, fill=fill, fmt='#,##0.00', align="right", border=True)
+        _cell(r, 4, mo_d,  size=9, fill=fill, fmt='#,##0.00', align="right", border=True)
+        _cell(r, 5, fp,    bold=(fp >= 100), size=9, fill=fill, fmt='0.0"%"',
+              align="right", border=True)
+        ws.row_dimensions[r].height = 14
+
+        port = port * (1 + growth_pct) + monthly_cont * 12
+
+    # note
+    r = _r() + 1
+    ws.merge_cells(f"A{r}:E{r}")
+    c = ws[f"A{r}"]
+    c.value = (f"Year 0 = actual dividends. Years 1–10: portfolio × {fd['yield_pct']}% yield, "
+               f"{fd['growth_pct']}% annual growth, +€{fd['monthly_contribution_eur']:,.0f}/mo contribution. "
+               f"Update portfolio_eur in config.local.yaml for accurate projections.")
+    c.font = _font(color="888888", size=8)
+    c.alignment = Alignment(wrap_text=True)
+    ws.row_dimensions[r].height = 24
+
+    ws.freeze_panes = "A3"
 
 
 # ── Nichtmeldefonds tab ───────────────────────────────────────────────────────
