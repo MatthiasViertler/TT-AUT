@@ -91,3 +91,44 @@ VS Code workspace settings: python.defaultInterpreterPath + terminal PATH inject
 ## People / accounts tested
 - jessie (U11111111): IBKR, 2024+2025+2026 exports, all years produce correct output
 - self (Matthias): IBKR 2025 tested; multi-broker (SAXO, E*Trade) pending
+
+---
+
+## IB Flex Query format quirks
+
+**TT-AUT export (BOS/EOS format)** — Matthias's exports (2021–2026):
+- BOF col[1] = account ID; BOF col[5] = year-end date (fallback for CTRN rows with no DateTime)
+- BOS/EOS markers wrap each section; row after BOS = plain header, rows after = plain data
+- CTRN rows have NO Date/Time → grouped by (symbol, per_share_str, currency) and netted
+- WHT amounts are negative in source; `wht_held = -sum(whts)` to get positive withheld amount
+- Return of Capital detected via description substring "return of capital" → entire group skipped
+- PER_SHARE_RE: `r'([A-Z]{3}\s+\d+(?:\.\d+)?\s+PER\s+SHARE)'`
+- BAYN 2021 reversal/re-booking: netting resolves [70, −70, 70.01] → 70.01
+
+**HEADER/DATA format** — Jessie's exports:
+- BOF row col[1] = account ID
+- Section codes: TRNT=Trades, CTRN=Cash Transactions
+- Field names: CurrencyPrimary, DateTime, TradePrice, IBCommission, AssetClass
+- Date format: `yyyy-MM-dd;HH:mm:ss`
+- Type strings (CTRN): "Dividends", "Withholding Tax", "Broker Interest Received"
+- Duplicate rows: same trade with CostBasis ±1.00 → deduped via raw_id
+- FifoPnlRealized field present on TRNT SELL rows → used for FIFO cross-check
+
+---
+
+## Matthias's full symbol list (STK)
+ALV, AIR, BAS, BAYN, BMW, FRE, GAZ, HEN3, HOT, IFX, KHC, LIN, LMT, IBKR, MC, MMM,
+MUV2, NOV, OMV, P911, RIO1, RDSB, SAF, SHL, SIE, UNVB, VER, VOW3, AVGO, ABEC,
+SOLV (3M spin-off, manual_cost_basis cost=0)
+New 2025: HENSOLDT (DE000HAG0005), RENK (DE000RENK730), RHEINMETALL (DE0007030009),
+TKMS (DE000TKMS001), 4SC (DE000A3E5C40), DRONESHIELD (AU000000DRO2), BLACKSKY (US09263B2079)
+
+## Matthias's data files (not committed)
+data/matthias_2021.csv through data/matthias_2026.csv — IBKR TT-AUT BOS/EOS exports
+data/2024/2025/2026-AUT-TAX-Divi-Trades-Report.csv — Jessie IBKR HEADER/DATA exports
+2020 intentionally excluded (IBKR UK/IE split year, nothing tax-relevant; FIFO starts 2021)
+
+## Matthias's E1kv complexity (from consultant's Excel, screenshot 2026-05-02)
+REITs/BDCs (Nichtmeldefonds), capital losses offsetting gains.
+KZ fields not yet output: 864/865 (25% gains), 897 (fund distributions domestic),
+982/993/893–896 (derivatives), 171/173/175 (crypto), 942 (Lichtenstein), 984/900/901.
