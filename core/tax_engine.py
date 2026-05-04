@@ -110,6 +110,8 @@ class TaxEngine:
             elif t.txn_type == TransactionType.SELL:
                 effective = self.symbol_aliases.get(t.symbol, t.symbol)
                 net[effective] -= (t.quantity or ZERO).copy_abs()
+        for entry in self.config.get("manual_cost_basis", []):
+            net[entry["symbol"]] += Decimal(str(entry["quantity"]))
         for sym, qty in net.items():
             if qty < ZERO:
                 summary.warnings.append(

@@ -14,9 +14,10 @@ For each run (`--person`, `--year`):
 |------|----------|
 | `output/{person}_{year}_tax_summary.txt` | E1kv Kennziffern ready to copy into FinanzOnline |
 | `output/{person}_{year}_transactions.csv` | Full transaction log with FX rates, cost basis, gain/loss |
-| `output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds] |
+| `output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds] |
 | `output/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
 | `output/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
+| `output/{person}_{year}_summary.json` | Machine-readable year snapshot; populates the multi-year Overview tab |
 
 FX rates are fetched from the ECB and cached locally — no API key needed.
 
@@ -166,6 +167,16 @@ Configure defaults in `config.local.yaml` under `freedom_dashboard` (see Setup a
 
 ---
 
+## Verlustausgleich — year-over-year overview
+
+Each run saves a small `{person}_{year}_summary.json` snapshot. The Excel **Overview** tab automatically loads all available snapshots for the same person and displays a year-by-year table:
+
+| Year | Dividends | Cap Gains | Cap Losses | Net Taxable | KeSt 27.5% | WHT Credited | KeSt Remaining |
+
+Run for multiple years and the table grows automatically — no manual aggregation needed.
+
+---
+
 ## Manual cost basis override
 
 For positions with no IB buy record (spin-offs, shares transferred from another broker):
@@ -190,7 +201,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-55 tests covering: both IB parser formats (BOS/EOS + HEADER/DATA), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, and manual cost basis FIFO logic.
+81 tests covering: both IB parser formats (BOS/EOS + HEADER/DATA), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
 
 ---
 

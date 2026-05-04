@@ -59,9 +59,10 @@ python main.py --input data/matthias_2021.csv data/matthias_2022.csv data/matthi
 ## Output files (per run)
 - `output/{person}_{year}_tax_summary.txt`   — E1kv Kennziffern for FinanzOnline
 - `output/{person}_{year}_transactions.csv`  — full transaction log
-- `output/{person}_{year}_dashboard.xlsx`    — E1kv Summary, Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds]
+- `output/{person}_{year}_dashboard.xlsx`    — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds]
 - `output/{person}_{year}_freedom.html`      — interactive financial independence dashboard (sliders)
 - `output/{person}_{year}_wht_reclaim.txt`   — WHT reclaim report (if at_residency_start_year set)
+- `output/{person}_{year}_summary.json`      — machine-readable snapshot; drives the multi-year Overview tab
 
 ## Key config knobs (config.local.yaml)
 - `at_residency_start_year: 2024` — enables WHT reclaim report
@@ -81,18 +82,16 @@ Prices auto-fetched via yfinance, cached. Add symbol under `nichtmeldefonds:` in
 
 ## Manual cost basis
 `manual_cost_basis` in config.local.yaml seeds FIFO lots in date order alongside real buys.
-Known limitation: not counted in negative-position check (FIFO match still works correctly).
+Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 65 tests, all green
+- `python -m pytest tests/` — 81 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
 ## Next up (priority order)
-1. Usability: `--input-dir` folder scanning
-2. Tax: Verlustausgleich tracker (year-by-year gain/loss table)
-3. SAXO broker parser — needs sample export from Matthias
-4. `--regelbesteuerung` flag
+1. SAXO broker parser — needs sample export from Matthias
+2. `--regelbesteuerung` flag
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
