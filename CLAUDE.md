@@ -133,19 +133,24 @@ KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distribution
 - Manual dec31_prices override still works if auto-fetch is wrong/unavailable
 - Config: just add symbol + type + currency under nichtmeldefonds: in config.yaml
 
+## Manual cost basis override
+- Config key: `manual_cost_basis` (list) in config.local.yaml
+- Fields: symbol, isin, purchase_date (YYYY-MM-DD or date object), quantity, cost_eur (total, not per-share)
+- Lots injected into FIFO queue in chronological order alongside real buys
+- Use case: SOLV (Solventum 3M spin-off 2024-04-01, no buy record in IB); cost_eur=0 until
+  3M cost allocation ratio confirmed
+
 ## Testing
-- `python -m pytest tests/` — 47 tests, all green
+- `python -m pytest tests/` — 55 tests, all green
 - `pytest>=9.0.0` in requirements.txt
 - **Rule**: every new feature ships with at least one test (fixture CSV + assertion)
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess — confirmed against
   IBKR German Tax Report (report ID 126354004/20251231, Line 7)
 
 ## Next up (priority order)
-1. **Manual cost basis override** — needed for SOLV (Solventum 3M spin-off, no buy record in IB).
-   Config entry: `manual_cost_basis: [{symbol, isin, purchase_date, quantity, cost_eur}]`.
-2. Excel "Freedom" tab (5th tab in dashboard.xlsx, static snapshot)
-3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
-4. --regelbesteuerung flag
+1. Excel "Freedom" tab (5th tab in dashboard.xlsx, static snapshot)
+2. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
+3. --regelbesteuerung flag
 
 ## WHT reclaim status (Matthias, as of 2026-05-04)
 - Implemented: `output/wht_reclaim.py` — generates per-country/year reclaim report
