@@ -95,6 +95,9 @@ class NormalizedTransaction:
     eur_gain_loss:    Optional[Decimal] = None   # For sells: proceeds - cost basis
     eur_cost_basis:   Optional[Decimal] = None   # For sells: matched purchase cost
 
+    # Broker-reported FIFO PnL (EUR) — used for cross-check against our computation
+    broker_fifo_pnl_eur: Optional[Decimal] = None
+
     # Metadata
     source_file:      str = ""
     notes:            str = ""

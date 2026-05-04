@@ -58,6 +58,7 @@ class TaxEngine:
         buys = [t for t in transactions if t.txn_type == TransactionType.BUY]  # all years for basis
         interests = [t for t in year_txns if t.txn_type == TransactionType.INTEREST]
 
+        self._check_negative_positions(transactions, summary)
         self._process_dividends(dividends, summary)
         self._process_capital_gains(buys, sells, summary)
         self._process_interest(interests, summary)
@@ -96,6 +97,25 @@ class TaxEngine:
 
             summary.total_dividends_eur += gross
             summary.total_wht_paid_eur += wht
+
+    # ── Negative position check ───────────────────────────────────────────────
+
+    def _check_negative_positions(self, transactions: list[NormalizedTransaction],
+                                   summary: TaxSummary) -> None:
+        """Warn if any symbol's net holding goes negative across all input years."""
+        net: dict[str, Decimal] = defaultdict(lambda: ZERO)
+        for t in transactions:
+            if t.txn_type == TransactionType.BUY:
+                net[t.symbol] += (t.quantity or ZERO).copy_abs()
+            elif t.txn_type == TransactionType.SELL:
+                effective = self.symbol_aliases.get(t.symbol, t.symbol)
+                net[effective] -= (t.quantity or ZERO).copy_abs()
+        for sym, qty in net.items():
+            if qty < ZERO:
+                summary.warnings.append(
+                    f"Negative position: {sym} net holding = {qty:.4f} units "
+                    f"(sold more than bought — missing buy records or add to symbol_aliases)"
+                )
 
     # ── Capital Gains (FIFO) ──────────────────────────────────────────────────
 
@@ -145,6 +165,16 @@ class TaxEngine:
                 )
 
             net_gain = proceeds - cost_matched - commission
+
+            # Cross-check against broker-reported FIFO PnL (available from HEADER/DATA format)
+            if sell.broker_fifo_pnl_eur is not None:
+                diff = (net_gain - sell.broker_fifo_pnl_eur).copy_abs()
+                if diff > Decimal("1.00"):
+                    summary.warnings.append(
+                        f"FIFO mismatch {sell.symbol} ({sell.trade_date}): "
+                        f"our gain={net_gain:.2f} EUR, IB reports {sell.broker_fifo_pnl_eur:.2f} EUR "
+                        f"(diff={diff:.2f} EUR) — verify cost basis"
+                    )
 
             if sell.domicile == Domicile.DOMESTIC:
                 if net_gain >= ZERO:

@@ -57,12 +57,14 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] **Manual cost basis override** — `manual_cost_basis` in config.local.yaml; lots injected
       into FIFO queue in date order alongside real buys. 8 tests. *(2026-05-04)*
       SOLV configured as cost_eur=0 until 3M spin-off allocation ratio confirmed.
-- [ ] **Cross-check vs IB FifoPnlRealized** — compare our FIFO P&L against IB's
-      per-trade value, warn if difference > €1.00
-- [ ] **Negative position check** — warn if net holding goes negative (sell > bought)
-- [ ] **FX rate sanity check** — warn if ECB rate deviates >20% from prior day
-- [x] **Pytest skeleton** (`tests/`) — 55 tests across parser, WHT reclaim, sanity, manual
-      cost basis. Rule: every new feature ships with at least one test. *(2026-05-04)*
+- [x] **Cross-check vs IB FifoPnlRealized** — `broker_fifo_pnl_eur` field captured from
+      HEADER/DATA SELL rows; warns if diff > €1.00. 8 tests. *(2026-05-04)*
+- [x] **Negative position check** — warns if total sells > total buys per symbol (all years);
+      respects symbol_aliases. 5 tests. *(2026-05-04)*
+- [x] **FX rate sanity check** — warns (log) if ECB rate deviates >20% from prior day;
+      only fires if prior day is in cache (no extra fetches). 5 tests. *(2026-05-04)*
+- [x] **Pytest skeleton** (`tests/`) — 65 tests across parser, WHT reclaim, sanity, manual
+      cost basis, FIFO cross-check, position check, FX sanity. *(2026-05-04)*
 
 ---
 

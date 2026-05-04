@@ -133,17 +133,24 @@ KZ fields we currently don't output: 864/865 (25% gains), 897 (fund distribution
 - Manual dec31_prices override still works if auto-fetch is wrong/unavailable
 - Config: just add symbol + type + currency under nichtmeldefonds: in config.yaml
 
+## Correctness checks (all emit warnings, never block output)
+- **FIFO cross-check**: `broker_fifo_pnl_eur` captured from HEADER/DATA SELL rows; warns if
+  our computed gain differs from IB's FifoPnlRealized by > €1.00 (rounding noise suppressed)
+- **Negative position**: warns if total sells > total buys per symbol across all input years;
+  respects `symbol_aliases`; known limitation: manual_cost_basis lots not counted
+- **FX sanity**: warns (log) if ECB rate deviates >20% from nearest prior cached rate;
+  no extra API calls — only compares against already-cached rates
+
 ## Testing
-- `python -m pytest tests/` — 47 tests, all green
+- `python -m pytest tests/` — 65 tests, all green
 - `pytest>=9.0.0` in requirements.txt
 - **Rule**: every new feature ships with at least one test (fixture CSV + assertion)
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess — confirmed against
   IBKR German Tax Report (report ID 126354004/20251231, Line 7)
 
 ## Next up (priority order)
-1. **Manual cost basis override** — needed for SOLV (Solventum 3M spin-off, no buy record in IB).
-   Config entry: `manual_cost_basis: [{symbol, isin, purchase_date, quantity, cost_eur}]`.
-2. Excel "Freedom" tab (5th tab in dashboard.xlsx, static snapshot)
+1. Usability: `--input-dir` folder scanning
+2. Tax: Verlustausgleich tracker (year-by-year gain/loss table)
 3. SAXO broker parser (brokers/saxo.py) — needs sample export from Matthias
 4. --regelbesteuerung flag
 
