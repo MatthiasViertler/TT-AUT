@@ -1,6 +1,6 @@
 # Kapitalertrag
 
-Austrian capital gains tax calculator. Parses broker exports, applies KeSt rules (FIFO, WHT crediting, domestic/foreign classification), and produces ready-to-file E1kv Kennziffern plus an Excel dashboard.
+Austrian capital gains tax calculator. Parses Interactive Brokers exports, applies KeSt rules (FIFO, WHT crediting, Nichtmeldefonds), and produces ready-to-file E1kv Kennziffern plus an Excel dashboard and a financial freedom projection.
 
 > **Personal tool** — built for Austrian tax residents with Interactive Brokers accounts. Contributions welcome, but no guarantees. Always verify output against your broker statements and consult a tax advisor for edge cases.
 
@@ -12,9 +12,11 @@ For each run (`--person`, `--year`):
 
 | File | Contents |
 |------|----------|
-| `output/{person}_{year}_tax_summary.txt` | E1kv Kennziffern (KZ 898, 937, etc.) ready for FinanzOnline |
+| `output/{person}_{year}_tax_summary.txt` | E1kv Kennziffern ready to copy into FinanzOnline |
 | `output/{person}_{year}_transactions.csv` | Full transaction log with FX rates, cost basis, gain/loss |
-| `output/{person}_{year}_dashboard.xlsx` | 4-tab Excel workbook (summary, trades, dividends, WHT) |
+| `output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds] |
+| `output/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
+| `output/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
 
 FX rates are fetched from the ECB and cached locally — no API key needed.
 
@@ -22,11 +24,12 @@ FX rates are fetched from the ECB and cached locally — no API key needed.
 
 ## Supported brokers
 
-| Broker | Status |
-|--------|--------|
-| Interactive Brokers (Flex Query CSV) | ✓ supported |
-| SAXO | planned |
-| E*Trade | planned |
+| Broker | Format | Status |
+|--------|--------|--------|
+| Interactive Brokers — TT-AUT BOS/EOS | Matthias-style Flex Query | ✓ supported |
+| Interactive Brokers — HEADER/DATA | Jessie-style Flex Query | ✓ supported |
+| SAXO | — | planned |
+| E*Trade | — | planned |
 
 ---
 
@@ -42,14 +45,29 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**Configure your account:**
-
-Edit `config.yaml` and add your IBKR account ID to `account_map`:
+**Configure your account** — edit `config.yaml`:
 
 ```yaml
 account_map:
   U11111111: Jessie      # find your account ID in the BOF row of any Flex Query export
   U22222222: Matthias
+```
+
+Real account IDs and personal settings go in `config.local.yaml` (gitignored, never committed):
+
+```yaml
+# config.local.yaml
+account_map:
+  U99999999: YourName
+
+at_residency_start_year: 2024   # for WHT reclaim report
+
+freedom_dashboard:
+  portfolio_eur: 50000
+  monthly_expenses_eur: 2000
+  monthly_contribution_eur: 500
+  yield_pct: 3.5
+  growth_pct: 7.0
 ```
 
 ---
@@ -80,9 +98,6 @@ python main.py --input data/2023.csv data/2024.csv data/2025.csv --year 2025
 
 # Explicit person label (overrides account_map lookup)
 python main.py --input data/2025.csv --year 2025 --person matthias
-
-# Offline mode (use cached FX rates only)
-python main.py --input data/2025.csv --year 2025 --no-fx-fetch
 ```
 
 All options:
@@ -91,22 +106,91 @@ All options:
 --input FILE [FILE ...]   broker export file(s); multiple files are merged
 --year INT                tax year to calculate
 --person NAME             output label; default: auto-detected from account_map
---broker auto|ib|...      force a specific parser (default: auto-detect)
 --config FILE             config file path (default: config.yaml)
 --output-dir DIR          output directory (default: ./output)
---no-fx-fetch             skip ECB rate fetch, use disk cache only
 ```
 
 ---
 
 ## Key tax rules implemented
 
-- **FIFO** cost basis matching across all input files
+- **FIFO** cost basis matching across all input files and years
 - **KeSt rate:** 27.5% flat (§ 27a EStG)
-- **WHT crediting:** up to 15% treaty rate offset against Austrian KeSt
+- **WHT crediting:** up to treaty rate (default 15%) offset against Austrian KeSt
 - **Domestic classification:** ISIN prefix `AT` or exchange `WBAG`/`XWBO`
-- **WHT excess warning** when foreign withholding exceeds the creditable amount (> €0.05 threshold to suppress rounding noise)
-- **KZ 937** (Ausschüttungsgleiche Erträge for accumulating funds) is **not** auto-calculated — requires OeKB data; the tax summary flags this for manual entry
+- **WHT excess warning** when foreign withholding exceeds the creditable amount (> €0.05 threshold suppresses rounding noise)
+- **Return of Capital** — groups detected by "return of capital" in description are skipped entirely
+- **Corporate actions / mergers** — `symbol_aliases` in config maps sell-ticker → buy-ticker for FIFO matching
+- **Nichtmeldefonds** (§ 186 InvFG) — pauschal AE = max(90% × annual gain, 10% × Dec31 price) per share; year-end prices auto-fetched from Yahoo Finance and cached
+- **Manual cost basis override** — seed the FIFO queue for positions with no IB buy record (spin-offs, broker transfers)
+- **KZ 937** (Ausschüttungsgleiche Erträge for accumulating funds) is **not** auto-calculated — requires OeKB data; flagged for manual entry
+
+---
+
+## Nichtmeldefonds (§ 186 InvFG)
+
+For US REITs, BDCs, and other funds not registered with OeKB, add to `config.yaml`:
+
+```yaml
+nichtmeldefonds:
+  - symbol: O              # Yahoo Finance ticker
+    isin: US7561091049
+    name: Realty Income Corp
+    type: REIT
+    currency: USD
+```
+
+Year-end prices are fetched automatically via yfinance and cached in `data/price_cache/`.
+
+---
+
+## WHT reclaim
+
+Set `at_residency_start_year` in `config.local.yaml` to generate a per-country excess WHT report:
+
+```yaml
+at_residency_start_year: 2024
+```
+
+The report covers dividends from that year onward and shows the reclaimable excess above the treaty rate per country (e.g. DE: 26.375% withheld − 15% treaty = 11.375% excess). Filing deadlines and authority contacts are included.
+
+---
+
+## Freedom dashboard
+
+The HTML dashboard (`_freedom.html`) is interactive — sliders for portfolio value, monthly expenses, contribution, yield, and growth rate. Pre-populated with actual dividend data from the run.
+
+The Excel **Freedom** tab is a static snapshot: key metrics, per-symbol holdings breakdown, and a 10-year projection table.
+
+Configure defaults in `config.local.yaml` under `freedom_dashboard` (see Setup above).
+
+---
+
+## Manual cost basis override
+
+For positions with no IB buy record (spin-offs, shares transferred from another broker):
+
+```yaml
+# config.local.yaml
+manual_cost_basis:
+  - symbol: SOLV
+    isin: US83444M1018
+    purchase_date: 2024-04-01
+    quantity: 10
+    cost_eur: 0.00          # total basis in EUR (not per share)
+```
+
+Lots are injected into the FIFO queue in date order alongside real buy records.
+
+---
+
+## Running tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+55 tests covering: both IB parser formats (BOS/EOS + HEADER/DATA), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, and manual cost basis FIFO logic.
 
 ---
 
