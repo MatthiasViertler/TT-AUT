@@ -24,6 +24,47 @@ def cfg():
     return dict(DEFAULTS)
 
 
+def make_trade(
+    symbol: str,
+    isin: str,
+    txn_type: TransactionType,
+    quantity: float,
+    price_eur: float,
+    trade_date: date = date(2025, 6, 1),
+    commission_eur: float = 0.0,
+) -> NormalizedTransaction:
+    """Helper: create a BUY or SELL transaction (EUR, rate=1)."""
+    qty = Decimal(str(quantity))
+    price = Decimal(str(price_eur))
+    comm = Decimal(str(commission_eur))
+    sign = Decimal("-1") if txn_type == TransactionType.BUY else Decimal("1")
+    amount = sign * qty * price
+    return NormalizedTransaction(
+        broker="ib",
+        raw_id=f"test_{symbol}_{trade_date}_{txn_type.value}",
+        trade_date=trade_date,
+        settle_date=None,
+        txn_type=txn_type,
+        asset_class=AssetClass.STOCK,
+        symbol=symbol,
+        isin=isin,
+        description=f"{symbol} {txn_type.value.upper()}",
+        country_code="US",
+        domicile=Domicile.FOREIGN,
+        quantity=qty if txn_type == TransactionType.BUY else -qty,
+        price=price,
+        price_currency="EUR",
+        orig_currency="EUR",
+        orig_amount=amount,
+        wht_amount_orig=Decimal("0"),
+        fx_rate_to_eur=Decimal("1"),
+        eur_amount=amount,
+        eur_wht=Decimal("0"),
+        eur_commission=comm,
+        source_file="test",
+    )
+
+
 def make_dividend(
     symbol: str,
     isin: str,
