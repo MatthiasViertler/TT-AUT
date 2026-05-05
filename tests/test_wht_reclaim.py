@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from core.models import TransactionType
-from output.wht_reclaim import write_wht_reclaim_report
+from generators.wht_reclaim import write_wht_reclaim_report
 from tests.conftest import make_dividend
 
 ZERO = Decimal("0")

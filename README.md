@@ -12,13 +12,13 @@ For each run (`--person`, `--year`):
 
 | File | Contents |
 |------|----------|
-| `output/{person}_{year}_tax_summary.txt` | E1kv Kennziffern ready to copy into FinanzOnline |
-| `output/{person}_{year}_transactions.csv` | Full transaction log with FX rates, cost basis, gain/loss |
-| `output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds] |
-| `output/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
-| `output/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
-| `output/{person}_{year}_anv_checklist.txt` | L1 deduction checklist — Werbungskosten, Pendlerpauschale, Sonderausgaben, Familienbonus (if `anv:` set) |
-| `output/{person}_{year}_summary.json` | Machine-readable year snapshot; populates the multi-year Overview tab |
+| `users/{person}/output/{person}_{year}_tax_summary.txt` | E1kv Kennziffern ready to copy into FinanzOnline |
+| `users/{person}/output/{person}_{year}_transactions.csv` | Full transaction log with FX rates, cost basis, gain/loss |
+| `users/{person}/output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds] |
+| `users/{person}/output/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
+| `users/{person}/output/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
+| `users/{person}/output/{person}_{year}_anv_checklist.txt` | L1 deduction checklist — Werbungskosten, Pendlerpauschale, Sonderausgaben, Familienbonus (if `anv:` set) |
+| `users/{person}/output/{person}_{year}_summary.json` | Machine-readable year snapshot; populates the multi-year Overview tab |
 
 FX rates are fetched from the ECB and cached locally — no API key needed.
 
@@ -49,20 +49,31 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**Configure your account** — edit `config.yaml`:
+**Create a folder for each person** — all personal data lives under `users/` (gitignored):
 
-```yaml
-account_map:
-  U11111111: Jessie      # find your account ID in the BOF row of any Flex Query export
-  U22222222: Matthias
+```
+users/
+  yourname/
+    config.local.yaml    ← person-specific settings (never committed)
+    data/
+      IB/2025/activity.csv
+      SAXO/2025/ClosedPositions_...xlsx
+    output/              ← generated files land here
+  spouse/
+    config.local.yaml
+    data/
+      IB/2025/activity.csv
+    output/
 ```
 
-Real account IDs and personal settings go in `config.local.yaml` (gitignored, never committed):
+**`users/{yourname}/config.local.yaml`** — person-specific settings:
 
 ```yaml
-# config.local.yaml
-account_map:
-  U99999999: YourName
+# Your broker account ID(s) — used for auto-detection.
+# Scalar for a single broker; list for multiple brokers or migrated accounts.
+account_id:
+  - U99999999        # IB account (find in BOF row of any Flex Query export)
+  - "19999999"       # SAXO account (optional, if you use SAXO)
 
 at_residency_start_year: 2024   # for WHT reclaim report
 
@@ -83,6 +94,8 @@ freedom_dashboard:
   growth_pct: 7.0
 ```
 
+`config.yaml` contains only universal settings (KeSt rate, FX source, treaty rates). It is committed and has no personal data.
+
 ---
 
 ## Getting an IB Flex Query export
@@ -94,9 +107,9 @@ In Client Portal / TWS:
 3. Include sections: **Trades**, **Cash Transactions**
 4. Date range: full calendar year(s) you want to calculate
 5. Format: **CSV**
-6. Run query and save the file to `data/`
+6. Run query and save the file to `users/{yourname}/data/IB/{year}/`
 
-For multi-year FIFO accuracy, always pass **all years from your first trade** onward — cost basis is recalculated from scratch each run.
+For multi-year FIFO accuracy, place **all years** in the data folder — cost basis is recalculated from scratch each run and all files are picked up automatically.
 
 ---
 
@@ -104,60 +117,66 @@ For multi-year FIFO accuracy, always pass **all years from your first trade** on
 
 In SAXO Client Portal → **Reports**:
 
-**AggregatedAmounts** (mandatory for trades):
-1. Reports → AggregatedAmounts → set date range to full calendar year
-2. Export as xlsx → save to `data/`
-3. This report contains both trades AND dividends — it is the primary input
+**ClosedPositions** (preferred for trades — real share quantities):
+1. Reports → ClosedPositions → set date range to full calendar year
+2. Export as xlsx → save to `users/{yourname}/data/SAXO/{year}/`
 
-**ShareDividends** (optional, better dividend data):
+**AggregatedAmounts** (for dividends when using ClosedPositions for trades):
+1. Reports → AggregatedAmounts → set date range to full calendar year
+2. Export as xlsx → save to `users/{yourname}/data/SAXO/{year}/`
+3. Set `saxo_skip_agg_trades: true` in your `config.local.yaml` to suppress duplicate trades
+
+**ShareDividends** (optional, richer WHT detail):
 1. Reports → ShareDividends → set date range
 2. Export as xlsx
-3. **Do not pass ShareDividends alongside AggregatedAmounts for the same period** — dividends would be double-counted
-4. Use ShareDividends only for periods where you have no AggregatedAmounts
+3. **Do not combine with AggregatedAmounts for the same period** — dividends would be double-counted
 
-**Corporate acquisitions** (e.g. SWAV acquired by J&J): these appear as "Corporate Actions - Cash Compensation" and are automatically treated as taxable SELL events.
+**Corporate acquisitions** (e.g. SWAV acquired by J&J): appear as "Corporate Actions - Cash Compensation" and are automatically treated as taxable SELL events.
 
-**No per-share quantity**: SAXO exports carry no share quantity. Each trade is stored as one lot (quantity=1) at total trade price. For positions opened before your earliest AggregatedAmounts file, seed the FIFO queue with `manual_cost_basis` entries (see below).
+**No per-share quantity in AggregatedAmounts**: each trade is stored as one lot (quantity=1). For positions opened before your earliest ClosedPositions/AggregatedAmounts file, seed the FIFO queue with `manual_cost_basis` entries (see below).
 
-### Recommended data folder structure
+### Data folder structure
 
 ```
-data/{person}/{broker}/{year}/
+users/{person}/data/{broker}/{year}/
 ```
 
 Example:
 ```
-data/matthias/SAXO/2024/AggregatedAmounts_19999999_2024-01-01_2024-12-31.xlsx
-data/matthias/SAXO/2025/AggregatedAmounts_19999999_2025-01-01_2025-12-31.xlsx
-data/matthias/IB/2024/matthias_2024.csv
-data/jessie/IB/2025/jessie_2025.csv
+users/matthias/data/SAXO/2024/AggregatedAmounts_19999999_2024-01-01_2024-12-31.xlsx
+users/matthias/data/SAXO/2025/ClosedPositions_19999999_2025-01-01_2025-12-31.xlsx
+users/matthias/data/SAXO/2025/AggregatedAmounts_19999999_2025-01-01_2025-12-31.xlsx
+users/matthias/data/IB/2024/matthias_2024.csv
+users/jessie/data/IB/2025/jessie_2025.csv
 ```
 
-This prevents accidentally mixing files from different brokers or years. Pass files explicitly via `--input`.
+All files under `users/{person}/data/` are picked up automatically when you run with `--person {person}` — no need to list files explicitly.
 
 ---
 
 ## Usage
 
 ```bash
-# Single year
-python main.py --input data/2025.csv --year 2025
+# Recommended — auto-discovers all files in users/{person}/data/
+python main.py --person matthias --year 2025
+python main.py --person jessie   --year 2025
 
-# Multi-year (required for correct FIFO if you bought before the tax year)
-python main.py --input data/2023.csv data/2024.csv data/2025.csv --year 2025
+# Explicit input files (non-standard layout or mixing sources)
+python main.py --person matthias --input users/matthias/data/IB/2025/file.csv --year 2025
 
-# Explicit person label (overrides account_map lookup)
-python main.py --input data/2025.csv --year 2025 --person matthias
+# Auto-detect person from account_id (when input paths are under users/)
+python main.py --input users/matthias/data/IB/2025/file.csv --year 2025
 ```
 
 All options:
 
 ```
---input FILE [FILE ...]   broker export file(s); multiple files are merged
+--person NAME             person label; auto-detected from account_id in users/*/config.local.yaml
 --year INT                tax year to calculate
---person NAME             output label; default: auto-detected from account_map
---config FILE             config file path (default: config.yaml)
---output-dir DIR          output directory (default: ./output)
+--input FILE [FILE ...]   broker export file(s) or folder(s); optional when --person is given
+--users-dir DIR           root for per-user data (default: ./users)
+--config FILE             universal config file (default: config.yaml)
+--output-dir DIR          output directory override (default: users/{person}/output/)
 ```
 
 ---

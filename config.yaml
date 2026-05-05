@@ -1,18 +1,19 @@
-# Kapitalertrag — user configuration
-# Copy this file to config.yaml and edit as needed.
-# All values here override the built-in defaults in core/config.py.
+# Kapitalertrag — universal configuration
+# Committed to git. Contains only settings that apply to ALL users.
+# Person-specific overrides go in users/{person}/config.local.yaml (gitignored).
 
 # Austrian KESt rate (27.5% as of 2016)
 kest_rate: 0.275
 
 # FX source: "ecb" (default, free, no API key) or "manual"
 fx_source: ecb
-fx_cache_dir: ./data/fx_cache
+fx_cache_dir: ./cache/fx_cache
+price_cache_dir: ./cache/price_cache
 
 # FX method: "daily" (Austrian law = ECB rate on transaction date)
 fx_method: daily
 
-# Max WHT creditable against Austrian KESt (§ 27a EStG)
+# Max WHT creditable against Austrian KeSt (§ 27a EStG)
 max_creditable_wht: 0.15
 
 # Treaty withholding tax rates by country.
@@ -31,22 +32,20 @@ output:
   console: true
 
 # Freedom Dashboard — projection slider defaults
-# Override portfolio_eur in config.local.yaml with your actual portfolio value
 freedom_dashboard:
-  portfolio_eur: 10000                # actual portfolio value — override in config.local.yaml
   monthly_expenses_eur: 2000          # target monthly spending in retirement
   monthly_contribution_eur: 500       # how much you add to the portfolio per month
   yield_pct: 3.0                      # expected dividend yield %
   growth_pct: 7.0                     # expected annual portfolio growth %
+  # portfolio_eur: 10000              # override in users/{person}/config.local.yaml
 
 # Nichtmeldefonds — funds NOT registered with OeKB (US REITs, BDCs, foreign ETFs).
 # Tax: 27.5% on max(90% × annual price gain, 10% × Dec31 price) per share.
 # Shares held are inferred from transaction history automatically.
 # Year-end prices are fetched automatically from Yahoo Finance (no manual lookup needed).
-# Results cached in data/price_cache/ — delete the cache to force a refresh.
+# Results cached in cache/price_cache/ — delete the cache to force a refresh.
 #
-# Optional: dec31_prices overrides auto-fetch if you want to pin specific values.
-#
+# Set per-person in users/{person}/config.local.yaml:
 # nichtmeldefonds:
 #   - symbol: O               # ticker symbol as on Yahoo Finance (required)
 #     isin: US7561091049      # ISIN (optional, for output only)
@@ -54,7 +53,29 @@ freedom_dashboard:
 #     type: REIT              # REIT | BDC | FUND
 #     currency: USD           # native currency of the fund
 
-# Arbeitnehmerveranlagung (L1) checklist — set in config.local.yaml (person-specific)
+# Symbol aliases for corporate actions (tender offers, mergers) where the broker
+# assigns a new temporary ticker/ISIN for the sell event.
+# Maps sell-symbol → buy-symbol for FIFO matching.
+# Set per-person in users/{person}/config.local.yaml:
+# symbol_aliases:
+#   NEWTICKER: OLDTICKER    # e.g. bought as OLDTICKER, sold as NEWTICKER
+
+# Manual cost basis for positions with no buy record
+# (spin-offs, positions transferred from another broker, inherited shares).
+# cost_eur = total cost basis in EUR for all shares (not per-share).
+# Set per-person in users/{person}/config.local.yaml:
+# manual_cost_basis:
+#   - symbol: SOLV
+#     isin: US83444M1018
+#     purchase_date: 2024-04-01
+#     quantity: 1             # qty=1 convention (see CLAUDE.md)
+#     cost_eur: 0.00
+
+# Austrian residency start year for WHT reclaim report.
+# Set per-person in users/{person}/config.local.yaml:
+# at_residency_start_year: 2024
+
+# Arbeitnehmerveranlagung (L1) checklist — set per-person in config.local.yaml.
 # Only generates output if this section is present.
 # anv:
 #   home_office_days: 0           # days worked from home (€3/day Pauschale, max 100 days)
@@ -72,32 +93,14 @@ freedom_dashboard:
 #   family_bonus_children: 0      # children under 18 (Familienbonus Plus: €2,000/child)
 #   prior_year_income_eur: 0      # prior year gross income (donation limit = 10%)
 
-# Austrian residency start year for WHT reclaim report.
-# Only dividends from this year onward are included (prior years = not Austrian resident).
-# Set in config.local.yaml to avoid committing personal residency data.
-# at_residency_start_year: 2024
-
-# Manual cost basis for positions with no buy record in IB
-# (e.g. spin-offs, positions transferred from another broker, inherited shares)
-# cost_eur = total cost basis in EUR for all shares (not per-share)
-# purchase_date = acquisition date in YYYY-MM-DD (use spin-off effective date for spin-offs)
-# Set real values in config.local.yaml to avoid committing personal data.
-# manual_cost_basis:
-#   - symbol: SOLV              # Solventum — 3M spin-off 2024-04-01, no IB buy record
-#     isin: US83444M1018
-#     purchase_date: 2024-04-01
-#     quantity: 10
-#     cost_eur: 0.00            # spin-off cost basis = 0 until 3M allocation ratio confirmed
-
-# Symbol aliases for corporate actions (tender offers, mergers) where IB assigns a new
-# temporary ticker/ISIN for the sell event. Maps sell-symbol → buy-symbol for FIFO matching.
-# symbol_aliases:
-#   NEWTICKER: OLDTICKER    # e.g. tender offer: bought as OLDTICKER, sold as NEWTICKER
-
-# Account ID → person name mapping (used to auto-detect --person from broker exports)
-# Find your account ID in the BOF row of any IB Flex Query export
-# For other brokers it will be parsed similarly once those parsers are added
-account_map:
-  U11111111: Jessie      # replace with your account ID (BOF row of any Flex Query export)
-  U22222222: Matthias    # replace with your account ID
-  # S12345678: Matthias      # SAXO account ID (when SAXO parser is added)
+# Account ID → person mapping is now automatic.
+# Each person's account_id is declared in users/{person}/config.local.yaml.
+# account_id may be a scalar string or a list (for multi-broker / migrated accounts):
+#
+# users/matthias/config.local.yaml:
+#   account_id:
+#     - U99999999    # IB account
+#     - "19999999"   # SAXO DK account
+#
+# users/jessie/config.local.yaml:
+#   account_id: U88888888

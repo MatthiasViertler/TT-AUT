@@ -21,7 +21,7 @@ Move completed items to ## Done with the date.
 - [x] **Run Matthias end-to-end** — `python main.py --input data/matthias_*.csv --year 2025` ✓ *(2026-05-04)*
       Special cases resolved: BAYN reversal ✓, 1COV/1CO tender (symbol_aliases) ✓, VNA 'd' normalization ✓
       SOLV (Solventum spin-off): no buy record → cost basis 0, minor impact. Needs manual_cost_basis feature.
-- [x] **WHT reclaim assistant output** (`output/wht_reclaim.py`) *(2026-05-04)*
+- [x] **WHT reclaim assistant output** (`generators/wht_reclaim.py`) *(2026-05-04)*
       Total reclaimable EUR 852.14 (DE: 775.00, DK: 37.91, FR: 39.24)
       ⚠️ France 2024 deadline 2026-12-31 — moved to 🔴 above.
 
@@ -45,7 +45,7 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 - [x] **Wire freedom dashboard into pipeline** — generate `output/{person}_{year}_freedom.html`
       auto-populated with real dividend data from that run. Sliders stay interactive. *(2026-05-01)*
-- [x] **WHT reclaim assistant** — `output/wht_reclaim.py`, wired into writer.py *(2026-05-04)*
+- [x] **WHT reclaim assistant** — `generators/wht_reclaim.py`, wired into writer.py *(2026-05-04)*
       Per-country/year report with treaty rates, deadlines, per-stock breakdown.
 - [x] **Excel "Freedom" tab** — tab in dashboard.xlsx: key metrics, per-symbol holdings,
       10-year projection table (portfolio × yield/growth + monthly contribution) *(2026-05-04)*
@@ -75,7 +75,7 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🟡 Tax Features
 
-- [x] **Arbeitnehmerveranlagung checklist** — `output/anv_checklist.py`; L1 deduction reminder *(2026-05-05)*
+- [x] **Arbeitnehmerveranlagung checklist** — `generators/anv_checklist.py`; L1 deduction reminder *(2026-05-05)*
       Werbungskosten (home office, Pendlerpauschale, union, training), Sonderausgaben,
       außerg. Belastungen, Familienbonus Plus. 21 tests. Config: `anv:` in config.local.yaml.
       ⚠️ Jessie: add `anv:` to config.local.yaml and re-run to generate checklist before 2026-06-30
@@ -143,7 +143,7 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 - [x] Matthias end-to-end run — TT-AUT BOS/EOS parser, OPT filter, P911 RoC, DE 'd' normalization *(2026-05-04)*
       symbol_aliases for tender offers (1COV/1CO Covestro); VNA FIFO fix; all years 2021–2026
-- [x] WHT reclaim assistant — `output/wht_reclaim.py`; EUR 852.14 total reclaimable *(2026-05-04)*
+- [x] WHT reclaim assistant — `generators/wht_reclaim.py`; EUR 852.14 total reclaimable *(2026-05-04)*
 - [x] Extended E1kv output — full 1.3.1–1.7 structure + Saldo 1.3 in Excel + TXT *(2026-05-02)*
 - [x] Nichtmeldefonds support (§ 186 InvFG) — pauschal AE, auto price-fetch via yfinance *(2026-05-02)*
       Config: symbol + type + currency only; prices cached in data/price_cache/

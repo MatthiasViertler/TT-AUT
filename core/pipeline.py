@@ -8,11 +8,12 @@ from decimal import Decimal
 from pathlib import Path
 
 from brokers import load_transactions
+from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
 from core.models import NormalizedTransaction, TransactionType
 from core.nichtmeldefonds import calculate_nichtmeldefonds
 from core.tax_engine import TaxEngine
-from output.writer import write_all
+from generators.writer import write_all
 
 log = logging.getLogger(__name__)
 ZERO = Decimal("0")
@@ -26,6 +27,7 @@ def run_pipeline(
     config: dict,
     output_dir: Path,
     fetch_fx: bool,
+    users_dir: Path = Path("users"),
 ) -> None:
 
     print(f"\n{'='*60}")
@@ -48,27 +50,32 @@ def run_pipeline(
         print("  [warn]  No transactions loaded. Check your input files.")
         return
 
-    # Auto-resolve person label from config account map if not explicitly set
+    # Auto-resolve person label by scanning users/*/config.local.yaml for account_id
     if person_label == "auto":
-        account_map = config.get("account_map", {})
+        account_map = scan_account_ids(users_dir)
         resolved = set()
         for aid in account_ids:
-            name = account_map.get(aid)
+            name = account_map.get(str(aid))
             if name:
                 resolved.add(name)
         if len(resolved) == 1:
             person_label = resolved.pop()
             print(f"  [person] Auto-detected: {person_label} (account: {', '.join(account_ids)})")
+            # Load person-specific config overrides now that we know who this is
+            import yaml as _yaml
+            local_path = users_dir / person_label / "config.local.yaml"
+            if local_path.exists():
+                with open(local_path) as _f:
+                    _deep_merge(config, _yaml.safe_load(_f) or {})
+                print(f"  [config] Loaded person overrides: {local_path}")
         elif len(resolved) > 1:
             person_label = "_".join(sorted(resolved))
             print(f"  [person] Multiple accounts detected: {person_label}")
         else:
             # No mapping found — fall back to account ID itself
             person_label = "_".join(sorted(account_ids)) if account_ids else "unknown"
-            print(f"  [person] No account mapping found — using: {person_label}")
-            print(f"           Add to config.yaml:  account_map:")
-            for aid in sorted(account_ids):
-                print(f"             {aid}: yourname")
+            print(f"  [person] No account_id mapping found — using: {person_label}")
+            print(f"           Add account_id to users/{person_label}/config.local.yaml")
 
     # Deduplicate by raw_id
     seen = set()
@@ -83,7 +90,7 @@ def run_pipeline(
 
     # ── 2. FX enrichment ─────────────────────────────────────────────────────
     fx = FXRateProvider(
-        cache_dir=config.get("fx_cache_dir", "./data/fx_cache"),
+        cache_dir=config.get("fx_cache_dir", "./cache/fx_cache"),
         fetch_live=fetch_fx,
     )
     missing_fx = 0

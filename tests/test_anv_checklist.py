@@ -1,8 +1,8 @@
-"""Tests for output/anv_checklist.py."""
+"""Tests for generators/anv_checklist.py."""
 
 import pytest
 from pathlib import Path
-from output.anv_checklist import write_anv_checklist, _pendlerpauschale
+from generators.anv_checklist import write_anv_checklist, _pendlerpauschale
 
 
 # ── _pendlerpauschale ─────────────────────────────────────────────────────────
