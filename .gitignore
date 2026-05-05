@@ -17,9 +17,13 @@ __pycache__/
 *.pyo
 .pytest_cache/
 
-# Sensitive data — NEVER commit broker exports
-data/*.csv
-data/*.xml
+# Sensitive data — NEVER commit broker exports (all subdirs)
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.pdf
+data/**/*.xml
+data/**/*.json
+data/price_cache/
 
 # Local config overrides (real account IDs, personal settings — never commit)
 config.local.yaml
