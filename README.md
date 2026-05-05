@@ -29,8 +29,8 @@ FX rates are fetched from the ECB and cached locally — no API key needed.
 |--------|--------|--------|
 | Interactive Brokers — TT-AUT BOS/EOS | Matthias-style Flex Query CSV | ✓ supported |
 | Interactive Brokers — HEADER/DATA | Jessie-style Flex Query CSV | ✓ supported |
-| SAXO — AggregatedAmounts | Reports → AggregatedAmounts xlsx | ✓ supported |
-| SAXO — ShareDividends | Reports → ShareDividends xlsx | ✓ supported |
+| SAXO — AggregatedAmounts | Reports → AggregatedAmounts xlsx | ✓ supported (preferred — covers trades + dividends) |
+| SAXO — ShareDividends | Reports → ShareDividends xlsx | ✓ supported (optional — better WHT detail, but cannot be combined with AggregatedAmounts for same period) |
 | E*Trade | — | planned |
 
 ---
@@ -86,6 +86,43 @@ In Client Portal / TWS:
 6. Run query and save the file to `data/`
 
 For multi-year FIFO accuracy, always pass **all years from your first trade** onward — cost basis is recalculated from scratch each run.
+
+---
+
+## Getting a SAXO export
+
+In SAXO Client Portal → **Reports**:
+
+**AggregatedAmounts** (mandatory for trades):
+1. Reports → AggregatedAmounts → set date range to full calendar year
+2. Export as xlsx → save to `data/`
+3. This report contains both trades AND dividends — it is the primary input
+
+**ShareDividends** (optional, better dividend data):
+1. Reports → ShareDividends → set date range
+2. Export as xlsx
+3. **Do not pass ShareDividends alongside AggregatedAmounts for the same period** — dividends would be double-counted
+4. Use ShareDividends only for periods where you have no AggregatedAmounts
+
+**Corporate acquisitions** (e.g. SWAV acquired by J&J): these appear as "Corporate Actions - Cash Compensation" and are automatically treated as taxable SELL events.
+
+**No per-share quantity**: SAXO exports carry no share quantity. Each trade is stored as one lot (quantity=1) at total trade price. For positions opened before your earliest AggregatedAmounts file, seed the FIFO queue with `manual_cost_basis` entries (see below).
+
+### Recommended data folder structure
+
+```
+data/{person}/{broker}/{year}/
+```
+
+Example:
+```
+data/matthias/SAXO/2024/AggregatedAmounts_19999999_2024-01-01_2024-12-31.xlsx
+data/matthias/SAXO/2025/AggregatedAmounts_19999999_2025-01-01_2025-12-31.xlsx
+data/matthias/IB/2024/matthias_2024.csv
+data/jessie/IB/2025/jessie_2025.csv
+```
+
+This prevents accidentally mixing files from different brokers or years. Pass files explicitly via `--input`.
 
 ---
 
@@ -202,7 +239,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-116 tests covering: both IB parser formats, SAXO xlsx parser (BOS/EOS + HEADER/DATA), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
+118 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends, including corporate acquisition cash compensation), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
 
 ---
 
