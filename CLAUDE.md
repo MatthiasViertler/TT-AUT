@@ -23,6 +23,7 @@ brokers/saxo_closedpos_xlsx.py  SAXO ClosedPositions xlsx parser (real quantitie
 output/writer.py             write_all() — orchestrates all output files
 output/freedom.py            Freedom dashboard HTML generator
 output/wht_reclaim.py        WHT reclaim report generator
+output/anv_checklist.py      Arbeitnehmerveranlagung deduction checklist (L1 form)
 config.yaml                  account_map, freedom_dashboard defaults, output flags
 config.local.yaml            NEVER committed — real account IDs, personal settings
 ```
@@ -64,10 +65,12 @@ python main.py --input data/matthias_2021.csv data/matthias_2022.csv data/matthi
 - `output/{person}_{year}_dashboard.xlsx`    — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds]
 - `output/{person}_{year}_freedom.html`      — interactive financial independence dashboard (sliders)
 - `output/{person}_{year}_wht_reclaim.txt`   — WHT reclaim report (if at_residency_start_year set)
+- `output/{person}_{year}_anv_checklist.txt` — L1 deduction checklist (if anv: section in config)
 - `output/{person}_{year}_summary.json`      — machine-readable snapshot; drives the multi-year Overview tab
 
 ## Key config knobs (config.local.yaml)
 - `at_residency_start_year: 2024` — enables WHT reclaim report
+- `anv: {home_office_days, commute_km, commute_type, kirchenbeitrag_eur, ...}` — enables ANV checklist
 - `manual_cost_basis: [{symbol, isin, purchase_date, quantity, cost_eur}]` — seeds FIFO for spin-offs
 - `symbol_aliases: {NEWTICKER: OLDTICKER}` — tender/merger FIFO matching
 - `freedom_dashboard: {portfolio_eur, monthly_expenses_eur, monthly_contribution_eur, yield_pct, growth_pct}`
@@ -153,8 +156,8 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
 ## Next up (priority order)
-1. **Arbeitnehmerveranlagung checklist** — Jessie filing due 2026-06-30; E1kv figures ready
-2. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
+1. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
+2. Freedom tab — dynamic portfolio value + dividend yield from actual transactions
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)

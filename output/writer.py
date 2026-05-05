@@ -27,6 +27,7 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
 
 from core.models import NormalizedTransaction, TaxSummary, TransactionType
+from output.anv_checklist import write_anv_checklist
 from output.freedom import write_freedom_html
 from output.wht_reclaim import write_wht_reclaim_report
 
@@ -77,6 +78,12 @@ def write_all(
         p = output_dir / f"{slug}_wht_reclaim.txt"
         write_wht_reclaim_report(transactions, config, summary.tax_year,
                                   summary.person_label, p)
+        if p.exists() and p.stat().st_size > 0:
+            print(f"  [out]    {p}")
+
+    if opts.get("anv_checklist", True) and config.get("anv"):
+        p = output_dir / f"{slug}_anv_checklist.txt"
+        write_anv_checklist(config, summary.tax_year, summary.person_label, p)
         if p.exists() and p.stat().st_size > 0:
             print(f"  [out]    {p}")
 

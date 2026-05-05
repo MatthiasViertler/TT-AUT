@@ -17,6 +17,7 @@ For each run (`--person`, `--year`):
 | `output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds] |
 | `output/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
 | `output/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
+| `output/{person}_{year}_anv_checklist.txt` | L1 deduction checklist — Werbungskosten, Pendlerpauschale, Sonderausgaben, Familienbonus (if `anv:` set) |
 | `output/{person}_{year}_summary.json` | Machine-readable year snapshot; populates the multi-year Overview tab |
 
 FX rates are fetched from the ECB and cached locally — no API key needed.
@@ -29,8 +30,9 @@ FX rates are fetched from the ECB and cached locally — no API key needed.
 |--------|--------|--------|
 | Interactive Brokers — TT-AUT BOS/EOS | Matthias-style Flex Query CSV | ✓ supported |
 | Interactive Brokers — HEADER/DATA | Jessie-style Flex Query CSV | ✓ supported |
-| SAXO — AggregatedAmounts | Reports → AggregatedAmounts xlsx | ✓ supported (preferred — covers trades + dividends) |
-| SAXO — ShareDividends | Reports → ShareDividends xlsx | ✓ supported (optional — better WHT detail, but cannot be combined with AggregatedAmounts for same period) |
+| SAXO — ClosedPositions | Reports → ClosedPositions xlsx | ✓ supported (preferred for trades — real share quantities) |
+| SAXO — AggregatedAmounts | Reports → AggregatedAmounts xlsx | ✓ supported (preferred for dividends; set `saxo_skip_agg_trades: true` when combined with ClosedPositions) |
+| SAXO — ShareDividends | Reports → ShareDividends xlsx | ✓ supported (optional — better WHT detail) |
 | E*Trade | — | planned |
 
 ---
@@ -63,6 +65,15 @@ account_map:
   U99999999: YourName
 
 at_residency_start_year: 2024   # for WHT reclaim report
+
+anv:                            # for L1 / Arbeitnehmerveranlagung checklist
+  home_office_days: 80          # days worked from home (€3/day, max 100 → max €300)
+  commute_km: 0                 # one-way km (>20 for Kleines PP; >2 for Großes PP)
+  commute_type: public          # "public" or "car"
+  kirchenbeitrag_eur: 0
+  donations_eur: 0
+  tax_advisor_eur: 0
+  family_bonus_children: 0      # €2,000 direct tax credit per child under 18
 
 freedom_dashboard:
   portfolio_eur: 50000
@@ -183,6 +194,39 @@ Year-end prices are fetched automatically via yfinance and cached in `data/price
 
 ---
 
+## Arbeitnehmerveranlagung checklist (L1 form)
+
+Add an `anv:` section to `config.local.yaml` to generate a plain-text deduction checklist alongside the E1kv output:
+
+```yaml
+# config.local.yaml
+anv:
+  home_office_days: 80            # €3/day Homeoffice-Pauschale (max 100 days = €300)
+  home_office_equipment_eur: 200  # home-office furniture/equipment (max €300)
+  commute_km: 0                   # one-way commute km (0 = no commute)
+  commute_type: public            # "public" (Kleines PP) or "car" (Großes PP)
+  kirchenbeitrag_eur: 0
+  donations_eur: 0
+  tax_advisor_eur: 0
+  union_fees_eur: 0
+  training_eur: 0
+  professional_books_eur: 0
+  work_equipment_eur: 0
+  family_bonus_children: 0        # €2,000 direct tax credit per child under 18
+  prior_year_income_eur: 0        # for donation deduction limit (10% of income)
+```
+
+The checklist auto-calculates:
+- **Homeoffice-Pauschale** — days × €3, capped at €300 (100 days)
+- **Pendlerpauschale** — annual amount based on distance and public transport availability
+- **Pendlereuro** — direct tax credit (km × €2)
+- **Kirchenbeitrag** — capped at €400
+- **Werbungskosten comparison** — tells you if itemizing beats the automatic €132 Pauschale
+
+It also generates a TODO list for items that need receipts (training, books, medical, Familienbonus Plus, etc.) and step-by-step FinanzOnline filing instructions.
+
+---
+
 ## WHT reclaim
 
 Set `at_residency_start_year` in `config.local.yaml` to generate a per-country excess WHT report:
@@ -239,7 +283,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-118 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends, including corporate acquisition cash compensation), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
+152 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
 
 ---
 

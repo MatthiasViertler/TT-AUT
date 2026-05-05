@@ -27,6 +27,7 @@ output:
   csv: true
   tax_summary: true
   html: true
+  anv_checklist: true
   console: true
 
 # Freedom Dashboard — projection slider defaults
@@ -52,6 +53,24 @@ freedom_dashboard:
 #     name: Realty Income Corp  # display name (optional)
 #     type: REIT              # REIT | BDC | FUND
 #     currency: USD           # native currency of the fund
+
+# Arbeitnehmerveranlagung (L1) checklist — set in config.local.yaml (person-specific)
+# Only generates output if this section is present.
+# anv:
+#   home_office_days: 0           # days worked from home (€3/day Pauschale, max 100 days)
+#   home_office_equipment_eur: 0  # home-office furniture/equipment purchases (max €300)
+#   commute_km: 0                 # one-way commute distance in km (0 = no commute / no PP)
+#   commute_type: public          # "public" (Kleines Pendlerpauschale) or "car" (Großes)
+#   commute_days_per_year: 220    # days actually commuting (PP requires >50% of workdays)
+#   kirchenbeitrag_eur: 0         # church tax paid (deductible up to €400)
+#   donations_eur: 0              # donations to BMF-approved Spendenempfänger
+#   tax_advisor_eur: 0            # tax advisor / accountant fees (fully deductible)
+#   union_fees_eur: 0             # Gewerkschaftsbeitrag
+#   training_eur: 0               # Fortbildungskosten (professional development)
+#   professional_books_eur: 0     # Fachliteratur (professional books / subscriptions)
+#   work_equipment_eur: 0         # Arbeitsmittel (laptop, monitor, desk — home office)
+#   family_bonus_children: 0      # children under 18 (Familienbonus Plus: €2,000/child)
+#   prior_year_income_eur: 0      # prior year gross income (donation limit = 10%)
 
 # Austrian residency start year for WHT reclaim report.
 # Only dividends from this year onward are included (prior years = not Austrian resident).

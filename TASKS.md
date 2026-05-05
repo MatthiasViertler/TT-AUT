@@ -75,9 +75,10 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🟡 Tax Features
 
-- [ ] **Arbeitnehmerveranlagung checklist** — per-person deduction checklist output
-      (Werbungskosten, Pendlerpauschale, Sonderausgaben, außerg. Belastungen)
-      ⚠️ Jessie filing due 2026-06-30 — E1kv figures ready, checklist missing
+- [x] **Arbeitnehmerveranlagung checklist** — `output/anv_checklist.py`; L1 deduction reminder *(2026-05-05)*
+      Werbungskosten (home office, Pendlerpauschale, union, training), Sonderausgaben,
+      außerg. Belastungen, Familienbonus Plus. 21 tests. Config: `anv:` in config.local.yaml.
+      ⚠️ Jessie: add `anv:` to config.local.yaml and re-run to generate checklist before 2026-06-30
 - [ ] **Verlustausgleich tracker** — year-by-year gain/loss table
 - [ ] **KZ 937 semi-automation** — OeKB API per ISIN for Ausschüttungsgleiche Erträge
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
