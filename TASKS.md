@@ -43,6 +43,12 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🟡 Dashboard & Output
 
+- [ ] **🔴 Excel audit trail — per-transaction gain/loss** *(HIGH PRIORITY)*
+      Transactions tab needs a "Gain/Loss EUR" column showing FIFO-realized gain/loss per sell.
+      Summary Kennziffern in E1kv Summary tab should be Excel SUM() formulas over transaction rows,
+      not hard-coded values — essential for audit and FinanzOnline reconciliation.
+      Currently impossible to trace total gains/losses back to individual trades in the workbook.
+
 - [x] **Wire freedom dashboard into pipeline** — generate `output/{person}_{year}_freedom.html`
       auto-populated with real dividend data from that run. Sliders stay interactive. *(2026-05-01)*
 - [x] **WHT reclaim assistant** — `generators/wht_reclaim.py`, wired into writer.py *(2026-05-04)*
@@ -104,9 +110,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🔵 v2.x — New Brokers
 
-- [x] SAXO parser — `brokers/saxo_xlsx.py` (AggregatedAmounts) + `brokers/saxo_closedpos_xlsx.py`
-      (ClosedPositions, real quantities); `saxo_skip_agg_trades` flag; 131 tests *(2026-05-05)*
-- [ ] E*Trade parser (`brokers/etrade.py`) — need sample export first
+- [x] SAXO parser — `brokers/saxo_xlsx.py` (AggregatedAmounts + ShareDividends) + `brokers/saxo_closedpos_xlsx.py`
+      (ClosedPositions, real quantities); `saxo_skip_agg_trades` + `saxo_skip_agg_dividends` flags; 166 tests *(2026-05-05)*
+- [ ] **E\*Trade parser** (`brokers/etrade.py`) — needed for Matthias 2025 filing; need sample export first
 - [ ] REIT/BDC handling (US return of capital, §199A dividends, 1099-DIV boxes)
 - [ ] `--compare` mode — merge self + jessie into one dashboard
 - [ ] Prior-year loss carryforward input
@@ -141,6 +147,11 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## ✅ Done
 
+- [x] **Per-user directory structure refactor** — `users/{person}/data/`, `users/{person}/output/`, `users/{person}/config.local.yaml`; `cache/fx_cache/`, `cache/price_cache/` shared; `generators/` package rename *(2026-05-05)*
+      3-layer config merge (DEFAULTS → config.yaml → config.local.yaml); `account_id` scalar/list; scan_account_ids() auto-detection; `--input` optional; 14 new config tests
+- [x] **SAXO AggregatedAmounts + ShareDividends double-counting fix** — `saxo_skip_agg_dividends: true` config knob; suppresses dividend rows from AA when SD loaded for same period *(2026-05-05)*
+      Root cause: 114 duplicate dividends in 2025 (different raw_id formats evaded dedup). Matthias 2025 corrected.
+- [x] **Matthias + Jessie user configs fully set up** — account_ids, nichtmeldefonds (O,EPR,OHI,WPC,ARCC), Jessie ANV checklist, 2020 SG file archived *(2026-05-05)*
 - [x] Matthias end-to-end run — TT-AUT BOS/EOS parser, OPT filter, P911 RoC, DE 'd' normalization *(2026-05-04)*
       symbol_aliases for tender offers (1COV/1CO Covestro); VNA FIFO fix; all years 2021–2026
 - [x] WHT reclaim assistant — `generators/wht_reclaim.py`; EUR 852.14 total reclaimable *(2026-05-04)*

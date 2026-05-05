@@ -68,8 +68,9 @@ account_id:           # scalar or list — supports multi-broker and migrated ac
 ```
 
 Account IDs are **placeholders only** in this file — real IDs are in `users/{person}/config.local.yaml`.
-- Jessie: placeholder U11111111 → tested 2024/2025/2026 ✓
-- Matthias: placeholder U22222222 (IB) + 18801362 (SAXO DK) → end-to-end done ✓ (2026-05-04)
+- Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
+- Matthias: IB + SAXO DK accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
+  2025 run: KZ 863 €10,138 | KZ 994 €9,497 | KeSt remaining ~€3,914 (IB+SAXO, no double-count)
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
   1COV/1CO Covestro tender (symbol_aliases) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓
@@ -109,6 +110,7 @@ All land in `users/{person}/output/`:
 - `nichtmeldefonds: [{symbol, isin, name, type, currency}]`
 - `saxo_closedpos_skip_buy_open_dates: [...]` — skip BUY lots on these open dates (manual_cost_basis covers them)
 - `saxo_skip_agg_trades: true` — AggregatedAmounts emits dividends only (use with ClosedPositions)
+- `saxo_skip_agg_dividends: true` — AggregatedAmounts emits trades only (use when ShareDividends also loaded for same period — prevents double-counting)
 
 ## Correctness checks (warnings, never block output)
 - **FIFO cross-check**: warns if our gain differs from IB's FifoPnlRealized by > €1.00 (HEADER/DATA only)
@@ -136,11 +138,16 @@ Negative-position check accounts for manual lots.
 | Trades (buys/sells) | **ClosedPositions** (preferred, real quantities) or **AggregatedAmounts** (qty=1 fallback) | |
 | Best dividend detail | **ShareDividends** (richer WHT/currency data) or **AggregatedAmounts** as fallback | |
 | Do NOT mix | ClosedPositions + AggregatedAmounts trades simultaneously — double-counts sells | set `saxo_skip_agg_trades: true` |
+| Do NOT mix | AggregatedAmounts + ShareDividends for same period — double-counts dividends | set `saxo_skip_agg_dividends: true` |
 
 **Recommended workflow (DK account, 2024+):**
 1. Export **ClosedPositions** for capital gains (real share quantities, correct FIFO).
 2. Export **AggregatedAmounts** for dividends only (set `saxo_skip_agg_trades: true`).
 3. Pass both to `--input` (or place in `users/{person}/data/SAXO/{year}/`); auto-detect routes each to the right parser.
+
+**If using AggregatedAmounts (trades) + ShareDividends (dividends):**
+- Set `saxo_skip_agg_dividends: true` — suppresses dividend rows from AA so only ShareDividends provides them.
+- Example: Matthias 2024/2025 — no ClosedPositions available, uses AA for trades + SD for WHT detail.
 
 ### ClosedPositions parser (`brokers/saxo_closedpos_xlsx.py`)
 Emits SELL with real `QuantityClose` and BUY with real `Quantity Open` per lot.
@@ -171,14 +178,17 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 ### Other parser notes
 - **No quantity in AggregatedAmounts** — trades use quantity=1; pre-2024 positions need `manual_cost_basis`
 - **ClosedPositions has real quantities** — use for 2024+ DK account capital gains
-- **2020 SG account** (8839666): symbols missing in export → parsed as `UIC{n}`; add `symbol_aliases` to remap
+- **2020 SG account** (8839666): symbols missing in export → parsed as `UIC{n}`; add `symbol_aliases` to remap.
+  `AggregatedAmounts_8839666_2020-01-01_2020-06-19.xlsx` moved to `users/matthias/archive/SAXO/2020/` — do not put in `data/`; pre-2024 cost basis is fully covered by `manual_cost_basis`.
 - **Account migration 2024**: SG account (8839666) → DK account (18801362); pre-2024 cost basis seeded via `manual_cost_basis` from 2023 Holdings report (Portfolio_8839666_2023-01-01_2023-12-31.pdf)
 - **Corporate acquisitions**: "Corporate Actions - Cash Compensation" rows → treated as SELL (e.g. SWAV acquired by JNJ Jun 2024 for €3695.01)
 - **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `users/matthias/config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
 ## Next up (priority order)
-1. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
-2. Freedom tab — dynamic portfolio value + dividend yield from actual transactions
+1. **🔴 Excel audit trail** — per-transaction gain/loss column in Transactions tab; formula-based summary figures (not hard-coded); needed for FinanzOnline reconciliation and audit
+2. **E\*Trade parser** — needed for Matthias 2025 filing (holdings at E\*Trade not yet captured)
+3. Freedom tab — dynamic portfolio value + dividend yield from actual transactions
+4. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)

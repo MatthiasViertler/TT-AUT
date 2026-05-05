@@ -126,10 +126,12 @@ In SAXO Client Portal → **Reports**:
 2. Export as xlsx → save to `users/{yourname}/data/SAXO/{year}/`
 3. Set `saxo_skip_agg_trades: true` in your `config.local.yaml` to suppress duplicate trades
 
-**ShareDividends** (optional, richer WHT detail):
+**ShareDividends** (richer WHT detail — can combine with AggregatedAmounts):
 1. Reports → ShareDividends → set date range
-2. Export as xlsx
-3. **Do not combine with AggregatedAmounts for the same period** — dividends would be double-counted
+2. Export as xlsx → save to `users/{yourname}/data/SAXO/{year}/`
+3. Set `saxo_skip_agg_dividends: true` in your `config.local.yaml` — suppresses duplicate dividend rows from AggregatedAmounts so only ShareDividends provides them
+
+> If you load AggregatedAmounts **without** `saxo_skip_agg_dividends: true`, and also load ShareDividends for the same period, dividends will be double-counted. Use the flag whenever both files cover the same date range.
 
 **Corporate acquisitions** (e.g. SWAV acquired by J&J): appear as "Corporate Actions - Cash Compensation" and are automatically treated as taxable SELL events.
 

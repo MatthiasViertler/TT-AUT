@@ -271,7 +271,8 @@ def _parse_aggregated_amounts(wb, path: Path,
             ))
 
         # ── Dividends (fallback — prefer ShareDividends file) ─────────────────
-        if not div_rows:
+        # saxo_skip_agg_dividends: true → trades only; ShareDividends handles dividends
+        if config.get("saxo_skip_agg_dividends", False) or not div_rows:
             continue
 
         for row in div_rows:
