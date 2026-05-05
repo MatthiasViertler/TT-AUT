@@ -18,6 +18,7 @@ core/nichtmeldefonds.py  § 186 InvFG pauschal AE calculation
 core/price_fetcher.py   Yahoo Finance year-end price fetch + cache
 core/pipeline.py      parse → FX → tax → output orchestration
 brokers/ib_csv.py     IB Flex Query CSV parser (BOS/EOS + HEADER/DATA)
+brokers/saxo_xlsx.py  SAXO Bank xlsx parser (AggregatedAmounts + ShareDividends)
 output/writer.py      write_all() — orchestrates all output files
 output/freedom.py     Freedom dashboard HTML generator
 output/wht_reclaim.py WHT reclaim report generator
@@ -85,13 +86,19 @@ Prices auto-fetched via yfinance, cached. Add symbol under `nichtmeldefonds:` in
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 81 tests, all green
+- `python -m pytest tests/` — 116 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
+## SAXO parser notes
+- **Files**: `AggregatedAmounts_*.xlsx` (trades + dividends fallback) and `ShareDividends_*.xlsx` (preferred for dividends — richer WHT data)
+- **Do NOT pass both for the same period** — dividends would double-count
+- **No quantity in any SAXO export** — trades use quantity=1; pre-2024 positions need `manual_cost_basis`
+- **2020 SG account** (8888888): symbols missing in export → parsed as `UIC{n}`; add `symbol_aliases` to remap
+- **Account migration 2022**: SG account (8888888) → DK account (19999999); pre-2024 FIFO basis unavailable
+
 ## Next up (priority order)
-1. SAXO broker parser — needs sample export from Matthias
-2. `--regelbesteuerung` flag
+1. `--regelbesteuerung` flag
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)

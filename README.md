@@ -27,9 +27,10 @@ FX rates are fetched from the ECB and cached locally — no API key needed.
 
 | Broker | Format | Status |
 |--------|--------|--------|
-| Interactive Brokers — TT-AUT BOS/EOS | Matthias-style Flex Query | ✓ supported |
-| Interactive Brokers — HEADER/DATA | Jessie-style Flex Query | ✓ supported |
-| SAXO | — | planned |
+| Interactive Brokers — TT-AUT BOS/EOS | Matthias-style Flex Query CSV | ✓ supported |
+| Interactive Brokers — HEADER/DATA | Jessie-style Flex Query CSV | ✓ supported |
+| SAXO — AggregatedAmounts | Reports → AggregatedAmounts xlsx | ✓ supported |
+| SAXO — ShareDividends | Reports → ShareDividends xlsx | ✓ supported |
 | E*Trade | — | planned |
 
 ---
@@ -201,7 +202,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-81 tests covering: both IB parser formats (BOS/EOS + HEADER/DATA), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
+116 tests covering: both IB parser formats, SAXO xlsx parser (BOS/EOS + HEADER/DATA), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
 
 ---
 
