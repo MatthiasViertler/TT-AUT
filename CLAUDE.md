@@ -110,6 +110,15 @@ data/{person}/{broker}/{year}/
 ```
 Prevents accidentally mixing brokers or years. The tool's auto-detect works per file, so pass files explicitly for now.
 
+### qty=1 convention — design decision (reviewed 2026-05-05, no change)
+SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trade (buy or sell) with a total EUR amount. The parser stores every trade as `quantity=1`, making `cost_per_unit = total_cost`. The FIFO engine's `use_qty = min(lot.qty_remaining, sell.qty_to_match)` then consumes exactly one lot per sell — correct given the available data.
+
+**Consequences for `manual_cost_basis`:**
+- Use `quantity: 1` (NOT the real share count). Real share count is only used to compute `cost_eur`.
+- One sell transaction = one manual lot consumed. For N sells on the same position, create N lots with cost split proportionally and dates ordered so FIFO consumes them in the right sequence.
+
+**Why not redesign?** Alternatives considered: (a) side-file with actual share counts — requires manual per-transaction data entry, no accuracy gain since SAXO still doesn't export it; (b) amount-based FIFO — requires engine refactor, breaks IB compatibility; (c) separate SAXO FIFO engine — complexity without benefit. qty=1 is the correct model for the available data.
+
 ### Other parser notes
 - **No quantity in any SAXO export** — trades use quantity=1; pre-2024 positions need `manual_cost_basis`
 - **2020 SG account** (8888888): symbols missing in export → parsed as `UIC{n}`; add `symbol_aliases` to remap
@@ -119,7 +128,6 @@ Prevents accidentally mixing brokers or years. The tool's auto-detect works per 
 
 ## Next up (priority order)
 1. `--regelbesteuerung` flag
-2. **SAXO qty=1 design review** — SAXO exports have no per-share quantity; parser uses quantity=1 per transaction (one lot = all shares in that trade). manual_cost_basis must also use qty=1 (NOT share count). Partial sells of the same position need one lot per sell transaction with cost split proportionally. Consider whether a future redesign (e.g. storing actual share counts in a side-file) would be cleaner.
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
