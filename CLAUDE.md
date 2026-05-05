@@ -153,7 +153,8 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
 ## Next up (priority order)
-1. `--regelbesteuerung` flag
+1. **Arbeitnehmerveranlagung checklist** — Jessie filing due 2026-06-30; E1kv figures ready
+2. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
