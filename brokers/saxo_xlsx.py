@@ -12,10 +12,28 @@ Dividends: prefer ShareDividends (has WHT %, quantity, original currency).
 Trades: parsed from AggregatedAmounts 'Cash Movements' sheet.
   Sign of Amount Client Currency determines direction:
     positive = SELL (cash in), negative = BUY (cash out)
-  No quantity data is available in SAXO exports. Each trade is stored as
-  quantity=1, price=total_eur. FIFO matching therefore requires
-  manual_cost_basis entries for any position not fully opened and closed
-  within the provided files. Unmatched sells will trigger the standard warning.
+
+  quantity=1 convention:
+  SAXO exports carry no per-share quantity. Each row records one transaction
+  (buy or sell) as a single cash amount regardless of how many shares changed
+  hands. The parser therefore stores every trade as quantity=1 with
+  eur_amount = total EUR for the entire transaction.
+
+  This has an important consequence for manual_cost_basis entries: they must
+  also use quantity=1 (NOT the real share count). The FIFO engine matches
+  sell.quantity against lot.qty_remaining using min(). If a SAXO sell arrives
+  with quantity=1 and the manual lot has quantity=30, the engine consumes only
+  1/30 of the cost, leaving 29/30 unused and massively overstating the gain.
+
+  For a single sell of the entire position → one manual lot at quantity=1,
+  cost_eur = total historical cost.
+  For multiple partial sells → one manual lot per expected sell transaction,
+  total cost split proportionally across lots (ordered by date so FIFO
+  consumes them in the right order).
+
+  FIFO matching therefore requires manual_cost_basis entries for any position
+  not fully opened and closed within the provided files. Unmatched sells
+  trigger the standard warning.
 
 Currency handling:
   2024+ DK accounts: Amount Client Currency is already EUR — used directly.

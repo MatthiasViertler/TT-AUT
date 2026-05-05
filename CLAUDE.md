@@ -119,6 +119,7 @@ Prevents accidentally mixing brokers or years. The tool's auto-detect works per 
 
 ## Next up (priority order)
 1. `--regelbesteuerung` flag
+2. **SAXO qty=1 design review** — SAXO exports have no per-share quantity; parser uses quantity=1 per transaction (one lot = all shares in that trade). manual_cost_basis must also use qty=1 (NOT share count). Partial sells of the same position need one lot per sell transaction with cost split proportionally. Consider whether a future redesign (e.g. storing actual share counts in a side-file) would be cleaner.
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
