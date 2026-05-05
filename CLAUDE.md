@@ -9,21 +9,22 @@ Python 3.11+, openpyxl, PyYAML, yfinance. Venv: `.venv/`. ECB FX cached in `data
 
 ## Structure
 ```
-main.py               CLI (argparse) — --person optional, defaults to "auto"
-core/config.py        loads config.yaml + deep-merge with config.local.yaml
-core/models.py        NormalizedTransaction, TaxSummary, enums
-core/fx.py            ECB FX fetcher + disk cache
-core/tax_engine.py    KESt rules, FIFO matching, WHT crediting, correctness checks
-core/nichtmeldefonds.py  § 186 InvFG pauschal AE calculation
-core/price_fetcher.py   Yahoo Finance year-end price fetch + cache
-core/pipeline.py      parse → FX → tax → output orchestration
-brokers/ib_csv.py     IB Flex Query CSV parser (BOS/EOS + HEADER/DATA)
-brokers/saxo_xlsx.py  SAXO Bank xlsx parser (AggregatedAmounts + ShareDividends)
-output/writer.py      write_all() — orchestrates all output files
-output/freedom.py     Freedom dashboard HTML generator
-output/wht_reclaim.py WHT reclaim report generator
-config.yaml           account_map, freedom_dashboard defaults, output flags
-config.local.yaml     NEVER committed — real account IDs, personal settings
+main.py                      CLI (argparse) — --person optional, defaults to "auto"
+core/config.py               loads config.yaml + deep-merge with config.local.yaml
+core/models.py               NormalizedTransaction, TaxSummary, enums
+core/fx.py                   ECB FX fetcher + disk cache
+core/tax_engine.py           KESt rules, FIFO matching, WHT crediting, correctness checks
+core/nichtmeldefonds.py      § 186 InvFG pauschal AE calculation
+core/price_fetcher.py        Yahoo Finance year-end price fetch + cache
+core/pipeline.py             parse → FX → tax → output orchestration
+brokers/ib_csv.py            IB Flex Query CSV parser (BOS/EOS + HEADER/DATA)
+brokers/saxo_xlsx.py         SAXO Bank xlsx parser (AggregatedAmounts + ShareDividends)
+brokers/saxo_closedpos_xlsx.py  SAXO ClosedPositions xlsx parser (real quantities)
+output/writer.py             write_all() — orchestrates all output files
+output/freedom.py            Freedom dashboard HTML generator
+output/wht_reclaim.py        WHT reclaim report generator
+config.yaml                  account_map, freedom_dashboard defaults, output flags
+config.local.yaml            NEVER committed — real account IDs, personal settings
 ```
 
 ## Key behaviours
@@ -95,22 +96,46 @@ Negative-position check accounts for manual lots.
 ### Which reports to export
 | Need | Export | Notes |
 |------|--------|-------|
-| Trades (buys/sells) | **AggregatedAmounts** only | mandatory; also contains dividend fallback |
-| Best dividend detail | **ShareDividends** only (same period, instead of AggregatedAmounts dividends) | richer WHT/currency data |
-| Both | NOT supported simultaneously — dividends double-count | pass one per period |
+| Trades (buys/sells) | **ClosedPositions** (preferred, real quantities) or **AggregatedAmounts** (qty=1 fallback) | |
+| Best dividend detail | **ShareDividends** (richer WHT/currency data) or **AggregatedAmounts** as fallback | |
+| Do NOT mix | ClosedPositions + AggregatedAmounts trades simultaneously — double-counts sells | set `saxo_skip_agg_trades: true` |
 
-**Recommended**: Always export AggregatedAmounts. It covers everything. Export ShareDividends separately for your records, but only pass it to the tool for periods where you have no AggregatedAmounts.
+**Recommended workflow (DK account, 2024+):**
+1. Export **ClosedPositions** for capital gains (real share quantities, correct FIFO).
+2. Export **AggregatedAmounts** for dividends only (set `saxo_skip_agg_trades: true`).
+3. Pass both to `--input`; auto-detect routes each to the right parser.
+
+### ClosedPositions parser (`brokers/saxo_closedpos_xlsx.py`)
+Emits SELL with real `QuantityClose` and BUY with real `Quantity Open` per lot.
+Deduplication: `raw_id = saxo_cp_buy_{OpenPositionId}` — the pipeline's existing raw_id
+dedup handles partial closes that span multiple ClosedPositions files (same lot, multiple years).
+
+**SG-transferred lots** (open_date = 2024-03-07): SAXO's `Trade Date Open` is the transfer date,
+not the original SG purchase date — wrong FX date for Austrian KeSt. These lots are handled by
+`manual_cost_basis` (qty=1 convention). Add the transfer date to the skip list:
+```yaml
+saxo_closedpos_skip_buy_open_dates:
+  - "2024-03-07"   # SG → DK transfer date: all 44 SG-era positions
+  - "2024-06-10"   # NVDA 10:1 split lot creation date
+```
+For skipped lots: SELL emitted with qty=1 (compatible with manual_cost_basis qty=1); no BUY.
+
+**Config keys:**
+- `saxo_closedpos_skip_buy_open_dates: [...]` — open dates where manual_cost_basis covers the cost
+- `saxo_skip_agg_trades: true` — AggregatedAmounts emits dividends only (suppresses duplicate trades)
+
+**Commissions:** ClosedPositions carries no per-trade commission; set to ZERO in parser.
 
 ### Folder structure (recommended)
 ```
 data/{person}/{broker}/{year}/
   data/matthias/SAXO/2024/AggregatedAmounts_19999999_2024-01-01_2024-12-31.xlsx
+  data/matthias/SAXO/2025/ClosedPositions_19999999_2025-01-01_2025-12-31.xlsx
+  data/matthias/SAXO/2025/AggregatedAmounts_19999999_2025-01-01_2025-12-31.xlsx
   data/matthias/IB/2024/matthias_2024.csv
-  data/jessie/IB/2025/jessie_2025.csv
 ```
-Prevents accidentally mixing brokers or years. The tool's auto-detect works per file, so pass files explicitly for now.
 
-### qty=1 convention — design decision (reviewed 2026-05-05, no change)
+### qty=1 convention — design decision (reviewed 2026-05-05, no change for AggregatedAmounts)
 SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trade (buy or sell) with a total EUR amount. The parser stores every trade as `quantity=1`, making `cost_per_unit = total_cost`. The FIFO engine's `use_qty = min(lot.qty_remaining, sell.qty_to_match)` then consumes exactly one lot per sell — correct given the available data.
 
 **Consequences for `manual_cost_basis`:**
@@ -120,7 +145,8 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 **Why not redesign?** Alternatives considered: (a) side-file with actual share counts — requires manual per-transaction data entry, no accuracy gain since SAXO still doesn't export it; (b) amount-based FIFO — requires engine refactor, breaks IB compatibility; (c) separate SAXO FIFO engine — complexity without benefit. qty=1 is the correct model for the available data.
 
 ### Other parser notes
-- **No quantity in any SAXO export** — trades use quantity=1; pre-2024 positions need `manual_cost_basis`
+- **No quantity in AggregatedAmounts** — trades use quantity=1; pre-2024 positions need `manual_cost_basis`
+- **ClosedPositions has real quantities** — use for 2024+ DK account capital gains
 - **2020 SG account** (8888888): symbols missing in export → parsed as `UIC{n}`; add `symbol_aliases` to remap
 - **Account migration 2024**: SG account (8888888) → DK account (19999999); pre-2024 cost basis seeded via `manual_cost_basis` from 2023 Holdings report (Portfolio_8888888_2023-01-01_2023-12-31.pdf)
 - **Corporate acquisitions**: "Corporate Actions - Cash Compensation" rows → treated as SELL (e.g. SWAV acquired by JNJ Jun 2024 for €3695.01)

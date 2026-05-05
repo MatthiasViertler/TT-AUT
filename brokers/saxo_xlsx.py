@@ -135,7 +135,7 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
         if name.startswith("sharedividends_"):
             txns = _parse_share_dividends(wb, path, account_id)
         elif name.startswith("aggregatedamounts_"):
-            txns = _parse_aggregated_amounts(wb, path, account_id)
+            txns = _parse_aggregated_amounts(wb, path, account_id, config)
         else:
             log.warning(f"SAXO parser: unrecognised filename pattern: {path.name}")
             txns = []
@@ -149,7 +149,10 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
 # ── AggregatedAmounts parser ──────────────────────────────────────────────────
 
 def _parse_aggregated_amounts(wb, path: Path,
-                               account_id: Optional[str]) -> list[NormalizedTransaction]:
+                               account_id: Optional[str],
+                               config: dict | None = None) -> list[NormalizedTransaction]:
+    if config is None:
+        config = {}
     if "Cash Movements" not in wb.sheetnames:
         log.warning(f"SAXO: 'Cash Movements' sheet not found in {path.name}")
         return []
@@ -208,6 +211,10 @@ def _parse_aggregated_amounts(wb, path: Path,
                       "Corporate Actions - Withholding Tax"]
 
         # ── Trades ────────────────────────────────────────────────────────────
+        # saxo_skip_agg_trades: true → dividends only; ClosedPositions handles gains
+        if config.get("saxo_skip_agg_trades", False):
+            trade_rows = []
+
         for row in trade_rows:
             sym, exchange = _parse_symbol(
                 row.get("Instrument Symbol") or
