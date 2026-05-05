@@ -1,7 +1,7 @@
 """
 Freedom Dashboard HTML generator.
 
-Produces output/{person}_{year}_freedom.html — a self-contained interactive
+Produces users/{person}/output/{person}_{year}_freedom.html — a self-contained interactive
 page pre-populated with actual dividend data from this run.
 
 Slider defaults come from config freedom_dashboard section:

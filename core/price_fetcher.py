@@ -2,7 +2,7 @@
 Auto-fetch year-end closing prices via yfinance (Yahoo Finance).
 
 Used by Nichtmeldefonds calculation to avoid manual dec31_prices config.
-Results cached in data/price_cache/ as JSON to avoid repeated network calls.
+Results cached in cache/price_cache/ as JSON to avoid repeated network calls.
 
 Cache key: {symbol}_{year}.json
 Value: {"price": float, "currency": str, "date": "YYYY-MM-DD", "source": "yfinance"}
@@ -21,7 +21,7 @@ def get_year_end_price(
     symbol: str,
     currency: str,
     year: int,
-    cache_dir: str = "./data/price_cache",
+    cache_dir: str = "./cache/price_cache",
 ) -> Decimal | None:
     """
     Return the last trading-day closing price on or before Dec 31 of `year`.

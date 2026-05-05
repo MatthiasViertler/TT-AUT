@@ -27,9 +27,9 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
 
 from core.models import NormalizedTransaction, TaxSummary, TransactionType
-from output.anv_checklist import write_anv_checklist
-from output.freedom import write_freedom_html
-from output.wht_reclaim import write_wht_reclaim_report
+from generators.anv_checklist import write_anv_checklist
+from generators.freedom import write_freedom_html
+from generators.wht_reclaim import write_wht_reclaim_report
 
 log = logging.getLogger(__name__)
 ZERO = Decimal("0")

@@ -1,6 +1,13 @@
 """
 Configuration management.
-Loads config.yaml (if present) and merges with sensible defaults.
+
+Load sequence:
+  1. Built-in DEFAULTS (hardcoded here)
+  2. config.yaml  — universal settings, committed to git
+  3. users/{person}/config.local.yaml  — person-specific overrides, gitignored
+
+scan_account_ids() scans all users/*/config.local.yaml for account_id entries and
+returns a {account_id: person_name} mapping used for auto-detecting --person.
 """
 
 from pathlib import Path
@@ -14,7 +21,10 @@ DEFAULTS: dict[str, Any] = {
 
     # ECB FX rates API (free, no key needed)
     "fx_source": "ecb",           # "ecb" or "manual"
-    "fx_cache_dir": "./data/fx_cache",
+    "fx_cache_dir": "./cache/fx_cache",
+
+    # Year-end price cache for Nichtmeldefonds (auto-fetched via yfinance)
+    "price_cache_dir": "./cache/price_cache",
 
     # How to handle FX: "daily" uses trade-date rate, "annual_avg" uses yearly average
     # Austrian tax law: use daily ECB rate on transaction date
@@ -79,12 +89,23 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
-def load_config(config_path: str = "config.yaml") -> dict[str, Any]:
-    """Load config file if it exists, merge with defaults.
+def load_config(
+    config_path: str = "config.yaml",
+    person: str | None = None,
+    users_dir: Path | str = Path("users"),
+) -> dict[str, Any]:
+    """Load universal config then merge person-specific overrides.
 
-    Also loads config.local.yaml (next to config.yaml) if present — use it
-    for secrets like real account IDs that must not be committed to git.
+    Layer order (each overrides the previous):
+      1. DEFAULTS
+      2. config.yaml  (committed, universal)
+      3. users/{person}/config.local.yaml  (gitignored, person-specific)
+
+    If person is None, only layers 1–2 are applied. The pipeline then
+    calls this again (or uses scan_account_ids) after detecting the person
+    from account IDs found in the input files.
     """
+    users_dir = Path(users_dir)
     config = dict(DEFAULTS)
 
     path = Path(config_path)
@@ -96,14 +117,54 @@ def load_config(config_path: str = "config.yaml") -> dict[str, Any]:
     else:
         print(f"[config] No config file found at '{config_path}', using defaults.")
 
-    local_path = path.parent / (path.stem + ".local" + path.suffix)
-    if local_path.exists():
-        with open(local_path) as f:
-            local_config = yaml.safe_load(f) or {}
-        _deep_merge(config, local_config)
-        print(f"[config] Loaded local overrides: {local_path}")
+    if person:
+        local_path = users_dir / person / "config.local.yaml"
+        if local_path.exists():
+            with open(local_path) as f:
+                local_config = yaml.safe_load(f) or {}
+            _deep_merge(config, local_config)
+            print(f"[config] Loaded person overrides: {local_path}")
+        else:
+            print(f"[config] No person config found at '{local_path}'")
 
     return config
+
+
+def scan_account_ids(users_dir: Path | str = Path("users")) -> dict[str, str]:
+    """Scan users/*/config.local.yaml and return {account_id: person_name}.
+
+    account_id in each person's config may be a scalar string or a list of
+    strings (to support multiple broker accounts per person, e.g. IB + SAXO,
+    or old/new account IDs after a broker migration).
+    """
+    users_dir = Path(users_dir)
+    mapping: dict[str, str] = {}
+
+    if not users_dir.is_dir():
+        return mapping
+
+    for person_dir in sorted(users_dir.iterdir()):
+        if not person_dir.is_dir():
+            continue
+        person_name = person_dir.name
+        local_path = person_dir / "config.local.yaml"
+        if not local_path.exists():
+            continue
+        try:
+            with open(local_path) as f:
+                data = yaml.safe_load(f) or {}
+        except Exception:
+            continue
+
+        raw = data.get("account_id")
+        if raw is None:
+            continue
+
+        ids = raw if isinstance(raw, list) else [raw]
+        for aid in ids:
+            mapping[str(aid)] = person_name
+
+    return mapping
 
 
 def _deep_merge(base: dict, override: dict) -> None:

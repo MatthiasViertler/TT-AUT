@@ -41,7 +41,7 @@ def calculate_nichtmeldefonds(
     config: dict,
     tax_year: int,
     all_transactions: list[NormalizedTransaction],
-    fx,                         # FXRateProvider — avoid circular import
+    fx,                             # FXRateProvider — avoid circular import
 ) -> list[NichtmeldefondsResult]:
     """
     Calculate pauschal AE for every configured Nichtmeldefonds position.
@@ -51,9 +51,10 @@ def calculate_nichtmeldefonds(
     if not nmf_config:
         return []
 
+    price_cache_dir = config.get("price_cache_dir", "./cache/price_cache")
     results = []
     for entry in nmf_config:
-        result = _calc_position(entry, tax_year, all_transactions, fx)
+        result = _calc_position(entry, tax_year, all_transactions, fx, price_cache_dir)
         if result is not None:
             results.append(result)
 
@@ -65,14 +66,14 @@ def _calc_position(
     tax_year: int,
     all_transactions: list[NormalizedTransaction],
     fx,
+    price_cache_dir: str = "./cache/price_cache",
 ) -> NichtmeldefondsResult | None:
     symbol    = entry.get("symbol", "")
     isin      = entry.get("isin", "")
     name      = entry.get("name", symbol)
     fund_type = entry.get("type", "FUND").upper()
     currency  = entry.get("currency", "USD").upper()
-    fx_cache   = str(getattr(fx, "cache_dir", "./data/fx_cache"))
-    cache_dir  = fx_cache.replace("fx_cache", "price_cache")
+    cache_dir = price_cache_dir
 
     # Manual overrides in config take precedence; auto-fetch fills the rest
     manual_prices = {str(k): Decimal(str(v)) for k, v in entry.get("dec31_prices", {}).items()}

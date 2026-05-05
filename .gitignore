@@ -1,32 +1,21 @@
 # Virtual environment
 .venv/
 
-# FX cache (auto-downloaded, no need to commit)
-data/fx_cache/
+# All user data — exports, configs, outputs (gitignored as a unit)
+users/
+
+# Shared caches (auto-downloaded, no need to commit)
+cache/fx_cache/
+cache/price_cache/
 
 # Output files (generated, not source) — Python source files in output/ ARE committed
-output/*.csv
-output/*.txt
-output/*.xlsx
-output/*.html
-output/__pycache__/
+legacy/
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
-
-# Sensitive data — NEVER commit broker exports (all subdirs)
-data/**/*.csv
-data/**/*.xlsx
-data/**/*.pdf
-data/**/*.xml
-data/**/*.json
-data/price_cache/
-
-# Local config overrides (real account IDs, personal settings — never commit)
-config.local.yaml
 
 # OS
 .DS_Store

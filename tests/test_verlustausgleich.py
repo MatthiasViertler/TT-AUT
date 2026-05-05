@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from core.models import TaxSummary
-from output.writer import _load_history, _save_summary_json
+from generators.writer import _load_history, _save_summary_json
 
 
 def _make_summary(year: int, person: str = "Test",
