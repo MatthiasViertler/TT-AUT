@@ -16,8 +16,9 @@ log = logging.getLogger(__name__)
 # Each entry: (module, display_name)
 # Modules are imported lazily to keep startup fast
 _PARSER_MODULES = [
-    ("brokers.ib_csv",      "Interactive Brokers CSV"),
-    ("brokers.saxo_xlsx",   "SAXO Bank xlsx"),
+    ("brokers.ib_csv",             "Interactive Brokers CSV"),
+    ("brokers.saxo_closedpos_xlsx","SAXO Bank ClosedPositions xlsx"),
+    ("brokers.saxo_xlsx",          "SAXO Bank xlsx"),
     # ("brokers.degiro",  "DEGIRO"),           # TODO: implement
     # ("brokers.flatex",  "Flatex Austria"),   # TODO: implement
 ]
@@ -33,7 +34,11 @@ def load_transactions(path: Path, config: dict,
     import importlib
 
     if broker_hint != "auto":
-        hint_map = {"ib": "brokers.ib_csv", "saxo": "brokers.saxo_xlsx"}
+        hint_map = {
+            "ib":        "brokers.ib_csv",
+            "saxo":      "brokers.saxo_xlsx",
+            "closedpos": "brokers.saxo_closedpos_xlsx",
+        }
         mod_name = hint_map.get(broker_hint)
         if mod_name:
             mod = importlib.import_module(mod_name)
