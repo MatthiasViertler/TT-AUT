@@ -49,6 +49,11 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       Per-country/year report with treaty rates, deadlines, per-stock breakdown.
 - [x] **Excel "Freedom" tab** — tab in dashboard.xlsx: key metrics, per-symbol holdings,
       10-year projection table (portfolio × yield/growth + monthly contribution) *(2026-05-04)*
+- [ ] **Freedom tab — dynamic portfolio value** — aggregate real holdings across all brokers
+      (IB + SAXO positions) instead of static `portfolio_eur` config value; use as starting
+      point for 10-year projection. Requires "current holdings" model (no such model yet).
+- [ ] **Freedom tab — dynamic dividend yield** — compute trailing yield from actual dividend
+      transactions instead of static `yield_pct` config; apply to projection table.
 
 ---
 
@@ -70,14 +75,16 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🟡 Tax Features
 
-- [ ] **Regelbesteuerungsoption mode** — `--regelbesteuerung` flag, recalculates
-      at progressive income tax rate instead of flat 27.5% KESt
-      (N/A for Jessie 2025 — standard 27.5% applies; useful for future / other users)
+- [ ] **Arbeitnehmerveranlagung checklist** — per-person deduction checklist output
+      (Werbungskosten, Pendlerpauschale, Sonderausgaben, außerg. Belastungen)
+      ⚠️ Jessie filing due 2026-06-30 — E1kv figures ready, checklist missing
 - [ ] **Verlustausgleich tracker** — year-by-year gain/loss table
 - [ ] **KZ 937 semi-automation** — OeKB API per ISIN for Ausschüttungsgleiche Erträge
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
-- [ ] **Arbeitnehmerveranlagung checklist** — per-person deduction checklist output
-      (Werbungskosten, Pendlerpauschale, Sonderausgaben, außerg. Belastungen)
+- [ ] **Regelbesteuerungsoption mode** — `--regelbesteuerung` flag, recalculates
+      at progressive income tax rate instead of flat 27.5% KESt
+      Low priority: Matthias income level → progressive rate likely worse than 27.5%;
+      N/A for Jessie 2025. Useful only if a user's marginal rate < 27.5%.
 
 ---
 
@@ -96,7 +103,8 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🔵 v2.x — New Brokers
 
-- [ ] SAXO parser (`brokers/saxo.py`) — need sample export first
+- [x] SAXO parser — `brokers/saxo_xlsx.py` (AggregatedAmounts) + `brokers/saxo_closedpos_xlsx.py`
+      (ClosedPositions, real quantities); `saxo_skip_agg_trades` flag; 131 tests *(2026-05-05)*
 - [ ] E*Trade parser (`brokers/etrade.py`) — need sample export first
 - [ ] REIT/BDC handling (US return of capital, §199A dividends, 1099-DIV boxes)
 - [ ] `--compare` mode — merge self + jessie into one dashboard
