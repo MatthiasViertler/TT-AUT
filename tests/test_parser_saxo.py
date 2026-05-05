@@ -432,6 +432,29 @@ def test_div_multiple_payments_same_symbol(tmp_path):
     assert len(txns) == 4
 
 
+# ── Corporate Actions - Cash Compensation (acquisition / delisting) ───────────
+
+def test_agg_cash_compensation_treated_as_sell(tmp_path):
+    """Acquisition/delisting cash payout is treated as a SELL (capital gain event)."""
+    rows = [_agg_row("04-06-2024", "Corporate Actions - Cash Compensation",
+                     "SWAV:xnas", "*Delisted 20240603 (ShockWave Medical Inc.)", 7777, 3695.01)]
+    p = _write_agg(tmp_path, rows)
+    txns, _ = parse(p, {})
+    assert len(txns) == 1
+    assert txns[0].txn_type == TransactionType.SELL
+    assert txns[0].symbol == "SWAV"
+    assert txns[0].orig_amount == Decimal("3695.01")
+
+
+def test_agg_cash_compensation_not_silently_dropped(tmp_path):
+    """Regression: 'Corporate Actions - Cash Compensation' must not be skipped."""
+    rows = [_agg_row("04-06-2024", "Corporate Actions - Cash Compensation",
+                     "ACME:xnas", "ACME Corp. Acquisition", 1234, 1000.00)]
+    p = _write_agg(tmp_path, rows)
+    txns, _ = parse(p, {})
+    assert len(txns) == 1, "cash compensation must not be silently dropped"
+
+
 # ── broker = "saxo" label ─────────────────────────────────────────────────────
 
 def test_broker_label(tmp_path):

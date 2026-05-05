@@ -86,16 +86,36 @@ Prices auto-fetched via yfinance, cached. Add symbol under `nichtmeldefonds:` in
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 116 tests, all green
+- `python -m pytest tests/` — 118 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
 ## SAXO parser notes
-- **Files**: `AggregatedAmounts_*.xlsx` (trades + dividends fallback) and `ShareDividends_*.xlsx` (preferred for dividends — richer WHT data)
-- **Do NOT pass both for the same period** — dividends would double-count
+
+### Which reports to export
+| Need | Export | Notes |
+|------|--------|-------|
+| Trades (buys/sells) | **AggregatedAmounts** only | mandatory; also contains dividend fallback |
+| Best dividend detail | **ShareDividends** only (same period, instead of AggregatedAmounts dividends) | richer WHT/currency data |
+| Both | NOT supported simultaneously — dividends double-count | pass one per period |
+
+**Recommended**: Always export AggregatedAmounts. It covers everything. Export ShareDividends separately for your records, but only pass it to the tool for periods where you have no AggregatedAmounts.
+
+### Folder structure (recommended)
+```
+data/{person}/{broker}/{year}/
+  data/matthias/SAXO/2024/AggregatedAmounts_18801362_2024-01-01_2024-12-31.xlsx
+  data/matthias/IB/2024/matthias_2024.csv
+  data/jessie/IB/2025/jessie_2025.csv
+```
+Prevents accidentally mixing brokers or years. The tool's auto-detect works per file, so pass files explicitly for now.
+
+### Other parser notes
 - **No quantity in any SAXO export** — trades use quantity=1; pre-2024 positions need `manual_cost_basis`
 - **2020 SG account** (8839666): symbols missing in export → parsed as `UIC{n}`; add `symbol_aliases` to remap
-- **Account migration 2022**: SG account (8839666) → DK account (18801362); pre-2024 FIFO basis unavailable
+- **Account migration 2024**: SG account (8839666) → DK account (18801362); pre-2024 cost basis seeded via `manual_cost_basis` from 2023 Holdings report (Portfolio_8839666_2023-01-01_2023-12-31.pdf)
+- **Corporate acquisitions**: "Corporate Actions - Cash Compensation" rows → treated as SELL (e.g. SWAV acquired by JNJ Jun 2024 for €3695.01)
+- **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
 ## Next up (priority order)
 1. `--regelbesteuerung` flag

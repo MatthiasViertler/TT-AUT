@@ -161,6 +161,7 @@ def _parse_aggregated_amounts(wb, path: Path,
             "Corporate Actions - Cash Dividends",
             "Corporate Actions - Withholding Tax",
             "Corporate Actions - Fee",
+            "Corporate Actions - Cash Compensation",  # acquisition / delisting cash payout → SELL
         }:
             continue
         dt = _parse_date(d.get("Date"))
@@ -174,7 +175,10 @@ def _parse_aggregated_amounts(wb, path: Path,
 
     for (dt, uic), group_rows in sorted(groups.items()):
         trade_rows = [r for r in group_rows
-                      if r.get("Amount Type Name") == "Share Amount"]
+                      if r.get("Amount Type Name") in {
+                          "Share Amount",
+                          "Corporate Actions - Cash Compensation",  # acquisition/delisting payout
+                      }]
         cost_rows  = [r for r in group_rows
                       if r.get("Amount Type Name") in
                       {"Commission", "Exchange Fee"}]
