@@ -13,7 +13,7 @@ Move completed items to ## Done with the date.
 
 ---
 
-## ✅ Matthias's Tax Filing — DONE (2026-05-04)
+## ✅ Matthias's Tax Filing — DONE (2026-05-04, revised 2026-05-06)
 
 - [x] **Add OPT filter to `brokers/ib_csv.py`** — silently drop AssetClass == 'OPT' *(2026-05-04)*
 - [x] **Handle P911 Return of Capital** — "return of capital" in description → skip group *(2026-05-04)*
@@ -21,6 +21,13 @@ Move completed items to ## Done with the date.
 - [x] **Run Matthias end-to-end** — `python main.py --input data/matthias_*.csv --year 2025` ✓ *(2026-05-04)*
       Special cases resolved: BAYN reversal ✓, 1COV/1CO tender (symbol_aliases) ✓, VNA 'd' normalization ✓
       SOLV (Solventum spin-off): no buy record → cost basis 0, minor impact. Needs manual_cost_basis feature.
+- [x] **FIFO ghost-lot fix** — prior-year sells now drain their lots; current-year sells use correct basis *(2026-05-06)*
+      Bug: only tax-year sells processed → prior-year sells left "ghost" lots. Fix: all years' sells run through queue.
+      1 regression test added (171 total).
+- [x] **VER→OEWA symbol alias (Verbund AG)** — IB renamed ticker OEWA→VER in Dec 2025 *(2026-05-06)*
+      Added `VER: OEWA` to symbol_aliases. KZ 891 now correctly shows €1,107 domestic loss.
+      ⚠️ Remove this alias for 2026+ once all OEWA lots are consumed (150 shares sold 2025-12-17).
+      Revised 2025 totals: KZ 891 €1,107 | KZ 994 €9,292 | KeSt remaining **€3,560** (was ~€3,914)
 - [x] **WHT reclaim assistant output** (`generators/wht_reclaim.py`) *(2026-05-04)*
       Total reclaimable EUR 852.14 (DE: 775.00, DK: 37.91, FR: 39.24)
       ⚠️ France 2024 deadline 2026-12-31 — moved to 🔴 above.
