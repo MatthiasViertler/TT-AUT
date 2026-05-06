@@ -70,10 +70,11 @@ account_id:           # scalar or list — supports multi-broker and migrated ac
 Account IDs are **placeholders only** in this file — real IDs are in `users/{person}/config.local.yaml`.
 - Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
 - Matthias: IB + SAXO DK accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
-  2025 run: KZ 863 €10,138 | KZ 994 €9,497 | KeSt remaining ~€3,914 (IB+SAXO, no double-count)
+  2025 run: KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €2,628 | KeSt remaining **€3,560** (IB+SAXO, no double-count)
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
-  1COV/1CO Covestro tender (symbol_aliases) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓
+  1COV/1CO Covestro tender (symbol_aliases) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓,
+  VER→OEWA Verbund AG ticker rename (symbol_aliases) ✓ — ⚠️ remove alias for 2026+ tax year
 - GAZ (Russian ADR) — held, likely worthless, no tax impact yet
 - **New 2025**: HENSOLDT, RENK, RHEINMETALL, TKMS, 4SC, DRONESHIELD, BLACKSKY
 
@@ -116,6 +117,7 @@ All land in `users/{person}/output/`:
 - **FIFO cross-check**: warns if our gain differs from IB's FifoPnlRealized by > €1.00 (HEADER/DATA only)
 - **Negative position**: warns if total sells > total buys per symbol across all input years
 - **FX sanity**: warns (log) if ECB rate deviates >20% from prior cached day
+- **FIFO all-years**: all years' sells are processed through FIFO queue in date order (prior-year sells drain lots correctly); only current-year gains/losses added to summary
 
 ## Nichtmeldefonds (§ 186 InvFG)
 AE = max(90% × annual gain, 10% × Dec31 price) per share × FX. KeSt = 27.5% × AE.
@@ -126,7 +128,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 166 tests, all green
+- `python -m pytest tests/` — 171 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 

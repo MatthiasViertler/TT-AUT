@@ -126,3 +126,30 @@ def test_buy_has_no_eur_gain_loss(cfg):
     buy, _ = _sell_with_broker_pnl(None)
     _engine(cfg).calculate([buy])
     assert buy.eur_gain_loss is None
+
+
+def test_prior_year_sell_drains_fifo_lot(cfg):
+    """A sell in a prior year must consume its FIFO lot so the current-year sell
+    uses the correct (later) cost basis — the ghost-lot bug fix."""
+    # 2023: buy 10 shares at €50
+    buy_old = make_trade("AAPL", "US0378331005", TransactionType.BUY,
+                         quantity=10, price_eur=50.0, trade_date=date(2023, 1, 1))
+    # 2024: sell those 10 shares (prior year, not in tax_year=2025)
+    sell_old = make_trade("AAPL", "US0378331005", TransactionType.SELL,
+                          quantity=10, price_eur=60.0, trade_date=date(2024, 6, 1))
+    # 2024: buy 10 shares back at €60
+    buy_new = make_trade("AAPL", "US0378331005", TransactionType.BUY,
+                         quantity=10, price_eur=60.0, trade_date=date(2024, 6, 2))
+    # 2025: sell those 10 shares at €55 — loss-harvest; should use €60 basis not €50
+    sell_cur = make_trade("AAPL", "US0378331005", TransactionType.SELL,
+                          quantity=10, price_eur=55.0, trade_date=date(2025, 3, 1))
+
+    engine = TaxEngine(cfg, tax_year=2025, person_label="test")
+    summary = engine.calculate([buy_old, sell_old, buy_new, sell_cur])
+
+    # Correct: cost basis = €600 (10 × €60), proceeds = €550 → loss = -€50
+    assert sell_cur.eur_cost_basis == Decimal("600")
+    assert sell_cur.eur_gain_loss == Decimal("-50")
+    # Without the fix (ghost lot), cost basis would be €500 (the 2023 lot) → gain = +€50
+    assert summary.kz_892 == Decimal("50")   # foreign loss (country_code=US)
+    assert summary.kz_994 == ZERO            # no foreign gain

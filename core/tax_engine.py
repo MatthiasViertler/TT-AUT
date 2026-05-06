@@ -54,13 +54,14 @@ class TaxEngine:
         summary.transaction_count = len(year_txns)
 
         dividends = [t for t in year_txns if t.txn_type == TransactionType.DIVIDEND]
-        sells = [t for t in year_txns if t.txn_type == TransactionType.SELL]
+        year_sells = [t for t in year_txns if t.txn_type == TransactionType.SELL]
+        all_sells  = [t for t in transactions if t.txn_type == TransactionType.SELL]  # all years
         buys = [t for t in transactions if t.txn_type == TransactionType.BUY]  # all years for basis
         interests = [t for t in year_txns if t.txn_type == TransactionType.INTEREST]
 
         self._check_negative_positions(transactions, summary)
         self._process_dividends(dividends, summary)
-        self._process_capital_gains(buys, sells, summary)
+        self._process_capital_gains(buys, year_sells, all_sells, summary)
         self._process_interest(interests, summary)
         self._finalize(summary)
 
@@ -123,7 +124,8 @@ class TaxEngine:
 
     def _process_capital_gains(self,
                                 all_buys: list[NormalizedTransaction],
-                                sells: list[NormalizedTransaction],
+                                year_sells: list[NormalizedTransaction],
+                                all_sells: list[NormalizedTransaction],
                                 summary: TaxSummary) -> None:
         # Collect all lots: real buys + manual cost basis overrides
         # Each entry: (date, symbol, qty, cost_per_unit)
@@ -152,7 +154,11 @@ class TaxEngine:
         for d, sym, qty, cpu in sorted(lots, key=lambda x: x[0]):
             fifo[sym].append({"date": d, "qty_remaining": qty, "cost_per_unit": cpu})
 
-        for sell in sorted(sells, key=lambda t: t.trade_date):
+        # Process ALL years' sells chronologically so prior-year sells drain their lots.
+        # Only accumulate gains/losses into summary for current tax-year sells.
+        year_sell_ids = {id(s) for s in year_sells}
+
+        for sell in sorted(all_sells, key=lambda t: t.trade_date):
             qty_to_match = (sell.quantity or ZERO).copy_abs()
             proceeds = (sell.eur_amount or ZERO).copy_abs()
             commission = sell.eur_commission or ZERO
@@ -170,13 +176,18 @@ class TaxEngine:
                 if lot["qty_remaining"] == ZERO:
                     queue.popleft()
 
-            if qty_to_match > ZERO:
+            is_year_sell = id(sell) in year_sell_ids
+
+            if qty_to_match > ZERO and is_year_sell:
                 summary.unmatched_sells += 1
                 summary.warnings.append(
                     f"FIFO: Unmatched sell {sell.symbol} on {sell.trade_date} "
                     f"— {qty_to_match} units have no purchase record. "
                     f"Cost basis set to 0 (may overstate gain)."
                 )
+
+            if not is_year_sell:
+                continue  # lot consumed; nothing to report for prior years
 
             net_gain = proceeds - cost_matched - commission
 
