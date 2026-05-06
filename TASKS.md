@@ -43,11 +43,11 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🟡 Dashboard & Output
 
-- [ ] **🔴 Excel audit trail — per-transaction gain/loss** *(HIGH PRIORITY)*
-      Transactions tab needs a "Gain/Loss EUR" column showing FIFO-realized gain/loss per sell.
-      Summary Kennziffern in E1kv Summary tab should be Excel SUM() formulas over transaction rows,
-      not hard-coded values — essential for audit and FinanzOnline reconciliation.
-      Currently impossible to trace total gains/losses back to individual trades in the workbook.
+- [x] **Excel audit trail — per-transaction gain/loss** *(2026-05-06)*
+      Trades tab: Gain/Loss EUR + Cost Basis EUR columns per sell; SUMPRODUCT summary rows
+      (domestic/foreign gains + losses → KZ 981/994/891/892). Dividends tab: SUMIF summary rows
+      (KZ 862/863 + total WHT). E1kv Summary: KZ cells + Saldo + Net Taxable now use cross-sheet
+      formula references instead of hard-coded values. 4 new tests (170 total).
 
 - [x] **Wire freedom dashboard into pipeline** — generate `output/{person}_{year}_freedom.html`
       auto-populated with real dividend data from that run. Sliders stay interactive. *(2026-05-01)*
