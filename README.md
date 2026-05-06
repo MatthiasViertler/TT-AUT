@@ -192,6 +192,8 @@ All options:
 - **WHT excess warning** when foreign withholding exceeds the creditable amount (> €0.05 threshold suppresses rounding noise)
 - **Return of Capital** — groups detected by "return of capital" in description are skipped entirely
 - **Corporate actions / mergers** — `symbol_aliases` in config maps sell-ticker → buy-ticker for FIFO matching
+- **ISIN rename hint** — if a sell finds no lots but the same ISIN exists under a different buy symbol, the warning suggests the exact `symbol_aliases` entry to add (catches broker mid-year ticker renames)
+- **Same-day round-trip detection** — if a sell + same-day repurchase of the same symbol produces a gain/loss < 1% of proceeds (> €500), a warning flags possible FIFO mismatch against the new buy instead of older lots
 - **Nichtmeldefonds** (§ 186 InvFG) — pauschal AE = max(90% × annual gain, 10% × Dec31 price) per share; year-end prices auto-fetched from Yahoo Finance and cached
 - **Manual cost basis override** — seed the FIFO queue for positions with no IB buy record (spin-offs, broker transfers)
 - **KZ 937** (Ausschüttungsgleiche Erträge for accumulating funds) is **not** auto-calculated — requires OeKB data; flagged for manual entry
@@ -304,7 +306,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-152 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, and Verlustausgleich year-over-year tracking.
+180 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, Verlustausgleich year-over-year tracking, ISIN rename hint, and same-day round-trip detection.
 
 ---
 

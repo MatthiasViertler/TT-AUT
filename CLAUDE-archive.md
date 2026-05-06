@@ -73,6 +73,30 @@ Type, Conid, TransactionID
 6. WHT warnings firing on rounding differences → threshold of €0.05 added
 7. `--person` required even though account ID is in every file → now auto from account_map
 8. .venv created one level up (~/tax/AUT/ instead of ~/tax/AUT/kapitalertrag/) → moved
+9. **FIFO ghost-lot bug** (2026-05-06) — `_process_capital_gains` only received current-year sells.
+   Prior-year sells left their lots unconsumed, so 2025 sells matched against "ghost" lots from
+   prior years instead of the correct (later) purchases. Fix: pass all_sells to the function and
+   process every year chronologically; use `year_sell_ids = {id(s) for s in year_sells}` to skip
+   gain/loss accumulation for prior-year sells. Affected symbol: NVDA (prior-year 2024 transfer sell).
+10. **Verbund AG ticker rename OEWA→VER** (2026-05-06) — IB renamed Verbund AG's ticker from OEWA to
+    VER in December 2025. The 2025-12-17 loss-harvest sell (150 shares) was booked under VER, but all
+    buy lots were under OEWA → sell matched same-day VER repurchase → -€15 instead of -€1,107 loss.
+    Fix: added `VER: OEWA` to `symbol_aliases` in Matthias config.local.yaml.
+    ⚠️ Alias must be removed before running 2026 tax year once all OEWA lots are consumed.
+
+## FIFO diagnostic warnings (added 2026-05-06)
+
+Two proactive warnings in `_process_capital_gains` to catch future ticker-rename / mismatch issues:
+
+**ISIN rename hint**: when an unmatched sell has an ISIN that appears in the buy history under a
+different symbol, the warning suggests the exact `symbol_aliases` entry: e.g.
+`"ISIN AT0000746409 has lots under OEWA — possible broker ticker rename; add 'VER: OEWA' to symbol_aliases."`
+Fires when there are NO lots at all for the sell symbol.
+
+**Same-day round-trip**: if a sell has a same-day repurchase of the same symbol AND |gain| < 1% of
+proceeds (threshold: > €500), warns that FIFO may have matched against the new buy. Fires when lots
+exist but are from the same-day purchase (the scenario where the ticker rename bug manifests as
+a tiny delta rather than zero lots).
 
 ## Project / machine setup
 

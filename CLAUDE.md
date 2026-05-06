@@ -118,6 +118,8 @@ All land in `users/{person}/output/`:
 - **Negative position**: warns if total sells > total buys per symbol across all input years
 - **FX sanity**: warns (log) if ECB rate deviates >20% from prior cached day
 - **FIFO all-years**: all years' sells are processed through FIFO queue in date order (prior-year sells drain lots correctly); only current-year gains/losses added to summary
+- **ISIN rename hint**: unmatched sell with same ISIN under a different buy symbol → suggests exact `symbol_aliases` entry (e.g. broker renames ticker mid-year)
+- **Same-day round-trip**: sell + same-day repurchase of same symbol with |gain| < 1% of proceeds (>€500) → warns FIFO may have matched against new buy instead of older lots
 
 ## Nichtmeldefonds (§ 186 InvFG)
 AE = max(90% × annual gain, 10% × Dec31 price) per share × FX. KeSt = 27.5% × AE.
@@ -128,7 +130,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 171 tests, all green
+- `python -m pytest tests/` — 180 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -187,8 +189,8 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `users/matthias/config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
 ## Next up (priority order)
-1. **🔴 Excel audit trail** — per-transaction gain/loss column in Transactions tab; formula-based summary figures (not hard-coded); needed for FinanzOnline reconciliation and audit
-2. **E\*Trade parser** — needed for Matthias 2025 filing (holdings at E\*Trade not yet captured)
+1. **🔴 France WHT reclaim** — deadline 2026-12-31; Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess. File before year-end.
+2. **E\*Trade parser** — needs sample export from Matthias first; blocks capturing any E*Trade holdings
 3. Freedom tab — dynamic portfolio value + dividend yield from actual transactions
 4. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
