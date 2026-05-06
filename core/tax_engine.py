@@ -130,6 +130,7 @@ class TaxEngine:
         # Collect all lots: real buys + manual cost basis overrides
         # Each entry: (date, symbol, qty, cost_per_unit)
         lots: list[tuple] = []
+        isin_to_symbols: dict[str, set] = defaultdict(set)
         for buy in all_buys:
             qty = buy.quantity or ZERO
             if not qty:
@@ -138,6 +139,8 @@ class TaxEngine:
                 ((buy.eur_amount or ZERO).copy_abs() + (buy.eur_commission or ZERO)) / qty
             )
             lots.append((buy.trade_date, buy.symbol, qty, cpu))
+            if buy.isin:
+                isin_to_symbols[buy.isin].add(buy.symbol)
 
         from datetime import date as date_t
         for entry in self.config.get("manual_cost_basis", []):
@@ -148,6 +151,11 @@ class TaxEngine:
                 d = date_t.fromisoformat(str(d))
             cpu = cost / qty if qty else ZERO
             lots.append((d, entry["symbol"], qty, cpu))
+            if entry.get("isin"):
+                isin_to_symbols[entry["isin"]].add(entry["symbol"])
+
+        # Index for same-day round-trip detection: (symbol, date) of every buy
+        same_day_buy_syms: set[tuple] = {(b.symbol, b.trade_date) for b in all_buys}
 
         # Build FIFO queues in chronological order
         fifo: dict[str, deque] = defaultdict(deque)
@@ -180,9 +188,19 @@ class TaxEngine:
 
             if qty_to_match > ZERO and is_year_sell:
                 summary.unmatched_sells += 1
+                rename_hint = ""
+                if sell.isin:
+                    alt_syms = isin_to_symbols.get(sell.isin, set()) - {sell.symbol, effective_symbol}
+                    if alt_syms:
+                        alt = next(iter(sorted(alt_syms)))
+                        rename_hint = (
+                            f" ISIN {sell.isin} has lots under {', '.join(sorted(alt_syms))}"
+                            f" — possible broker ticker rename; add '{sell.symbol}: {alt}'"
+                            f" to symbol_aliases."
+                        )
                 summary.warnings.append(
                     f"FIFO: Unmatched sell {sell.symbol} on {sell.trade_date} "
-                    f"— {qty_to_match} units have no purchase record. "
+                    f"— {qty_to_match} units have no purchase record.{rename_hint} "
                     f"Cost basis set to 0 (may overstate gain)."
                 )
 
@@ -194,6 +212,19 @@ class TaxEngine:
             # Store on transaction for Excel audit trail
             sell.eur_gain_loss = net_gain
             sell.eur_cost_basis = cost_matched
+
+            # Same-day round-trip: sell + same-day repurchase with tiny gain may indicate
+            # FIFO matched against the new buy instead of older lots (e.g. broker ticker rename).
+            if proceeds > Decimal("500") and net_gain.copy_abs() < proceeds * Decimal("0.01"):
+                if (sell.symbol, sell.trade_date) in same_day_buy_syms or \
+                   (effective_symbol, sell.trade_date) in same_day_buy_syms:
+                    pct = float(net_gain) / float(proceeds) * 100
+                    summary.warnings.append(
+                        f"Suspicious round-trip: {sell.symbol} sold and repurchased on "
+                        f"{sell.trade_date}, gain/loss {net_gain:+.2f} EUR ({pct:.1f}% of "
+                        f"{proceeds:.0f} EUR proceeds) — FIFO may have matched against same-day "
+                        f"buy instead of older lots. Verify or add ticker alias to symbol_aliases."
+                    )
 
             # Cross-check against broker-reported FIFO PnL (available from HEADER/DATA format)
             if sell.broker_fifo_pnl_eur is not None:
