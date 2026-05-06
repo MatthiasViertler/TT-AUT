@@ -104,6 +104,7 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🔵 Usability & Automation
 
+- [ ] **Remove `VER: OEWA` alias before 2026 run** — alias added 2026-05-06; all OEWA lots consumed by 2025-12-17 sell (150 shares). Remove from `users/matthias/config.local.yaml` before running `--year 2026`, otherwise VER sells will look in empty OEWA queue.
 - [ ] **`--input-dir` folder scanning** — accept a directory instead of individual files;
       auto-detect broker per file; load all years for FIFO, filter output to `--year`
       Foundation for GUI folder-picker later.
