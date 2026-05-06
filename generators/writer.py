@@ -239,10 +239,11 @@ def _write_excel(txns: list[NormalizedTransaction],
 
     wb = Workbook()
 
-    # ── Tab 1: E1kv Summary (for tax consultant) ──────────────────────────────
+    # ── Tab 1: E1kv Summary — built last so formula refs to other tabs work ────
+    # (tabs must exist before we write cross-sheet formulas; Dividends/Trades created below)
     ws = wb.active
     ws.title = "E1kv Summary"
-    _fill_summary_sheet(ws, summary)
+    _summary_ws = ws  # filled after other tabs exist
 
     # ── Tab 2: Year-over-year overview (Verlustausgleich) ─────────────────────
     wo = wb.create_sheet("Overview")
@@ -257,14 +258,19 @@ def _write_excel(txns: list[NormalizedTransaction],
     div_txns = [t for t in txns
                 if t.txn_type == TransactionType.DIVIDEND
                 and t.trade_date.year == summary.tax_year]
-    _fill_transactions_sheet(wd, div_txns, summary.tax_year, title="Dividends")
+    div_refs = _fill_transactions_sheet(wd, div_txns, summary.tax_year,
+                                        title="Dividends", show_div_totals=True)
 
     # ── Tab 5: Trades only ────────────────────────────────────────────────────
     wtr = wb.create_sheet("Trades")
     trade_txns = [t for t in txns
                   if t.txn_type in (TransactionType.BUY, TransactionType.SELL)
                   and t.trade_date.year == summary.tax_year]
-    _fill_transactions_sheet(wtr, trade_txns, summary.tax_year, title="Trades")
+    trade_refs = _fill_transactions_sheet(wtr, trade_txns, summary.tax_year,
+                                          title="Trades", show_gain_loss=True)
+
+    # ── Fill E1kv Summary now that Dividends/Trades tabs exist ──────────────
+    _fill_summary_sheet(_summary_ws, summary, trade_refs=trade_refs, div_refs=div_refs)
 
     # ── Tab 6: Freedom (static snapshot at config assumptions) ───────────────
     wf = wb.create_sheet("Freedom")
@@ -302,7 +308,9 @@ def _center(): return Alignment(horizontal="center", vertical="center")
 def _right():  return Alignment(horizontal="right",  vertical="center")
 
 
-def _fill_summary_sheet(ws, s: TaxSummary) -> None:
+def _fill_summary_sheet(ws, s: TaxSummary,
+                        trade_refs: dict | None = None,
+                        div_refs: dict | None = None) -> None:
     # Column layout: A=section, B=KZ, C=description, D=Inländisch, E=Ausländisch
     ws.column_dimensions["A"].width = 7
     ws.column_dimensions["B"].width = 6
@@ -311,11 +319,19 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
     ws.column_dimensions["E"].width = 18
 
     row = [1]  # mutable counter
+    _kz_rows: dict = {}  # kz_code → row number (for Saldo formula)
 
     def _r():
         r = row[0]
         row[0] += 1
         return r
+
+    def _ref(refs, key, tab, fallback, negate=False):
+        """Return cross-sheet formula if refs available, else Python fallback value."""
+        if refs and key in refs:
+            sign = "-" if negate else ""
+            return f"={sign}{tab}!{refs[key]}"
+        return fallback
 
     def title(text):
         r = _r()
@@ -352,6 +368,10 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
 
     def kz_row(kz_in, kz_out, label, val_in, val_out, fill=None, warn=False):
         r = _r()
+        if kz_in:
+            _kz_rows[kz_in] = r
+        if kz_out:
+            _kz_rows[kz_out] = r
         ws[f"A{r}"].fill = _hfill(fill or WHITE)
         ws[f"B{r}"] = f"{kz_in}/{kz_out}" if kz_in and kz_out else (kz_in or kz_out or "")
         ws[f"B{r}"].font = _font(bold=True, size=10)
@@ -363,17 +383,19 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
         for col, val in [("D", val_in), ("E", val_out)]:
             c = ws[f"{col}{r}"]
             if val is not None:
-                c.value = float(val)
+                is_formula = isinstance(val, str) and val.startswith("=")
+                c.value = val if is_formula else float(val)
                 c.number_format = '#,##0.00'
+                if not is_formula and float(val) < 0:
+                    c.font = Font(color="C00000", size=10)
             c.alignment = _right()
             c.fill = _hfill(WARN_FILL if warn else (fill or WHITE))
-            if val is not None and float(val) < 0:
-                c.font = Font(color="C00000", size=10)
         for col in "ABCDE":
             ws[f"{col}{r}"].border = _border()
 
     def saldo_row(val_in, val_out):
         r = _r()
+        _kz_rows["_saldo"] = r
         ws.merge_cells(f"A{r}:C{r}")
         c = ws[f"A{r}"]
         c.value = "Saldo aus Punkt 1.3"
@@ -382,11 +404,14 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
         c.alignment = _center()
         for col, val in [("D", val_in), ("E", val_out)]:
             cell = ws[f"{col}{r}"]
-            cell.value = float(val)
+            is_formula = isinstance(val, str) and val.startswith("=")
+            cell.value = val if is_formula else float(val)
             cell.number_format = '#,##0.00'
             cell.alignment = _right()
-            cell.font = _font(bold=True, size=10,
-                              color="C00000" if float(val) < 0 else "000000")
+            cell.font = _font(bold=True, size=10)
+            if not is_formula:
+                cell.font = _font(bold=True, size=10,
+                                  color="C00000" if float(val) < 0 else "000000")
             cell.fill = _hfill(SALDO_FILL)
             cell.border = _border()
         for col in "ABC":
@@ -404,7 +429,8 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
         for col, val in [("D", val_in), ("E", val_out)]:
             cell = ws[f"{col}{r}"]
             if val is not None:
-                cell.value = float(val)
+                is_formula = isinstance(val, str) and val.startswith("=")
+                cell.value = val if is_formula else float(val)
                 cell.number_format = '#,##0.00'
             cell.alignment = _right()
             cell.font = _font(bold=True, size=10)
@@ -425,17 +451,22 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
     # ── 1.3.1 Dividenden + Zinsen ─────────────────────────────────────────────
     section("1.3.1", "Einkünfte aus der Überlassung von Kapital "
             "(§ 27 Abs. 2 — Dividenden, Zinsen aus Wertpapieren, 27,5%)")
-    kz_row("862", "863", "Dividendenerträge + Zinsen", s.kz_862, s.kz_863)
+    kz_row("862", "863", "Dividendenerträge + Zinsen",
+           _ref(div_refs, "dom_divs", "Dividends", s.kz_862),
+           _ref(div_refs, "fgn_divs", "Dividends", s.kz_863))
     blank()
 
     # ── 1.3.2 Kursgewinne ─────────────────────────────────────────────────────
     section("1.3.2", "Einkünfte aus realisierten Wertsteigerungen von Kapitalvermögen (§ 27 Abs. 3)")
     kz_row("981", "994", "Überschüsse — besonderer Steuersatz 27,5%",
-           s.kz_981, s.kz_994, fill=GREEN_FILL if (s.kz_981 + s.kz_994) > 0 else None)
+           _ref(trade_refs, "dom_gains", "Trades", s.kz_981),
+           _ref(trade_refs, "fgn_gains", "Trades", s.kz_994),
+           fill=GREEN_FILL if (s.kz_981 + s.kz_994) > 0 else None)
     kz_row("864", "865", "Überschüsse — besonderer Steuersatz 25% (Wertpapiere vor 2011)",
            s.kz_864, s.kz_865)
     kz_row("891", "892", "Verluste",
-           -s.kz_891 if s.kz_891 else None, -s.kz_892 if s.kz_892 else None,
+           _ref(trade_refs, "dom_losses", "Trades", -s.kz_891 if s.kz_891 else None, negate=True),
+           _ref(trade_refs, "fgn_losses", "Trades", -s.kz_892 if s.kz_892 else None, negate=True),
            fill=RED_FILL if (s.kz_891 + s.kz_892) > 0 else None)
     blank()
 
@@ -464,8 +495,16 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
            fill=RED_FILL if s.kz_175 > 0 else None)
     blank()
 
-    # ── Saldo 1.3 ─────────────────────────────────────────────────────────────
-    saldo_row(s.saldo_inland, s.saldo_ausland)
+    # ── Saldo 1.3 — formula sums the KZ cells above by row reference ─────────
+    # Build formula: sum all inland KZ cells in col D (gains positive, losses already negative)
+    def _saldo_formula(col: str, kz_codes: list[str]) -> str:
+        refs = [f"{col}{_kz_rows[k]}" for k in kz_codes if k in _kz_rows]
+        return ("=" + "+".join(refs)) if refs else "=0"
+
+    inland_kzs  = ["862", "897", "936", "981", "864", "982", "893", "171", "173",
+                   "891", "895", "175"]
+    ausland_kzs = ["863", "898", "937", "994", "865", "993", "894", "892", "896"]
+    saldo_row(_saldo_formula("D", inland_kzs), _saldo_formula("E", ausland_kzs))
     blank()
 
     # ── 1.4 KESt bereits bezahlt ──────────────────────────────────────────────
@@ -500,8 +539,10 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
     c.alignment = _center()
     ws.row_dimensions[r].height = 20
 
-    net = s.saldo_inland + s.saldo_ausland
-    summary_row("Steuerpflichtiger Gesamtbetrag (Saldo 1.3 gesamt)", net, None, LIGHT_FILL)
+    # Net taxable = Saldo inland + Saldo ausland → formula if Saldo row was tracked
+    saldo_r = _kz_rows.get("_saldo")
+    net_formula = f"=D{saldo_r}+E{saldo_r}" if saldo_r else s.saldo_inland + s.saldo_ausland
+    summary_row("Steuerpflichtiger Gesamtbetrag (Saldo 1.3 gesamt)", net_formula, None, LIGHT_FILL)
     summary_row("KESt (27,5%)", s.kest_due_eur, None)
     summary_row("Anzurechnende Quellensteuer (KZ 998)", s.wht_creditable_eur, None, GREEN_FILL)
     summary_row("Verbleibende KESt zu bezahlen", s.kest_remaining_eur, None, WARN_FILL)
@@ -509,13 +550,16 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
 
     # ── Notes ─────────────────────────────────────────────────────────────────
     notes_row = row[0]
+    using_formulas = bool(trade_refs or div_refs)
     notes = [
         "⚠  KZ 936/937 (Ausschüttungsgleiche Erträge) werden NICHT automatisch berechnet — OeKB-Daten erforderlich.",
         "⚠  Nichtmeldefonds (REITs, BDCs): Sonderbehandlung — wird in einem eigenen Abschnitt ausgewiesen (noch nicht implementiert).",
         "    Verluste (KZ 891/892) werden hier als negative Werte dargestellt; in FinanzOnline als Absolutbeträge eintragen.",
+        "    KeSt-Berechnung (WHT-Anrechnung) enthält Treaty-Rate-Logik — nicht in Excel repliziert; Wert bleibt fix."
+        if using_formulas else "",
         "    Diese Ausgabe ist informativ. Bitte mit Steuerberater:in abstimmen.",
     ]
-    for i, note in enumerate(notes):
+    for i, note in enumerate(n for n in notes if n):
         r = row[0] + i
         ws.merge_cells(f"A{r}:E{r}")
         c = ws[f"A{r}"]
@@ -525,14 +569,34 @@ def _fill_summary_sheet(ws, s: TaxSummary) -> None:
 
 
 def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
-                               year: int, title: str = "Transactions") -> None:
-    headers = [
+                               year: int, title: str = "Transactions",
+                               show_gain_loss: bool = False,
+                               show_div_totals: bool = False) -> dict:
+    """
+    Fill a transactions worksheet.  Returns a dict of cell addresses for
+    key summary cells so the E1kv Summary tab can reference them directly.
+
+    Keys (when applicable):
+      show_gain_loss=True → "dom_gains", "fgn_gains", "dom_losses", "fgn_losses"
+      show_div_totals=True → "dom_divs", "fgn_divs"
+    """
+    base_headers = [
         "Date", "Type", "Symbol", "ISIN", "Description",
         "Country", "Domicile", "Qty", "Currency",
         "Orig Amount", "Commission", "WHT (orig)",
         "FX Rate", "EUR Amount", "EUR Commission", "EUR WHT",
         "Notes",
     ]
+    gl_headers = ["Gain/Loss EUR", "Cost Basis EUR"] if show_gain_loss else []
+    headers = base_headers + gl_headers
+
+    # Column indices (1-based)
+    COL_TYPE     = 2   # B — transaction type ("buy"/"sell"/"dividend")
+    COL_DOMICILE = 7   # G — domicile ("domestic"/"foreign")
+    COL_EUR_AMT  = 14  # N — EUR amount (used for dividend totals)
+    COL_EUR_WHT  = 16  # P — EUR WHT (used for WHT totals)
+    COL_GL       = len(base_headers) + 1  # R (18) — Gain/Loss EUR
+    COL_COST     = len(base_headers) + 2  # S (19) — Cost Basis EUR
 
     # Header row
     ws.append(headers)
@@ -545,7 +609,7 @@ def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
 
     txns_sorted = sorted(txns, key=lambda t: t.trade_date)
     for t in txns_sorted:
-        row = [
+        row_data = [
             t.trade_date.isoformat(),
             t.txn_type.value,
             t.symbol,
@@ -564,9 +628,143 @@ def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
             float(t.eur_wht) if t.eur_wht else "",
             t.notes,
         ]
-        ws.append(row)
+        if show_gain_loss:
+            row_data.append(float(t.eur_gain_loss) if t.eur_gain_loss is not None else "")
+            row_data.append(float(t.eur_cost_basis) if t.eur_cost_basis is not None else "")
+        ws.append(row_data)
 
-    # Auto-width columns
+    data_last = ws.max_row   # last data row (before any summary rows)
+
+    # ── Number format and conditional colour for gain/loss ────────────────────
+    eur_cols = [10, 11, 12, 14, 15, 16]
+    for row_idx in range(2, data_last + 1):
+        for col_idx in eur_cols:
+            ws.cell(row_idx, col_idx).number_format = '#,##0.00'
+        if show_gain_loss:
+            gl_val = ws.cell(row_idx, COL_GL).value
+            if isinstance(gl_val, (int, float)):
+                ws.cell(row_idx, COL_GL).number_format = '#,##0.00'
+                if gl_val > 0.005:
+                    ws.cell(row_idx, COL_GL).fill = _hfill(GREEN_FILL)
+                elif gl_val < -0.005:
+                    ws.cell(row_idx, COL_GL).fill = _hfill(RED_FILL)
+                    ws.cell(row_idx, COL_GL).font = Font(color="C00000", size=10)
+            cb_val = ws.cell(row_idx, COL_COST).value
+            if isinstance(cb_val, (int, float)):
+                ws.cell(row_idx, COL_COST).number_format = '#,##0.00'
+
+    # ── Summary rows ──────────────────────────────────────────────────────────
+    cell_refs: dict = {}
+
+    def _sum_hdr(row_idx: int, label: str, fill: str) -> None:
+        for col in range(1, len(headers) + 1):
+            ws.cell(row_idx, col).fill = _hfill(fill)
+        ws.merge_cells(f"A{row_idx}:{get_column_letter(len(headers) - 1)}{row_idx}")
+        c = ws.cell(row_idx, 1)
+        c.value = label
+        c.font = _font(bold=True, color=WHITE, size=10)
+        c.fill = _hfill(ACCENT_FILL)
+        c.alignment = _center()
+        ws.row_dimensions[row_idx].height = 16
+
+    def _sum_row(row_idx: int, label: str, formula: str,
+                 val_col: int, lbl_fill: str, val_fill: str,
+                 negative: bool = False) -> str:
+        """Write a labelled formula row; return the value cell address."""
+        ws.merge_cells(f"A{row_idx}:{get_column_letter(val_col - 1)}{row_idx}")
+        lbl = ws.cell(row_idx, 1)
+        lbl.value = label
+        lbl.font = _font(bold=True, size=10)
+        lbl.fill = _hfill(lbl_fill)
+        lbl.alignment = _right()
+        lbl.border = _border()
+        cell = ws.cell(row_idx, val_col)
+        cell.value = formula
+        cell.number_format = '#,##0.00'
+        cell.font = Font(bold=True, color="C00000" if negative else "000000", size=10)
+        cell.fill = _hfill(val_fill)
+        cell.alignment = _right()
+        cell.border = _border()
+        ws.row_dimensions[row_idx].height = 15
+        return f"{get_column_letter(val_col)}{row_idx}"
+
+    def _rng(col_letter: str) -> str:
+        """Absolute range string for a column over all data rows."""
+        return f"${col_letter}$2:${col_letter}${data_last}"
+
+    if show_gain_loss and data_last >= 2:
+        gl_L  = get_column_letter(COL_GL)
+        dom_L = get_column_letter(COL_DOMICILE)
+        typ_L = get_column_letter(COL_TYPE)
+
+        hdr_r = data_last + 1
+        _sum_hdr(hdr_r, "GAIN / LOSS SUMMARY  (SELL transactions, tax year)", ACCENT_FILL)
+
+        cell_refs["dom_gains"] = _sum_row(
+            data_last + 2,
+            "Domestic Gains  (→ KZ 981)",
+            f"=SUMPRODUCT(({_rng(typ_L)}=\"sell\")*({_rng(dom_L)}=\"domestic\")*({_rng(gl_L)}>0),{_rng(gl_L)})",
+            COL_GL, GREEN_FILL, GREEN_FILL,
+        )
+        cell_refs["fgn_gains"] = _sum_row(
+            data_last + 3,
+            "Foreign Gains  (→ KZ 994)",
+            f"=SUMPRODUCT(({_rng(typ_L)}=\"sell\")*({_rng(dom_L)}=\"foreign\")*({_rng(gl_L)}>0),{_rng(gl_L)})",
+            COL_GL, GREEN_FILL, GREEN_FILL,
+        )
+        cell_refs["dom_losses"] = _sum_row(
+            data_last + 4,
+            "Domestic Losses  (→ KZ 891, positive)",
+            f"=SUMPRODUCT(({_rng(typ_L)}=\"sell\")*({_rng(dom_L)}=\"domestic\")*({_rng(gl_L)}<0),-{_rng(gl_L)})",
+            COL_GL, RED_FILL, RED_FILL, negative=True,
+        )
+        cell_refs["fgn_losses"] = _sum_row(
+            data_last + 5,
+            "Foreign Losses  (→ KZ 892, positive)",
+            f"=SUMPRODUCT(({_rng(typ_L)}=\"sell\")*({_rng(dom_L)}=\"foreign\")*({_rng(gl_L)}<0),-{_rng(gl_L)})",
+            COL_GL, RED_FILL, RED_FILL, negative=True,
+        )
+        _sum_row(
+            data_last + 6,
+            "Net Gain/Loss (all)",
+            f"={gl_L}{data_last + 2}-{gl_L}{data_last + 4}+{gl_L}{data_last + 3}-{gl_L}{data_last + 5}",
+            COL_GL, LIGHT_FILL, LIGHT_FILL,
+        )
+
+    if show_div_totals and data_last >= 2:
+        eur_L = get_column_letter(COL_EUR_AMT)
+        wht_L = get_column_letter(COL_EUR_WHT)
+        dom_L = get_column_letter(COL_DOMICILE)
+
+        hdr_r = data_last + 1
+        _sum_hdr(hdr_r, "DIVIDEND SUMMARY  (tax year)", ACCENT_FILL)
+
+        cell_refs["dom_divs"] = _sum_row(
+            data_last + 2,
+            "Domestic Dividends  (→ KZ 862)",
+            f"=SUMIF({_rng(dom_L)},\"domestic\",{_rng(eur_L)})",
+            COL_EUR_AMT, GREEN_FILL, GREEN_FILL,
+        )
+        cell_refs["fgn_divs"] = _sum_row(
+            data_last + 3,
+            "Foreign Dividends  (→ KZ 863)",
+            f"=SUMIF({_rng(dom_L)},\"foreign\",{_rng(eur_L)})",
+            COL_EUR_AMT, GREEN_FILL, GREEN_FILL,
+        )
+        _sum_row(
+            data_last + 4,
+            "Total Dividends",
+            f"={eur_L}{data_last + 2}+{eur_L}{data_last + 3}",
+            COL_EUR_AMT, LIGHT_FILL, LIGHT_FILL,
+        )
+        _sum_row(
+            data_last + 5,
+            "Total WHT paid (EUR)",
+            f"=SUM({_rng(wht_L)})",
+            COL_EUR_WHT, WARN_FILL, WARN_FILL,
+        )
+
+    # ── Auto-width columns ────────────────────────────────────────────────────
     for col_idx in range(1, len(headers) + 1):
         col_letter = get_column_letter(col_idx)
         max_len = max(
@@ -576,14 +774,8 @@ def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
         )
         ws.column_dimensions[col_letter].width = min(max_len + 2, 40)
 
-    # Freeze header row
     ws.freeze_panes = "A2"
-
-    # Number format for EUR columns
-    eur_cols = [10, 11, 12, 14, 15, 16]
-    for row_idx in range(2, ws.max_row + 1):
-        for col_idx in eur_cols:
-            ws.cell(row_idx, col_idx).number_format = '#,##0.00'
+    return cell_refs
 
 
 # ── Overview tab (Verlustausgleich) ──────────────────────────────────────────
