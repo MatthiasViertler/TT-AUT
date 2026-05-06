@@ -92,3 +92,37 @@ def test_gain_value_unaffected_by_mismatch(cfg):
     buy, sell = _sell_with_broker_pnl(100.0)
     summary = _engine(cfg).calculate([buy, sell])
     assert summary.kz_994 == Decimal("200.00")
+
+
+# ── eur_gain_loss / eur_cost_basis populated on SELL ─────────────────────────
+
+def test_eur_gain_loss_set_on_sell(cfg):
+    """After calculate(), SELL transactions have eur_gain_loss populated."""
+    buy, sell = _sell_with_broker_pnl(None)
+    _engine(cfg).calculate([buy, sell])
+    assert sell.eur_gain_loss is not None
+    assert sell.eur_gain_loss == Decimal("200")
+
+
+def test_eur_cost_basis_set_on_sell(cfg):
+    """eur_cost_basis holds the matched purchase cost (10 × 30 EUR = 300)."""
+    buy, sell = _sell_with_broker_pnl(None)
+    _engine(cfg).calculate([buy, sell])
+    assert sell.eur_cost_basis == Decimal("300")
+
+
+def test_eur_gain_loss_negative_for_loss(cfg):
+    """Losses produce a negative eur_gain_loss."""
+    buy  = make_trade("ALV", "DE0008404005", TransactionType.BUY,
+                      quantity=10, price_eur=50.0, trade_date=date(2024, 1, 1))
+    sell = make_trade("ALV", "DE0008404005", TransactionType.SELL,
+                      quantity=10, price_eur=30.0, trade_date=date(2025, 6, 1))
+    _engine(cfg).calculate([buy, sell])
+    assert sell.eur_gain_loss == Decimal("-200")
+
+
+def test_buy_has_no_eur_gain_loss(cfg):
+    """BUY transactions are not touched — eur_gain_loss stays None."""
+    buy, _ = _sell_with_broker_pnl(None)
+    _engine(cfg).calculate([buy])
+    assert buy.eur_gain_loss is None

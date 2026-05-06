@@ -180,6 +180,10 @@ class TaxEngine:
 
             net_gain = proceeds - cost_matched - commission
 
+            # Store on transaction for Excel audit trail
+            sell.eur_gain_loss = net_gain
+            sell.eur_cost_basis = cost_matched
+
             # Cross-check against broker-reported FIFO PnL (available from HEADER/DATA format)
             if sell.broker_fifo_pnl_eur is not None:
                 diff = (net_gain - sell.broker_fifo_pnl_eur).copy_abs()
