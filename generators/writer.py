@@ -781,14 +781,16 @@ def _fill_transactions_sheet(ws, txns: list[NormalizedTransaction],
 # ── Overview tab (Verlustausgleich) ──────────────────────────────────────────
 
 _OV_COLS = [
-    ("Year",          8),
-    ("Dividends",    14),
-    ("Cap Gains",    14),
-    ("Cap Losses",   14),
-    ("Net Taxable",  14),
-    ("KeSt 27.5%",   14),
-    ("WHT Credited", 14),
-    ("KeSt Remaining", 15),
+    ("Year",               8),
+    ("Dividends",         14),
+    ("Dom Gains\nKZ 981", 14),
+    ("Dom Losses\nKZ 891",14),
+    ("Fgn Gains\nKZ 994", 14),
+    ("Fgn Losses\nKZ 892",14),
+    ("Net Taxable",       14),
+    ("KeSt 27.5%",        14),
+    ("WHT Credited",      14),
+    ("KeSt Remaining",    15),
 ]
 
 
@@ -817,15 +819,15 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
     c.alignment = _center()
     ws.row_dimensions[r].height = 24
 
-    # Header row
+    # Header row (two-line headers for KZ columns)
     r = _r()
     for col_idx, (label, _) in enumerate(_OV_COLS, 1):
         c = ws.cell(r, col_idx, label)
         c.font = _font(bold=True, color=WHITE, size=10)
         c.fill = _hfill(ACCENT_FILL)
-        c.alignment = _center()
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         c.border = _border()
-    ws.row_dimensions[r].height = 18
+    ws.row_dimensions[r].height = 28
 
     def _d(entry: dict, key: str) -> float:
         try:
@@ -833,17 +835,19 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
         except Exception:
             return 0.0
 
-    # Data rows
+    # Data rows — use per-KZ fields for domestic/foreign split
     totals = [0.0] * (len(_OV_COLS) - 1)  # skip Year column
     for entry in history:
-        yr       = entry.get("tax_year")
-        divs     = _d(entry, "total_dividends_eur")
-        gains    = _d(entry, "total_gains_eur")
-        losses   = _d(entry, "total_losses_eur")
-        net      = _d(entry, "net_taxable_eur")
-        kest     = _d(entry, "kest_due_eur")
-        wht      = _d(entry, "wht_creditable_eur")
-        remain   = _d(entry, "kest_remaining_eur")
+        yr         = entry.get("tax_year")
+        divs       = _d(entry, "total_dividends_eur")
+        dom_gains  = _d(entry, "kz_981")
+        dom_losses = _d(entry, "kz_891")
+        fgn_gains  = _d(entry, "kz_994")
+        fgn_losses = _d(entry, "kz_892")
+        net        = _d(entry, "net_taxable_eur")
+        kest       = _d(entry, "kest_due_eur")
+        wht        = _d(entry, "wht_creditable_eur")
+        remain     = _d(entry, "kest_remaining_eur")
 
         is_current = (yr == current_year)
         row_fill = LIGHT_FILL if is_current else WHITE
@@ -856,13 +860,15 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
         c.border = _border()
 
         for col_idx, val, color in [
-            (2, divs,   None),
-            (3, gains,  GREEN_FILL if gains > 0 else None),
-            (4, -losses, RED_FILL if losses > 0 else None),
-            (5, net,    None),
-            (6, kest,   None),
-            (7, wht,    GREEN_FILL if wht > 0 else None),
-            (8, remain, WARN_FILL if remain > 0.01 else GREEN_FILL),
+            (2,  divs,        None),
+            (3,  dom_gains,   GREEN_FILL if dom_gains > 0 else None),
+            (4,  -dom_losses, RED_FILL if dom_losses > 0 else None),
+            (5,  fgn_gains,   GREEN_FILL if fgn_gains > 0 else None),
+            (6,  -fgn_losses, RED_FILL if fgn_losses > 0 else None),
+            (7,  net,         None),
+            (8,  kest,        None),
+            (9,  wht,         GREEN_FILL if wht > 0 else None),
+            (10, remain,      WARN_FILL if remain > 0.01 else GREEN_FILL),
         ]:
             cell = ws.cell(r, col_idx, val)
             cell.number_format = '#,##0.00'
@@ -873,19 +879,21 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
             cell.border = _border()
 
         totals[0] += divs
-        totals[1] += gains
-        totals[2] += losses
-        totals[3] += net
-        totals[4] += kest
-        totals[5] += wht
-        totals[6] += remain
+        totals[1] += dom_gains
+        totals[2] += dom_losses
+        totals[3] += fgn_gains
+        totals[4] += fgn_losses
+        totals[5] += net
+        totals[6] += kest
+        totals[7] += wht
+        totals[8] += remain
 
         ws.row_dimensions[r].height = 16
 
     if not history:
         return
 
-    # Totals row
+    # Totals row (losses shown as negative in the totals)
     r = _r()
     c = ws.cell(r, 1, "TOTAL")
     c.font = _font(bold=True, size=10, color=WHITE)
@@ -893,7 +901,17 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
     c.alignment = _center()
     c.border = _border()
 
-    signed_totals = [totals[0], totals[1], -totals[2], totals[3], totals[4], totals[5], totals[6]]
+    signed_totals = [
+        totals[0],           # divs
+        totals[1],           # dom gains
+        -totals[2],          # dom losses (negative)
+        totals[3],           # fgn gains
+        -totals[4],          # fgn losses (negative)
+        totals[5],           # net taxable
+        totals[6],           # kest
+        totals[7],           # wht
+        totals[8],           # remaining
+    ]
     for col_idx, val in enumerate(signed_totals, 2):
         cell = ws.cell(r, col_idx, val)
         cell.number_format = '#,##0.00'

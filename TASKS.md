@@ -96,7 +96,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       Werbungskosten (home office, Pendlerpauschale, union, training), Sonderausgaben,
       außerg. Belastungen, Familienbonus Plus. 21 tests. Config: `anv:` in config.local.yaml.
       ⚠️ Jessie: add `anv:` to config.local.yaml and re-run to generate checklist before 2026-06-30
-- [ ] **Verlustausgleich tracker** — year-by-year gain/loss table
+- [x] **Verlustausgleich tracker** — Overview tab expanded: Dom Gains (KZ 981), Dom Losses (KZ 891),
+      Fgn Gains (KZ 994), Fgn Losses (KZ 892) as separate columns; per-year netting visible at a glance.
+      6 new sheet-rendering tests (197 total). *(2026-05-08)*
 - [ ] **KZ 937 semi-automation** — OeKB API per ISIN for Ausschüttungsgleiche Erträge
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
 - [ ] **Regelbesteuerungsoption mode** — `--regelbesteuerung` flag, recalculates
@@ -109,9 +111,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 ## 🔵 Usability & Automation
 
 - [ ] **Remove `VER: OEWA` alias before 2026 run** — alias added 2026-05-06; all OEWA lots consumed by 2025-12-17 sell (150 shares). Remove from `users/matthias/config.local.yaml` before running `--year 2026`, otherwise VER sells will look in empty OEWA queue.
-- [ ] **`--input-dir` folder scanning** — accept a directory instead of individual files;
-      auto-detect broker per file; load all years for FIFO, filter output to `--year`
-      Foundation for GUI folder-picker later.
+- [x] **`--input-dir` folder scanning** — `--input` already accepts directories; `_resolve_inputs()`
+      uses `rglob` to scan recursively, auto-detects broker per file, loads all years for FIFO.
+      11 tests added (191 total). *(2026-05-08)*
 - [ ] **IBKR Flex Web Service auto-fetch** — configure token + query_id in config.local.yaml,
       `python main.py --fetch-ibkr --year 2025` pulls report directly, no browser needed
 - [ ] **Local web UI** — Flask/FastAPI + HTML; folder picker, pipeline progress, inline results,
