@@ -60,6 +60,16 @@ users/jessie/
 **Never write real account IDs, API keys, passwords, or any PII into committed files.**
 Real values live ONLY in `users/{person}/config.local.yaml` (gitignored via `users/`).
 
+Placeholders to use in all committed files:
+- IB: `U11111111` (Jessie), `U22222222` (Matthias)
+- SAXO DK: `19999999` | SAXO SG: `8888888`
+- E*Trade and future brokers: pick an obviously fake ID in the same format
+
+A pre-commit hook enforces this automatically. After a fresh clone, install it once:
+```bash
+cp .hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
+```
+
 ## accounts in users/{person}/config.local.yaml
 ```yaml
 account_id:           # scalar or list — supports multi-broker and migrated accounts
