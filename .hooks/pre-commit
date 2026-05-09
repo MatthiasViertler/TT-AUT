@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Blocks real broker account IDs from being committed.
+# Reads account_id values from users/*/config.local.yaml (all gitignored).
+# Covers IBKR, SAXO, E*Trade, and any future broker automatically — no maintenance needed.
+
+REAL_IDS=()
+for cfg in users/*/config.local.yaml; do
+    [ -f "$cfg" ] || continue
+    while IFS= read -r id; do
+        [[ -n "$id" ]] && REAL_IDS+=("$id")
+    done < <(python3 -c "
+import yaml, sys
+with open(sys.argv[1]) as f:
+    c = yaml.safe_load(f) or {}
+ids = c.get('account_id', [])
+if isinstance(ids, (str, int)):
+    ids = [str(ids)]
+for i in ids:
+    print(str(i).strip())
+" "$cfg" 2>/dev/null)
+done
+
+[ ${#REAL_IDS[@]} -eq 0 ] && exit 0
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$STAGED" ] && exit 0
+
+FOUND=0
+while IFS= read -r file; do
+    [ -f "$file" ] || continue
+    for id in "${REAL_IDS[@]}"; do
+        if grep -qF "$id" "$file" 2>/dev/null; then
+            echo "ERROR: Real broker account ID '$id' found in staged file: $file"
+            echo "       Use a placeholder instead. Real IDs belong only in users/*/config.local.yaml (gitignored)."
+            FOUND=1
+        fi
+    done
+done <<< "$STAGED"
+
+[ "$FOUND" -ne 0 ] && exit 1
+exit 0
