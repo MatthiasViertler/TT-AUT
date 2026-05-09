@@ -49,6 +49,30 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### Security — install the pre-commit hook
+
+A pre-commit hook prevents real broker account IDs from being accidentally committed. Install it once after cloning:
+
+```bash
+cp .hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+The hook reads your real account IDs from `users/*/config.local.yaml` at commit time and blocks any staged file that contains them. It covers every broker automatically — no updates needed when you add a new one (E*Trade, etc.).
+
+**Placeholder IDs to use in all committed files** (docs, tests, config examples):
+
+| Broker | Placeholder |
+|--------|-------------|
+| Interactive Brokers | `U11111111` / `U22222222` |
+| SAXO DK | `19999999` |
+| SAXO SG | `8888888` |
+| E*Trade and others | any obviously fake ID in the same format |
+
+Real IDs belong only in `users/{yourname}/config.local.yaml`, which is gitignored.
+
+---
+
 **Create a folder for each person** — all personal data lives under `users/` (gitignored):
 
 ```
