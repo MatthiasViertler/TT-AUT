@@ -292,7 +292,9 @@ The HTML dashboard (`_freedom.html`) is interactive — sliders for portfolio va
 
 **Portfolio value is computed automatically** from the remaining FIFO lots at Dec 31 (quantity × yfinance price × ECB FX). This replaces the static `portfolio_eur` config value as the slider default. Positions from SAXO AggregatedAmounts (qty=1 convention) and `manual_cost_basis` entries are excluded from valuation since their recorded quantities are not real share counts. The slider shows a green **auto** badge when computed, grey **config** when falling back to the config value. The slider max scales dynamically (no 500 k cap).
 
-The Excel **Freedom** tab uses the same computed value and labels the source ("computed" vs "config").
+**Dividend yield is also computed automatically** as trailing yield = actual annual dividends ÷ Dec 31 portfolio value. The yield slider defaults to this figure (green **auto** badge) when both values are available, otherwise falls back to the static `yield_pct` config value (grey **config** badge). A warning is printed if synthetic positions are excluded from the portfolio, which can inflate the computed yield.
+
+The Excel **Freedom** tab uses the same computed values and labels the source ("computed" vs "config") in the projection subtitle.
 
 Configure fallback defaults in `config.local.yaml` under `freedom_dashboard` (see Setup above).
 

@@ -70,8 +70,10 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       → `summary.portfolio_eur_computed`. SAXO AggregatedAmounts (broker='saxo') and manual_cost_basis
       lots marked synthetic and excluded. HTML slider default = computed; dynamic max (no 500k cap);
       auto/config badge. Excel label distinguishes source. 16 tests. *(2026-05-12)*
-- [ ] **Freedom tab — dynamic dividend yield** — compute trailing yield from actual dividend
-      transactions instead of static `yield_pct` config; apply to projection table.
+- [x] **Freedom tab — dynamic dividend yield** — trailing yield = actual dividends / Dec31 portfolio value
+      → `summary.dividend_yield_computed`. HTML yield slider defaults to computed; green "auto" / grey "config"
+      badge. xlsx subtitle + projection use computed value. Warning when synthetic positions inflate yield.
+      5 tests → 218 total. *(2026-05-12)*
 - [ ] **Freedom tab — per-symbol holdings table** — expand `remaining_positions` from today's work
       into a per-position breakdown (symbol, qty, price, EUR value) in HTML and Excel.
 
@@ -102,7 +104,12 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] **Verlustausgleich tracker** — Overview tab expanded: Dom Gains (KZ 981), Dom Losses (KZ 891),
       Fgn Gains (KZ 994), Fgn Losses (KZ 892) as separate columns; per-year netting visible at a glance.
       6 new sheet-rendering tests (197 total). *(2026-05-08)*
-- [ ] **KZ 937 semi-automation** — OeKB API per ISIN for Ausschüttungsgleiche Erträge
+- [ ] **Meldefonds/ETF KZ 937 support** — v1.0: curated `data/oekb_ae.yaml` with annual AE/WA per share
+      for ~15 most common ETFs (VWRL, IWDA, CSPX, VHYL, …); same module pattern as `core/nichtmeldefonds.py`.
+      OeKB fund registry (no auth) usable for Meldefonds status check by ISIN. AE/WA sourced from
+      fund "Steuerliche Mitteilung" PDFs. v2.0: live feed via OeKB data license.
+- [ ] **OeKB data license inquiry** — email taxdata@oekb.at; open-source tool may qualify for free
+      structured AE/WA feed; do before building v2.0 ETF automation.
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
 - [ ] **Regelbesteuerungsoption mode** — `--regelbesteuerung` flag, recalculates
       at progressive income tax rate instead of flat 27.5% KESt
@@ -130,6 +137,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] SAXO parser — `brokers/saxo_xlsx.py` (AggregatedAmounts + ShareDividends) + `brokers/saxo_closedpos_xlsx.py`
       (ClosedPositions, real quantities); `saxo_skip_agg_trades` + `saxo_skip_agg_dividends` flags; 166 tests *(2026-05-05)*
 - [ ] **E\*Trade parser** (`brokers/etrade.py`) — needed for Matthias 2025 filing; need sample export first
+- [ ] **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → seed `remaining_positions`
+      directly with real quantities for accurate portfolio value + dividend yield. Low priority: users can
+      set `freedom_dashboard.portfolio_eur` manually.
 - [ ] REIT/BDC handling (US return of capital, §199A dividends, 1099-DIV boxes)
 - [ ] `--compare` mode — merge self + jessie into one dashboard
 - [ ] Prior-year loss carryforward input
