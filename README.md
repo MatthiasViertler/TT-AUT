@@ -290,9 +290,11 @@ The report covers dividends from that year onward and shows the reclaimable exce
 
 The HTML dashboard (`_freedom.html`) is interactive — sliders for portfolio value, monthly expenses, contribution, yield, and growth rate. Pre-populated with actual dividend data from the run.
 
-The Excel **Freedom** tab is a static snapshot: key metrics, per-symbol holdings breakdown, and a 10-year projection table.
+**Portfolio value is computed automatically** from the remaining FIFO lots at Dec 31 (quantity × yfinance price × ECB FX). This replaces the static `portfolio_eur` config value as the slider default. Positions from SAXO AggregatedAmounts (qty=1 convention) and `manual_cost_basis` entries are excluded from valuation since their recorded quantities are not real share counts. The slider shows a green **auto** badge when computed, grey **config** when falling back to the config value. The slider max scales dynamically (no 500 k cap).
 
-Configure defaults in `config.local.yaml` under `freedom_dashboard` (see Setup above).
+The Excel **Freedom** tab uses the same computed value and labels the source ("computed" vs "config").
+
+Configure fallback defaults in `config.local.yaml` under `freedom_dashboard` (see Setup above).
 
 ---
 

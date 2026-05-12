@@ -66,11 +66,14 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       Per-country/year report with treaty rates, deadlines, per-stock breakdown.
 - [x] **Excel "Freedom" tab** — tab in dashboard.xlsx: key metrics, per-symbol holdings,
       10-year projection table (portfolio × yield/growth + monthly contribution) *(2026-05-04)*
-- [ ] **Freedom tab — dynamic portfolio value** — aggregate real holdings across all brokers
-      (IB + SAXO positions) instead of static `portfolio_eur` config value; use as starting
-      point for 10-year projection. Requires "current holdings" model (no such model yet).
+- [x] **Freedom tab — dynamic portfolio value** — remaining FIFO lots × Dec31 yfinance price × ECB FX
+      → `summary.portfolio_eur_computed`. SAXO AggregatedAmounts (broker='saxo') and manual_cost_basis
+      lots marked synthetic and excluded. HTML slider default = computed; dynamic max (no 500k cap);
+      auto/config badge. Excel label distinguishes source. 16 tests. *(2026-05-12)*
 - [ ] **Freedom tab — dynamic dividend yield** — compute trailing yield from actual dividend
       transactions instead of static `yield_pct` config; apply to projection table.
+- [ ] **Freedom tab — per-symbol holdings table** — expand `remaining_positions` from today's work
+      into a per-position breakdown (symbol, qty, price, EUR value) in HTML and Excel.
 
 ---
 

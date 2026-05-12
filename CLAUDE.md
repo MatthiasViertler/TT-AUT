@@ -55,6 +55,7 @@ users/jessie/
 - Domestic = ISIN starts AT or exchange WBAG/XWBO
 - KZ 937 NOT auto-calculated (needs OeKB data)
 - **OPT rows (AssetClass=OPT) — SKIPPED intentionally.** Derivatives KZ deferred.
+- **Dynamic portfolio value**: pipeline computes Dec31 market value from remaining FIFO lots × yfinance price × ECB FX. SAXO AggregatedAmounts (`broker='saxo'`) and `manual_cost_basis` lots tagged `synthetic=True` and excluded (qty=1 convention makes them unvalueable). Result stored in `summary.portfolio_eur_computed`; Freedom tab uses it as default, slider max scales automatically.
 
 ## Security rule — NEVER violate
 **Never write real account IDs, API keys, passwords, or any PII into committed files.**
@@ -201,7 +202,7 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 ## Next up (priority order)
 1. **🔴 France WHT reclaim** — deadline 2026-12-31; Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess. File before year-end.
 2. **E\*Trade parser** — needs sample export from Matthias first; blocks capturing any E*Trade holdings
-3. Freedom tab — dynamic portfolio value + dividend yield from actual transactions
+3. **Freedom tab — dynamic dividend yield** — compute trailing yield from actual dividends (portfolio value ✅ done 2026-05-12)
 4. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)
