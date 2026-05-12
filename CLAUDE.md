@@ -202,8 +202,16 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 ## Next up (priority order)
 1. **🔴 France WHT reclaim** — deadline 2026-12-31; Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess. File before year-end.
 2. **E\*Trade parser** — needs sample export from Matthias first; blocks capturing any E*Trade holdings
-3. **Freedom tab — dynamic dividend yield** — compute trailing yield from actual dividends (portfolio value ✅ done 2026-05-12)
-4. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
+3. **Freedom tab — dynamic dividend yield** ✅ done 2026-05-12 — trailing yield from actual dividends / Dec31 portfolio value
+4. **Meldefonds/ETF support (KZ 937)** — v1.0 blocker for broad AT audience. Plan:
+   - v1.0: curated `data/oekb_ae.yaml` with annual AE/WA per share for ~15 most common ETFs (VWRL, IWDA, CSPX, VHYL, …); user can override/extend
+   - OeKB public endpoint confirms Meldefonds status by ISIN (no auth needed): `https://my.oekb.at/kms-reporting/public?report=steuerdaten-liste-mf-gesamt&format=CSV`
+   - Actual AE/WA figures behind authenticated SPA — no public API found; sourced manually from fund "Steuerliche Mitteilung" PDFs
+   - v2.0: contact taxdata@oekb.at for data license / structured feed; or session-based scrape once pattern known
+   - Architecture: same module pattern as `core/nichtmeldefonds.py` but pulls AE from curated dataset instead of pauschal formula
+5. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured data feed; unlocks automated AE/WA for all Meldefonds in v2.0
+6. **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → correct portfolio value for dividend yield calculation; low priority (users can set `freedom_dashboard.portfolio_eur` manually)
+7. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)

@@ -159,6 +159,16 @@ def run_pipeline(
         print(f"  [port]   Portfolio value: could not compute (no prices available) "
               f"— using config value if set")
 
+    # ── 3d. Trailing dividend yield (actual dividends / Dec31 portfolio) ──────
+    computed_yield = _compute_dividend_yield(summary)
+    if computed_yield is not None:
+        summary.dividend_yield_computed = computed_yield
+        n_synthetic = sum(1 for p in engine.remaining_positions.values() if p["has_synthetic"])
+        note = f"  ⚠ {n_synthetic} synthetic positions excluded — yield may be inflated" if n_synthetic else ""
+        print(f"  [port]   Trailing dividend yield: {computed_yield:.2f}% "
+              f"(EUR {float(summary.total_dividends_eur):,.2f} dividends "
+              f"/ EUR {float(summary.portfolio_eur_computed):,.2f} portfolio){note}")
+
     # ── 4. Output ─────────────────────────────────────────────────────────────
     write_all(
         transactions=all_transactions,
@@ -215,6 +225,15 @@ def _compute_portfolio_value(
         total += eur_value
 
     return total
+
+
+def _compute_dividend_yield(summary) -> "float | None":
+    """Return trailing yield % (dividends / portfolio × 100), or None if not computable."""
+    port = summary.portfolio_eur_computed
+    divs = summary.total_dividends_eur
+    if port is None or port <= ZERO or divs <= ZERO:
+        return None
+    return round(float(divs / port * 100), 2)
 
 
 def _print_summary(s) -> None:

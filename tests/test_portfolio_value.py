@@ -12,9 +12,9 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from core.models import TransactionType, AssetClass, Domicile, NormalizedTransaction
+from core.models import TransactionType, AssetClass, Domicile, NormalizedTransaction, TaxSummary
 from core.tax_engine import TaxEngine
-from core.pipeline import _compute_portfolio_value
+from core.pipeline import _compute_portfolio_value, _compute_dividend_yield
 from tests.conftest import make_trade
 
 ZERO = Decimal("0")
@@ -290,3 +290,49 @@ def test_compute_portfolio_value_empty_positions():
     config = {"price_cache_dir": "/tmp/nonexistent"}
     total = _compute_portfolio_value({}, {}, MagicMock(), 2025, config)
     assert total == ZERO
+
+
+# ── _compute_dividend_yield ───────────────────────────────────────────────────
+
+def _make_summary(portfolio_eur=None, total_dividends_eur=Decimal("0")):
+    s = TaxSummary(tax_year=2025, person_label="Test")
+    s.portfolio_eur_computed = portfolio_eur
+    s.total_dividends_eur = total_dividends_eur
+    return s
+
+
+def test_dividend_yield_basic():
+    """Yield = dividends / portfolio × 100, rounded to 2dp."""
+    s = _make_summary(
+        portfolio_eur=Decimal("100000"),
+        total_dividends_eur=Decimal("3500"),
+    )
+    assert _compute_dividend_yield(s) == 3.5
+
+
+def test_dividend_yield_rounding():
+    """Result is rounded to 2 decimal places."""
+    s = _make_summary(
+        portfolio_eur=Decimal("100000"),
+        total_dividends_eur=Decimal("3333.33"),
+    )
+    result = _compute_dividend_yield(s)
+    assert result == 3.33
+
+
+def test_dividend_yield_none_when_no_portfolio():
+    """No portfolio computed → yield is None."""
+    s = _make_summary(portfolio_eur=None, total_dividends_eur=Decimal("1000"))
+    assert _compute_dividend_yield(s) is None
+
+
+def test_dividend_yield_none_when_portfolio_zero():
+    """Zero portfolio → yield is None (avoids division by zero)."""
+    s = _make_summary(portfolio_eur=ZERO, total_dividends_eur=Decimal("1000"))
+    assert _compute_dividend_yield(s) is None
+
+
+def test_dividend_yield_none_when_no_dividends():
+    """Zero dividends → yield is None."""
+    s = _make_summary(portfolio_eur=Decimal("100000"), total_dividends_eur=ZERO)
+    assert _compute_dividend_yield(s) is None

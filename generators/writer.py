@@ -957,7 +957,13 @@ def _fill_freedom_sheet(
         portfolio_label = "Portfolio Value (config)"
     monthly_exp   = float(fd["monthly_expenses_eur"])
     monthly_cont  = float(fd["monthly_contribution_eur"])
-    yield_pct     = float(fd["yield_pct"]) / 100.0
+    # Use computed trailing yield if available, else fall back to config
+    if summary.dividend_yield_computed is not None:
+        yield_pct       = summary.dividend_yield_computed / 100.0
+        yield_pct_label = f"{summary.dividend_yield_computed:.2f}% (computed)"
+    else:
+        yield_pct       = float(fd["yield_pct"]) / 100.0
+        yield_pct_label = f"{fd['yield_pct']}% (config)"
     growth_pct    = float(fd["growth_pct"]) / 100.0
 
     annual_div    = float(summary.total_dividends_eur)
@@ -1004,7 +1010,7 @@ def _fill_freedom_sheet(
     c = ws[f"A{r}"]
     c.value = (f"Generated: {datetime.now().strftime('%Y-%m-%d')}  |  "
                f"Actual dividends {summary.tax_year}  |  "
-               f"Projection: {fd['yield_pct']}% yield · {fd['growth_pct']}% growth · "
+               f"Projection: {yield_pct_label} yield · {fd['growth_pct']}% growth · "
                f"€{fd['monthly_contribution_eur']:,.0f}/mo contribution")
     c.font = _font(color="555555", size=9)
     c.alignment = Alignment(horizontal="center")
@@ -1139,7 +1145,7 @@ def _fill_freedom_sheet(
         if (summary.portfolio_eur_computed is not None and summary.portfolio_eur_computed > ZERO)
         else "set portfolio_eur in config.local.yaml for accurate projections."
     )
-    c.value = (f"Year 0 = actual dividends. Years 1–10: portfolio × {fd['yield_pct']}% yield, "
+    c.value = (f"Year 0 = actual dividends. Years 1–10: portfolio × {yield_pct_label} yield, "
                f"{fd['growth_pct']}% annual growth, +€{fd['monthly_contribution_eur']:,.0f}/mo contribution. "
                f"Portfolio value: {port_note}")
     c.font = _font(color="888888", size=8)

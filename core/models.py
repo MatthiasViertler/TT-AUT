@@ -230,6 +230,10 @@ class TaxSummary:
     # Future: can also be seeded from broker portfolio reports (position exports).
     portfolio_eur_computed: Optional[Decimal] = None
 
+    # ── Trailing dividend yield (actual dividends / Dec31 portfolio value) ────
+    # Populated only when both portfolio_eur_computed and total_dividends_eur > 0.
+    dividend_yield_computed: Optional[float] = None
+
     # ── Diagnostics ──────────────────────────────────────────────────────────
     transaction_count:      int = 0
     unmatched_sells:        int = 0    # Sells with no matching buy (warn user)

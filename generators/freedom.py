@@ -56,6 +56,14 @@ def write_freedom_html(
     # Round up to nearest million for a clean slider range
     slider_max = ((slider_max + 999_999) // 1_000_000) * 1_000_000
 
+    # Use computed trailing yield if available, else fall back to config
+    if summary.dividend_yield_computed is not None:
+        yield_pct_val = summary.dividend_yield_computed
+        yield_source = "computed"
+    else:
+        yield_pct_val = float(fd["yield_pct"])
+        yield_source = "config"
+
     data = {
         "person": summary.person_label,
         "year": summary.tax_year,
@@ -68,7 +76,8 @@ def write_freedom_html(
             "portfolio_slider_max": slider_max,
             "monthly_expenses_eur": int(fd["monthly_expenses_eur"]),
             "monthly_contribution_eur": int(fd["monthly_contribution_eur"]),
-            "yield_pct": float(fd["yield_pct"]),
+            "yield_pct": yield_pct_val,
+            "yield_source": yield_source,
             "growth_pct": float(fd["growth_pct"]),
         },
     }
@@ -353,7 +362,7 @@ input[type=range]::-moz-range-thumb {
     </div>
     <div class="slider-row">
       <div class="slider-label">
-        <span class="name">Portfolio yield (dividends)</span>
+        <span class="name">Portfolio yield (dividends) <span id="yield-badge" style="font-size:0.65rem;padding:1px 5px;border-radius:3px;margin-left:4px"></span></span>
         <span class="val" id="l-yield"></span>
       </div>
       <input type="range" id="sl-yield" min="1" max="8" step="0.1">
@@ -465,6 +474,20 @@ if (DATA.defaults.portfolio_source === 'computed') {
   badge.style.background = 'rgba(100,116,139,0.2)';
   badge.style.color = '#64748b';
   badge.title = 'Portfolio value from config (portfolio_eur) — set computed value by running with all broker files';
+}
+
+// Badge: show whether yield was auto-computed (trailing) or from config
+const yieldBadge = E('yield-badge');
+if (DATA.defaults.yield_source === 'computed') {
+  yieldBadge.textContent = 'auto';
+  yieldBadge.style.background = 'rgba(16,185,129,0.2)';
+  yieldBadge.style.color = '#10b981';
+  yieldBadge.title = 'Trailing yield computed from actual dividends \xf7 Dec 31 portfolio value';
+} else {
+  yieldBadge.textContent = 'config';
+  yieldBadge.style.background = 'rgba(100,116,139,0.2)';
+  yieldBadge.style.color = '#64748b';
+  yieldBadge.title = 'Yield from config (yield_pct) — run with all broker files for computed value';
 }
 
 // Static header
