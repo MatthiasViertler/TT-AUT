@@ -42,6 +42,14 @@ class TaxEngine:
         # e.g. tender offers where IB assigns a new temporary symbol
         self.symbol_aliases: dict[str, str] = config.get("symbol_aliases", {})
 
+        # Populated by calculate() — remaining open positions at end of tax year.
+        # symbol → {"qty": Decimal, "has_synthetic": bool}
+        # "synthetic" = qty=1 convention (SAXO AggregatedAmounts or manual_cost_basis);
+        # these positions cannot be reliably valued by market price.
+        self.remaining_positions: dict[str, dict] = {}
+        # symbol → {"currency": str, "isin": str} — from buy transactions
+        self.symbol_meta: dict[str, dict] = {}
+
     # ── Entry Point ───────────────────────────────────────────────────────────
 
     def calculate(self, transactions: list[NormalizedTransaction]) -> TaxSummary:
@@ -128,9 +136,12 @@ class TaxEngine:
                                 all_sells: list[NormalizedTransaction],
                                 summary: TaxSummary) -> None:
         # Collect all lots: real buys + manual cost basis overrides
-        # Each entry: (date, symbol, qty, cost_per_unit)
+        # Each entry: (date, symbol, qty, cost_per_unit, synthetic)
+        # synthetic=True → qty=1 convention (SAXO AggregatedAmounts or manual_cost_basis)
+        # — cannot be reliably used for market-value portfolio computation.
         lots: list[tuple] = []
         isin_to_symbols: dict[str, set] = defaultdict(set)
+        symbol_meta: dict[str, dict] = {}
         for buy in all_buys:
             qty = buy.quantity or ZERO
             if not qty:
@@ -138,9 +149,17 @@ class TaxEngine:
             cpu = (
                 ((buy.eur_amount or ZERO).copy_abs() + (buy.eur_commission or ZERO)) / qty
             )
-            lots.append((buy.trade_date, buy.symbol, qty, cpu))
+            # SAXO AggregatedAmounts parser sets broker="saxo"; those trades use qty=1
+            is_synthetic = (buy.broker == "saxo")
+            lots.append((buy.trade_date, buy.symbol, qty, cpu, is_synthetic))
             if buy.isin:
                 isin_to_symbols[buy.isin].add(buy.symbol)
+            if buy.symbol not in symbol_meta:
+                symbol_meta[buy.symbol] = {
+                    "currency": buy.orig_currency,
+                    "isin": buy.isin or "",
+                    "description": buy.description or buy.symbol,
+                }
 
         from datetime import date as date_t
         for entry in self.config.get("manual_cost_basis", []):
@@ -150,17 +169,20 @@ class TaxEngine:
             if not isinstance(d, date_t):
                 d = date_t.fromisoformat(str(d))
             cpu = cost / qty if qty else ZERO
-            lots.append((d, entry["symbol"], qty, cpu))
+            lots.append((d, entry["symbol"], qty, cpu, True))  # always synthetic
             if entry.get("isin"):
                 isin_to_symbols[entry["isin"]].add(entry["symbol"])
+
+        self.symbol_meta = symbol_meta
 
         # Index for same-day round-trip detection: (symbol, date) of every buy
         same_day_buy_syms: set[tuple] = {(b.symbol, b.trade_date) for b in all_buys}
 
         # Build FIFO queues in chronological order
         fifo: dict[str, deque] = defaultdict(deque)
-        for d, sym, qty, cpu in sorted(lots, key=lambda x: x[0]):
-            fifo[sym].append({"date": d, "qty_remaining": qty, "cost_per_unit": cpu})
+        for d, sym, qty, cpu, synthetic in sorted(lots, key=lambda x: x[0]):
+            fifo[sym].append({"date": d, "qty_remaining": qty, "cost_per_unit": cpu,
+                              "synthetic": synthetic})
 
         # Process ALL years' sells chronologically so prior-year sells drain their lots.
         # Only accumulate gains/losses into summary for current tax-year sells.
@@ -250,6 +272,21 @@ class TaxEngine:
                 else:
                     summary.kz_892 += net_gain.copy_abs()
                     summary.total_losses_eur += net_gain.copy_abs()
+
+        # Collect remaining open positions after all sells are drained.
+        # Only include positions held as of the tax year-end (ignore future buys).
+        remaining: dict[str, dict] = {}
+        for sym, queue in fifo.items():
+            total_qty = ZERO
+            has_synthetic = False
+            for lot in queue:
+                if lot["qty_remaining"] > ZERO:
+                    total_qty += lot["qty_remaining"]
+                    if lot["synthetic"]:
+                        has_synthetic = True
+            if total_qty > ZERO:
+                remaining[sym] = {"qty": total_qty, "has_synthetic": has_synthetic}
+        self.remaining_positions = remaining
 
     # ── Interest ──────────────────────────────────────────────────────────────
 

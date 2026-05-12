@@ -947,7 +947,14 @@ def _fill_freedom_sheet(
 ) -> None:
     fd = {**_FD_DEFAULTS, **config.get("freedom_dashboard", {})}
 
-    portfolio     = float(fd["portfolio_eur"])
+    # Use computed portfolio value if available, else fall back to config
+    computed = summary.portfolio_eur_computed
+    if computed is not None and computed > ZERO:
+        portfolio = float(computed)
+        portfolio_label = "Portfolio Value (computed)"
+    else:
+        portfolio = float(fd["portfolio_eur"])
+        portfolio_label = "Portfolio Value (config)"
     monthly_exp   = float(fd["monthly_expenses_eur"])
     monthly_cont  = float(fd["monthly_contribution_eur"])
     yield_pct     = float(fd["yield_pct"]) / 100.0
@@ -1022,7 +1029,7 @@ def _fill_freedom_sheet(
         ("Monthly Surplus / Deficit",       monthly_div - monthly_exp,
          '#,##0.00 "EUR"', GREEN_FILL if monthly_div >= monthly_exp else RED_FILL),
         ("Freedom %",                       freedom_pct,  '0.0"%"',          None),
-        ("Portfolio Value (config)",        portfolio,    '#,##0 "EUR"',     LIGHT_FILL),
+        (portfolio_label,                   portfolio,    '#,##0 "EUR"',     LIGHT_FILL),
     ]
     for label, val, fmt, fill in metrics:
         r = _r()
@@ -1127,9 +1134,14 @@ def _fill_freedom_sheet(
     r = _r() + 1
     ws.merge_cells(f"A{r}:E{r}")
     c = ws[f"A{r}"]
+    port_note = (
+        "auto-computed from remaining FIFO lots × Dec 31 prices."
+        if (summary.portfolio_eur_computed is not None and summary.portfolio_eur_computed > ZERO)
+        else "set portfolio_eur in config.local.yaml for accurate projections."
+    )
     c.value = (f"Year 0 = actual dividends. Years 1–10: portfolio × {fd['yield_pct']}% yield, "
                f"{fd['growth_pct']}% annual growth, +€{fd['monthly_contribution_eur']:,.0f}/mo contribution. "
-               f"Update portfolio_eur in config.local.yaml for accurate projections.")
+               f"Portfolio value: {port_note}")
     c.font = _font(color="888888", size=8)
     c.alignment = Alignment(wrap_text=True)
     ws.row_dimensions[r].height = 24

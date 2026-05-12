@@ -224,6 +224,12 @@ class TaxSummary:
     nichtmeldefonds_ae_eur:     Decimal = Decimal(0)
     nichtmeldefonds_kest_eur:   Decimal = Decimal(0)
 
+    # ── Portfolio snapshot (computed from remaining FIFO lots at Dec 31) ─────
+    # Populated by the pipeline after tax calculation. None = not computed.
+    # Sourced from: transaction FIFO remainder × Dec31 market price × ECB FX.
+    # Future: can also be seeded from broker portfolio reports (position exports).
+    portfolio_eur_computed: Optional[Decimal] = None
+
     # ── Diagnostics ──────────────────────────────────────────────────────────
     transaction_count:      int = 0
     unmatched_sells:        int = 0    # Sells with no matching buy (warn user)

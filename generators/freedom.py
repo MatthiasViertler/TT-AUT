@@ -42,6 +42,20 @@ def write_freedom_html(
     holdings = _build_holdings(transactions, summary.tax_year)
     total_div = float(summary.total_dividends_eur)
 
+    # Use computed portfolio value if available, else fall back to config
+    computed = summary.portfolio_eur_computed
+    if computed is not None and computed > ZERO:
+        portfolio_eur = int(computed)
+        portfolio_source = "computed"
+    else:
+        portfolio_eur = int(fd["portfolio_eur"])
+        portfolio_source = "config"
+
+    # Slider max: at least 2× the portfolio value (min 2M, step to next round million)
+    slider_max = max(2_000_000, portfolio_eur * 3)
+    # Round up to nearest million for a clean slider range
+    slider_max = ((slider_max + 999_999) // 1_000_000) * 1_000_000
+
     data = {
         "person": summary.person_label,
         "year": summary.tax_year,
@@ -49,7 +63,9 @@ def write_freedom_html(
         "monthly_dividends_eur": round(total_div / 12, 2),
         "holdings": holdings,
         "defaults": {
-            "portfolio_eur": int(fd["portfolio_eur"]),
+            "portfolio_eur": portfolio_eur,
+            "portfolio_source": portfolio_source,
+            "portfolio_slider_max": slider_max,
             "monthly_expenses_eur": int(fd["monthly_expenses_eur"]),
             "monthly_contribution_eur": int(fd["monthly_contribution_eur"]),
             "yield_pct": float(fd["yield_pct"]),
@@ -314,11 +330,11 @@ input[type=range]::-moz-range-thumb {
 
     <div class="slider-row">
       <div class="slider-label">
-        <span class="name">Current portfolio value</span>
+        <span class="name">Current portfolio value <span id="port-badge" style="font-size:0.65rem;padding:1px 5px;border-radius:3px;margin-left:4px"></span></span>
         <span class="val" id="l-portfolio"></span>
       </div>
       <input type="range" id="sl-portfolio" class="sl-portfolio-thumb"
-             min="1000" max="500000" step="1000">
+             min="1000" max="5000000" step="1000">
     </div>
 
     <div class="slider-row divider">
@@ -427,12 +443,29 @@ const eurK = n => {
 };
 const pct = (n, d=1) => n.toLocaleString('de-AT', {minimumFractionDigits: d, maximumFractionDigits: d}) + '%';
 
-// Init slider values from config defaults
-E('sl-portfolio').value = DATA.defaults.portfolio_eur;
+// Init slider values from defaults (portfolio_eur may be computed from FIFO)
+const sl = E('sl-portfolio');
+sl.max   = DATA.defaults.portfolio_slider_max;
+sl.step  = Math.max(1000, Math.round(DATA.defaults.portfolio_slider_max / 1000 / 10) * 10);
+sl.value = DATA.defaults.portfolio_eur;
 E('sl-expenses').value  = DATA.defaults.monthly_expenses_eur;
 E('sl-contrib').value   = DATA.defaults.monthly_contribution_eur;
 E('sl-yield').value     = DATA.defaults.yield_pct;
 E('sl-growth').value    = DATA.defaults.growth_pct;
+
+// Badge: show whether portfolio value was auto-computed or from config
+const badge = E('port-badge');
+if (DATA.defaults.portfolio_source === 'computed') {
+  badge.textContent = 'auto';
+  badge.style.background = 'rgba(16,185,129,0.2)';
+  badge.style.color = '#10b981';
+  badge.title = 'Portfolio value computed from remaining FIFO lots \xd7 Dec 31 market prices';
+} else {
+  badge.textContent = 'config';
+  badge.style.background = 'rgba(100,116,139,0.2)';
+  badge.style.color = '#64748b';
+  badge.title = 'Portfolio value from config (portfolio_eur) — set computed value by running with all broker files';
+}
 
 // Static header
 E('subtitle').textContent =

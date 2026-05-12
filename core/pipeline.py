@@ -4,6 +4,7 @@ Wires together: broker parsing → FX enrichment → tax calculation → output.
 """
 
 import logging
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
 from core.models import NormalizedTransaction, TransactionType
 from core.nichtmeldefonds import calculate_nichtmeldefonds
+from core.price_fetcher import get_year_end_price
 from core.tax_engine import TaxEngine
 from generators.writer import write_all
 
@@ -138,6 +140,25 @@ def run_pipeline(
               f"KeSt = EUR {summary.nichtmeldefonds_kest_eur:,.2f}"
               + (f"  ⚠ {positions_warn} missing price(s)" if positions_warn else ""))
 
+    # ── 3c. Dynamic portfolio value (Dec 31 market price × remaining lots) ───
+    portfolio_eur = _compute_portfolio_value(
+        engine.remaining_positions,
+        engine.symbol_meta,
+        fx,
+        tax_year,
+        config,
+    )
+    if portfolio_eur > ZERO:
+        summary.portfolio_eur_computed = portfolio_eur
+        print(f"  [port]   Portfolio value (computed): EUR {portfolio_eur:,.2f} "
+              f"({len([p for p in engine.remaining_positions.values() if not p['has_synthetic']])} "
+              f"positions valued; "
+              f"{len([p for p in engine.remaining_positions.values() if p['has_synthetic']])} "
+              f"synthetic skipped)")
+    else:
+        print(f"  [port]   Portfolio value: could not compute (no prices available) "
+              f"— using config value if set")
+
     # ── 4. Output ─────────────────────────────────────────────────────────────
     write_all(
         transactions=all_transactions,
@@ -148,6 +169,52 @@ def run_pipeline(
 
     # ── 5. Console summary ────────────────────────────────────────────────────
     _print_summary(summary)
+
+
+def _compute_portfolio_value(
+    remaining_positions: dict,
+    symbol_meta: dict,
+    fx: FXRateProvider,
+    tax_year: int,
+    config: dict,
+) -> Decimal:
+    """
+    Compute EUR portfolio value from remaining FIFO lots at Dec 31.
+
+    Skips synthetic positions (SAXO AggregatedAmounts qty=1 convention and
+    manual_cost_basis entries) where the recorded quantity is not a real share count.
+
+    Returns 0 if no prices could be fetched.
+    """
+    price_cache_dir = config.get("price_cache_dir", "./cache/price_cache")
+    dec31 = date(tax_year, 12, 31)
+    total = ZERO
+
+    for symbol, pos in remaining_positions.items():
+        if pos["has_synthetic"]:
+            continue
+        qty = pos["qty"]
+        if qty <= ZERO:
+            continue
+
+        meta = symbol_meta.get(symbol, {})
+        currency = meta.get("currency", "USD")
+
+        price = get_year_end_price(symbol, currency, tax_year, price_cache_dir)
+        if price is None or price == ZERO:
+            log.debug(f"Portfolio: no Dec31 {tax_year} price for {symbol} — skipping")
+            continue
+
+        fx_rate = fx.get_rate(currency, dec31)
+        if fx_rate is None or fx_rate == ZERO:
+            log.debug(f"Portfolio: no Dec31 FX rate for {currency} — skipping {symbol}")
+            continue
+
+        eur_value = (qty * price * fx_rate).quantize(Decimal("0.01"))
+        log.debug(f"Portfolio: {symbol} {qty} × {price} {currency} × {fx_rate} = EUR {eur_value}")
+        total += eur_value
+
+    return total
 
 
 def _print_summary(s) -> None:
