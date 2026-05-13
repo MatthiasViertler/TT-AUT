@@ -39,7 +39,6 @@ def write_freedom_html(
     config: dict,
 ) -> None:
     fd = {**_FD_DEFAULTS, **config.get("freedom_dashboard", {})}
-    holdings = _build_holdings(transactions, summary.tax_year)
     total_div = float(summary.total_dividends_eur)
 
     # Use computed portfolio value if available, else fall back to config
@@ -64,12 +63,31 @@ def write_freedom_html(
         yield_pct_val = float(fd["yield_pct"])
         yield_source = "config"
 
+    # Build portfolio_positions JSON from summary
+    portfolio_json = [
+        {
+            "symbol": p.symbol,
+            "fund_type": p.fund_type,
+            "qty": float(p.qty),
+            "is_synthetic": p.is_synthetic,
+            "eur_value": float(p.eur_value),
+            "dividends_eur": float(p.dividends_eur),
+            "yield_pct": p.yield_pct,
+            "portfolio_pct": p.portfolio_pct,
+        }
+        for p in summary.portfolio_positions
+    ]
+
+    # Keep holdings for backward-compat (subtitle count uses it)
+    holdings = _build_holdings(transactions, summary.tax_year)
+
     data = {
         "person": summary.person_label,
         "year": summary.tax_year,
         "total_dividends_eur": round(total_div, 2),
         "monthly_dividends_eur": round(total_div / 12, 2),
         "holdings": holdings,
+        "portfolio_positions": portfolio_json,
         "defaults": {
             "portfolio_eur": portfolio_eur,
             "portfolio_source": portfolio_source,
@@ -418,24 +436,25 @@ input[type=range]::-moz-range-thumb {
   </div>
 </div>
 
-<!-- Holdings -->
+<!-- Portfolio Holdings -->
 <div class="panel holdings-panel">
-  <div class="panel-title">Dividend Holdings &mdash; <span id="h-year"></span></div>
+  <div class="panel-title">Portfolio Holdings &mdash; 31 Dec <span id="h-year"></span></div>
   <table class="holdings-table">
     <thead>
       <tr>
         <th>Symbol</th>
-        <th>Description</th>
-        <th>ISIN</th>
-        <th class="r">Payments</th>
-        <th class="r">WHT (EUR)</th>
-        <th class="r">Dividends (EUR)</th>
-        <th class="r">Share</th>
-        <th class="r" style="min-width:70px"></th>
+        <th>Type</th>
+        <th class="r">Qty</th>
+        <th class="r">EUR Value</th>
+        <th class="r">Port%</th>
+        <th class="r">Divs EUR</th>
+        <th class="r">Yield%</th>
       </tr>
     </thead>
     <tbody id="h-body"></tbody>
+    <tfoot id="h-foot"></tfoot>
   </table>
+  <div id="h-note" style="font-size:0.75rem;color:#64748b;margin-top:0.5rem"></div>
 </div>
 
 <div class="footer">
@@ -491,32 +510,60 @@ if (DATA.defaults.yield_source === 'computed') {
 }
 
 // Static header
-E('subtitle').textContent =
-  DATA.person + '  \\u00b7  Tax Year ' + DATA.year + '  \\u00b7  ' + DATA.holdings.length + ' dividend-paying positions';
-E('h-year').textContent  = DATA.year;
 E('c-year').textContent  = DATA.year;
 E('c-annual').textContent  = eur(DATA.total_dividends_eur);
 E('c-monthly').textContent = eur(DATA.monthly_dividends_eur);
 
-// Holdings table
-const maxDiv = DATA.holdings.length ? DATA.holdings[0].dividends_eur : 1;
-const tbody = E('h-body');
-DATA.holdings.forEach(h => {
-  const share = DATA.total_dividends_eur > 0 ? h.dividends_eur / DATA.total_dividends_eur * 100 : 0;
-  const bw = Math.round(h.dividends_eur / maxDiv * 64);
-  const desc = h.description.length > 30 ? h.description.slice(0,30) + '\\u2026' : h.description;
+const nValued = DATA.portfolio_positions.filter(p => !p.is_synthetic && p.eur_value > 0).length;
+const nDivs   = DATA.portfolio_positions.filter(p => p.dividends_eur > 0).length;
+E('subtitle').textContent =
+  DATA.person + '  \\u00b7  Tax Year ' + DATA.year + '  \\u00b7  ' +
+  nValued + ' positions valued  \\u00b7  ' + nDivs + ' paying dividends';
+
+// Portfolio Holdings table
+E('h-year').textContent = DATA.year;
+const totalPortEur = DATA.portfolio_positions.reduce((s, p) => s + p.eur_value, 0);
+const totalDivEur  = DATA.portfolio_positions.reduce((s, p) => s + p.dividends_eur, 0);
+const hbody = E('h-body');
+let synthCount = 0;
+
+DATA.portfolio_positions.forEach(p => {
+  if (p.is_synthetic) synthCount++;
   const tr = document.createElement('tr');
+  const qtyStr = p.is_synthetic ? ('~' + Math.round(p.qty)) : (p.qty > 0 ? Math.round(p.qty).toLocaleString('de-AT') : '\\u2014');
+  const valStr = p.eur_value > 0 ? eur(p.eur_value) : '\\u2014';
+  const pctStr = p.portfolio_pct != null ? pct(p.portfolio_pct) : '\\u2014';
+  const divStr = p.dividends_eur > 0 ? eur(p.dividends_eur) : '\\u2014';
+  const yldStr = p.yield_pct != null ? pct(p.yield_pct, 1) : '\\u2014';
+  const yldStyle = p.yield_pct > 5 ? 'color:#10b981;font-weight:600' : '';
   tr.innerHTML =
-    '<td class="sym">' + h.symbol + '</td>' +
-    '<td>' + desc + '</td>' +
-    '<td class="isin">' + h.isin + '</td>' +
-    '<td class="r">' + h.payments + '</td>' +
-    '<td class="r" style="color:#f59e0b">' + eur(h.wht_eur) + '</td>' +
-    '<td class="r" style="color:#10b981;font-weight:600">' + eur(h.dividends_eur) + '</td>' +
-    '<td class="r">' + pct(share) + '</td>' +
-    '<td><div class="bar-cell"><div class="bar-mini" style="width:' + bw + 'px"></div></div></td>';
-  tbody.appendChild(tr);
+    '<td class="sym">' + p.symbol + '</td>' +
+    '<td style="color:#64748b;font-size:0.75rem">[' + p.fund_type + ']</td>' +
+    '<td class="r"' + (p.is_synthetic ? ' style="color:#64748b"' : '') + '>' + qtyStr + '</td>' +
+    '<td class="r">' + valStr + '</td>' +
+    '<td class="r">' + pctStr + '</td>' +
+    '<td class="r" style="color:#10b981">' + divStr + '</td>' +
+    '<td class="r" style="' + yldStyle + '">' + yldStr + '</td>';
+  hbody.appendChild(tr);
 });
+
+// Totals footer
+const overallYield = totalPortEur > 0 ? totalDivEur / totalPortEur * 100 : null;
+const tfoot = E('h-foot');
+const tfr = document.createElement('tr');
+tfr.style.fontWeight = '600';
+tfr.style.borderTop = '1px solid #334155';
+tfr.innerHTML =
+  '<td colspan="3">TOTAL</td>' +
+  '<td class="r">' + eur(totalPortEur) + '</td>' +
+  '<td class="r">100%</td>' +
+  '<td class="r" style="color:#10b981">' + eur(totalDivEur) + '</td>' +
+  '<td class="r">' + (overallYield != null ? pct(overallYield, 1) : '\\u2014') + '</td>';
+tfoot.appendChild(tfr);
+
+if (synthCount > 0) {
+  E('h-note').textContent = '\\u26a0 ' + synthCount + ' synthetic position(s) shown with ~qty \\u2014 EUR value not computable (SAXO AggregatedAmounts or manual_cost_basis lots)';
+}
 
 // Chart
 const ctx = E('projChart').getContext('2d');

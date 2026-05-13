@@ -11,7 +11,7 @@ from pathlib import Path
 from brokers import load_transactions
 from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
-from core.models import NormalizedTransaction, TransactionType
+from core.models import NormalizedTransaction, PortfolioPosition, TransactionType
 from core.meldefonds import calculate_meldefonds
 from core.nichtmeldefonds import calculate_nichtmeldefonds
 from core.price_fetcher import get_year_end_price
@@ -172,20 +172,25 @@ def run_pipeline(
               + (f"  ⚠ {mf_warn} with zero AE (verify on my.oekb.at)" if mf_warn else ""))
 
     # ── 3e. Dynamic portfolio value (Dec 31 market price × remaining lots) ───
-    portfolio_eur = _compute_portfolio_value(
+    symbol_divs = _compute_symbol_dividends(all_transactions, tax_year)
+    symbol_info = _build_symbol_info(config, mf_results, nmf_results)
+    portfolio_eur, portfolio_positions = _compute_portfolio_value(
         engine.remaining_positions,
         engine.symbol_meta,
         fx,
         tax_year,
         config,
+        symbol_divs=symbol_divs,
+        symbol_info=symbol_info,
     )
+    summary.portfolio_positions = portfolio_positions
     if portfolio_eur > ZERO:
         summary.portfolio_eur_computed = portfolio_eur
+        n_valued = len([p for p in portfolio_positions if not p.is_synthetic and p.eur_value > ZERO])
+        n_synthetic = len([p for p in portfolio_positions if p.is_synthetic])
         print(f"  [port]   Portfolio value (computed): EUR {portfolio_eur:,.2f} "
-              f"({len([p for p in engine.remaining_positions.values() if not p['has_synthetic']])} "
-              f"positions valued; "
-              f"{len([p for p in engine.remaining_positions.values() if p['has_synthetic']])} "
-              f"synthetic skipped)")
+              f"({n_valued} positions valued; "
+              f"{n_synthetic} synthetic skipped)")
     else:
         print(f"  [port]   Portfolio value: could not compute (no prices available) "
               f"— using config value if set")
@@ -212,50 +217,184 @@ def run_pipeline(
     _print_summary(summary)
 
 
+def _compute_symbol_dividends(
+    transactions: list,
+    tax_year: int,
+) -> "dict[str, Decimal]":
+    """
+    Sum gross EUR dividends (eur_amount) by symbol for DIVIDEND transactions
+    in the given tax year.  Returns {symbol: total_eur}.
+    """
+    result: dict[str, Decimal] = {}
+    for txn in transactions:
+        if txn.txn_type != TransactionType.DIVIDEND:
+            continue
+        if txn.trade_date.year != tax_year:
+            continue
+        sym = txn.symbol
+        amount = txn.eur_amount or ZERO
+        result[sym] = result.get(sym, ZERO) + amount
+    return result
+
+
+def _build_symbol_info(config: dict, mf_results: list, nmf_results: list) -> "dict[str, dict]":
+    """
+    Build {symbol: {"name": str, "type": str, "currency": str}} from:
+    - config["nichtmeldefonds"] entries (REITs, BDCs, unregistered funds)
+    - mf_results (MeldefondsResult list) — OeKB-registered ETFs/funds
+
+    ETF entries from mf_results get an "(acc)" or "(dist)" suffix on the name.
+    """
+    info: dict[str, dict] = {}
+
+    # Nichtmeldefonds from config
+    for entry in config.get("nichtmeldefonds", []):
+        sym = entry.get("symbol", "")
+        if not sym:
+            continue
+        info[sym] = {
+            "name": entry.get("name", sym),
+            "type": entry.get("type", "Fund"),
+            "currency": entry.get("currency", "USD"),
+        }
+
+    # Meldefonds results
+    for r in mf_results:
+        name = r.name
+        if r.fund_type == "ETF":
+            suffix = " (acc)" if r.ertragsverwendung == "thesaurierend" else " (dist)"
+            name = name + suffix
+        info[r.symbol] = {
+            "name": name,
+            "type": r.fund_type,
+            "currency": r.currency,
+        }
+
+    return info
+
+
 def _compute_portfolio_value(
     remaining_positions: dict,
     symbol_meta: dict,
     fx: FXRateProvider,
     tax_year: int,
     config: dict,
-) -> Decimal:
+    symbol_divs: "dict[str, Decimal] | None" = None,
+    symbol_info: "dict[str, dict] | None" = None,
+) -> "tuple[Decimal, list]":
     """
     Compute EUR portfolio value from remaining FIFO lots at Dec 31.
 
-    Skips synthetic positions (SAXO AggregatedAmounts qty=1 convention and
-    manual_cost_basis entries) where the recorded quantity is not a real share count.
+    Builds a list of PortfolioPosition objects with market value, dividends,
+    yield%, and portfolio% filled in.  Sold positions (dividend but no
+    remaining lot) are appended at the end.
 
-    Returns 0 if no prices could be fetched.
+    Returns (total_eur, list[PortfolioPosition]).
+    Synthetic positions are included in the list but excluded from value totals.
     """
+    if symbol_divs is None:
+        symbol_divs = {}
+    if symbol_info is None:
+        symbol_info = {}
+
     price_cache_dir = config.get("price_cache_dir", "./cache/price_cache")
     dec31 = date(tax_year, 12, 31)
+    positions: list[PortfolioPosition] = []
     total = ZERO
 
     for symbol, pos in remaining_positions.items():
-        if pos["has_synthetic"]:
-            continue
+        is_synthetic = pos["has_synthetic"]
         qty = pos["qty"]
-        if qty <= ZERO:
-            continue
 
         meta = symbol_meta.get(symbol, {})
         currency = meta.get("currency", "USD")
+        info = symbol_info.get(symbol, {})
+        name = info.get("name", symbol)
+        fund_type = info.get("type", "Stock")
+        info_currency = info.get("currency", currency)
 
-        price = get_year_end_price(symbol, currency, tax_year, price_cache_dir)
-        if price is None or price == ZERO:
-            log.debug(f"Portfolio: no Dec31 {tax_year} price for {symbol} — skipping")
-            continue
+        eur_value = ZERO
+        if not is_synthetic and qty > ZERO:
+            price = get_year_end_price(symbol, info_currency or currency, tax_year, price_cache_dir)
+            if price is not None and price > ZERO:
+                fx_rate = fx.get_rate(info_currency or currency, dec31)
+                if fx_rate is not None and fx_rate > ZERO:
+                    eur_value = (qty * price * fx_rate).quantize(Decimal("0.01"))
+                    log.debug(
+                        f"Portfolio: {symbol} {qty} × {price} {info_currency or currency} "
+                        f"× {fx_rate} = EUR {eur_value}"
+                    )
+                else:
+                    log.debug(f"Portfolio: no Dec31 FX rate for {info_currency or currency} — skipping {symbol}")
+            else:
+                log.debug(f"Portfolio: no Dec31 {tax_year} price for {symbol} — skipping")
 
-        fx_rate = fx.get_rate(currency, dec31)
-        if fx_rate is None or fx_rate == ZERO:
-            log.debug(f"Portfolio: no Dec31 FX rate for {currency} — skipping {symbol}")
-            continue
-
-        eur_value = (qty * price * fx_rate).quantize(Decimal("0.01"))
-        log.debug(f"Portfolio: {symbol} {qty} × {price} {currency} × {fx_rate} = EUR {eur_value}")
         total += eur_value
+        divs_eur = symbol_divs.get(symbol, ZERO)
 
-    return total
+        positions.append(PortfolioPosition(
+            symbol=symbol,
+            name=name,
+            fund_type=fund_type,
+            currency=info_currency or currency,
+            qty=qty,
+            is_synthetic=is_synthetic,
+            eur_value=eur_value,
+            dividends_eur=divs_eur,
+            yield_pct=None,
+            portfolio_pct=None,
+        ))
+
+    # Add sold positions (dividends received but no remaining lots)
+    remaining_syms = set(remaining_positions.keys())
+    for sym, div_eur in symbol_divs.items():
+        if sym not in remaining_syms and div_eur > ZERO:
+            info = symbol_info.get(sym, {})
+            positions.append(PortfolioPosition(
+                symbol=sym,
+                name=info.get("name", sym),
+                fund_type="Sold",
+                currency=info.get("currency", ""),
+                qty=ZERO,
+                is_synthetic=False,
+                eur_value=ZERO,
+                dividends_eur=div_eur,
+                yield_pct=None,
+                portfolio_pct=None,
+            ))
+
+    # Fill portfolio_pct and yield_pct now that total is known
+    for p in positions:
+        if p.eur_value > ZERO and total > ZERO:
+            p.portfolio_pct = round(float(p.eur_value / total * 100), 2)
+        if p.eur_value > ZERO and p.dividends_eur > ZERO:
+            p.yield_pct = round(float(p.dividends_eur / p.eur_value * 100), 2)
+
+    # Sort positions per holdings_sort config
+    fd = config.get("freedom_dashboard", {})
+    sort_key = fd.get("holdings_sort", "value")
+
+    def _sort_key(p: PortfolioPosition):
+        # Category: 0 = normal, 1 = synthetic, 2 = sold
+        if p.fund_type == "Sold":
+            cat = 2
+        elif p.is_synthetic:
+            cat = 1
+        else:
+            cat = 0
+
+        if sort_key == "yield":
+            primary = -(p.yield_pct if p.yield_pct is not None else -1)
+        elif sort_key == "alpha":
+            primary = p.symbol
+        else:  # "value" (default)
+            primary = -float(p.eur_value)
+
+        return (cat, primary)
+
+    positions.sort(key=_sort_key)
+
+    return total, positions
 
 
 def _compute_dividend_yield(summary) -> "float | None":

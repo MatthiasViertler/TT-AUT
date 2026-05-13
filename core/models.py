@@ -170,6 +170,24 @@ class MeldefondsResult:
 
 
 @dataclass
+class PortfolioPosition:
+    """
+    One position in the portfolio snapshot at Dec 31 of the tax year.
+    Combines remaining FIFO lots with dividend data for the Freedom dashboard.
+    """
+    symbol:        str
+    name:          str           # display name; same as symbol if unknown
+    fund_type:     str           # "Stock", "REIT", "BDC", "ETF", "Fund", "Sold"
+    currency:      str
+    qty:           Decimal
+    is_synthetic:  bool          # True → qty is qty=1 placeholder, not real shares
+    eur_value:     Decimal       # ZERO for synthetic/sold positions
+    dividends_eur: Decimal       # gross dividends this tax year (ZERO if none)
+    yield_pct:     Optional[float]    # dividends / eur_value × 100; None if no value
+    portfolio_pct: Optional[float]    # eur_value / total × 100; None for synthetic/sold
+
+
+@dataclass
 class MatchedTrade:
     """
     A realized gain/loss: one SELL matched against one or more BUYs.
@@ -275,6 +293,10 @@ class TaxSummary:
     # ── Trailing dividend yield (actual dividends / Dec31 portfolio value) ────
     # Populated only when both portfolio_eur_computed and total_dividends_eur > 0.
     dividend_yield_computed: Optional[float] = None
+
+    # ── Portfolio positions (computed from remaining FIFO lots + dividends) ────
+    # Each entry is a PortfolioPosition; sorted per holdings_sort config.
+    portfolio_positions: list = field(default_factory=list)  # list[PortfolioPosition]
 
     # ── Diagnostics ──────────────────────────────────────────────────────────
     transaction_count:      int = 0

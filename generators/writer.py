@@ -979,10 +979,11 @@ def _fill_freedom_sheet(
 
     # Column widths
     ws.column_dimensions["A"].width = 32
-    ws.column_dimensions["B"].width = 18
-    ws.column_dimensions["C"].width = 18
-    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 16
+    ws.column_dimensions["D"].width = 10
     ws.column_dimensions["E"].width = 14
+    ws.column_dimensions["F"].width = 10
 
     row = [1]
 
@@ -1004,7 +1005,7 @@ def _fill_freedom_sheet(
 
     # ── Title ─────────────────────────────────────────────────────────────────
     r = _r()
-    ws.merge_cells(f"A{r}:E{r}")
+    ws.merge_cells(f"A{r}:F{r}")
     c = ws[f"A{r}"]
     c.value = f"Financial Freedom  |  {summary.person_label}  |  {summary.tax_year}"
     c.font = _font(bold=True, color=WHITE, size=13)
@@ -1013,7 +1014,7 @@ def _fill_freedom_sheet(
     ws.row_dimensions[r].height = 26
 
     r = _r()
-    ws.merge_cells(f"A{r}:E{r}")
+    ws.merge_cells(f"A{r}:F{r}")
     c = ws[f"A{r}"]
     c.value = (f"Generated: {datetime.now().strftime('%Y-%m-%d')}  |  "
                f"Actual dividends {summary.tax_year}  |  "
@@ -1027,7 +1028,7 @@ def _fill_freedom_sheet(
 
     # ── Key Metrics ───────────────────────────────────────────────────────────
     r = _r()
-    ws.merge_cells(f"A{r}:E{r}")
+    ws.merge_cells(f"A{r}:F{r}")
     c = ws[f"A{r}"]
     c.value = "KEY METRICS"
     c.font = _font(bold=True, color=WHITE, size=10)
@@ -1052,65 +1053,122 @@ def _fill_freedom_sheet(
         if label == "Freedom %" :
             pct = min(val, 100.0)
             bar_fill = GREEN_FILL if pct >= 100 else (SECTION_FILL if pct >= 50 else LIGHT_FILL)
-            for col in range(3, 6):
-                ws.cell(r, col).fill = _hfill(bar_fill if col <= 2 + int(pct / 33.4) + 1 else WHITE)
+            for col in range(3, 7):
+                ws.cell(r, col).fill = _hfill(bar_fill if col <= 2 + int(pct / 25) + 1 else WHITE)
         ws.row_dimensions[r].height = 16
 
     row[0] += 1  # blank
 
-    # ── Holdings breakdown ────────────────────────────────────────────────────
+    # ── Portfolio Holdings ────────────────────────────────────────────────────
     r = _r()
-    ws.merge_cells(f"A{r}:E{r}")
+    ws.merge_cells(f"A{r}:F{r}")
     c = ws[f"A{r}"]
-    c.value = f"DIVIDEND HOLDINGS  —  {summary.tax_year}"
+    c.value = f"PORTFOLIO HOLDINGS  —  31 Dec {summary.tax_year}"
     c.font = _font(bold=True, color=WHITE, size=10)
     c.fill = _hfill(ACCENT_FILL)
     c.alignment = _center()
     ws.row_dimensions[r].height = 18
 
-    # header
+    # header row
     r = _r()
-    for col, txt in [(1, "Symbol"), (2, "Annual EUR"), (3, "Monthly EUR"), (4, "% of Total"), (5, "Payments")]:
+    for col, txt in [
+        (1, "Symbol [Type]"), (2, "Qty"), (3, "EUR Value"),
+        (4, "Port%"), (5, "Divs EUR"), (6, "Yield%"),
+    ]:
         _cell(r, col, txt, bold=True, color=WHITE, size=9, fill=ACCENT_FILL, align="center", border=True)
     ws.row_dimensions[r].height = 15
 
-    # aggregate per symbol
-    acc: dict[str, dict] = {}
-    for t in div_txns:
-        if t.symbol not in acc:
-            acc[t.symbol] = {"annual": ZERO, "payments": 0}
-        acc[t.symbol]["annual"] += t.eur_amount or ZERO
-        acc[t.symbol]["payments"] += 1
+    positions = summary.portfolio_positions
+    fd_cfg = config.get("freedom_dashboard", {})
+    group_by_type = fd_cfg.get("holdings_group_by_type", False)
 
-    total_div_dec = sum(v["annual"] for v in acc.values())
-
-    for sym, data in sorted(acc.items(), key=lambda x: -x[1]["annual"]):
+    if not positions:
         r = _r()
-        ann = float(data["annual"])
-        pct = float(data["annual"] / total_div_dec * 100) if total_div_dec else 0
-        _cell(r, 1, sym, bold=True, size=9, fill=WHITE, border=True)
-        _cell(r, 2, ann, size=9, fill=WHITE, fmt='#,##0.00', align="right", border=True)
-        _cell(r, 3, ann / 12, size=9, fill=WHITE, fmt='#,##0.00', align="right", border=True)
-        _cell(r, 4, pct, size=9, fill=WHITE, fmt='0.0"%"', align="right", border=True)
-        _cell(r, 5, data["payments"], size=9, fill=WHITE, align="center", border=True)
+        ws.merge_cells(f"A{r}:F{r}")
+        c = ws[f"A{r}"]
+        c.value = "No portfolio positions available — run with full broker history"
+        c.font = _font(color="888888", size=9)
+        c.alignment = Alignment(horizontal="center")
         ws.row_dimensions[r].height = 14
+    else:
+        last_type = None
+        for p in positions:
+            # Group header row (if grouping enabled)
+            if group_by_type and p.fund_type != last_type:
+                last_type = p.fund_type
+                r = _r()
+                ws.merge_cells(f"A{r}:F{r}")
+                c = ws[f"A{r}"]
+                c.value = p.fund_type.upper()
+                c.font = _font(bold=True, size=9)
+                c.fill = _hfill(SECTION_FILL)
+                c.alignment = Alignment(horizontal="left", vertical="center")
+                ws.row_dimensions[r].height = 13
 
-    # totals
-    r = _r()
-    _cell(r, 1, "TOTAL", bold=True, size=9, fill=LIGHT_FILL, border=True)
-    _cell(r, 2, float(total_div_dec), bold=True, size=9, fill=LIGHT_FILL,
-          fmt='#,##0.00', align="right", border=True)
-    _cell(r, 3, float(total_div_dec) / 12, bold=True, size=9, fill=LIGHT_FILL,
-          fmt='#,##0.00', align="right", border=True)
-    _cell(r, 4, 100.0, bold=True, size=9, fill=LIGHT_FILL, fmt='0.0"%"',
-          align="right", border=True)
-    ws.row_dimensions[r].height = 14
+            r = _r()
+            sym_label = f"{p.symbol} [{p.fund_type}]"
+            sym_bold = not p.is_synthetic and p.fund_type != "Sold"
+            _cell(r, 1, sym_label, bold=sym_bold, size=9, fill=WHITE, border=True)
+
+            # Qty col
+            if p.is_synthetic:
+                qty_val = f"~{int(p.qty)}"
+                _cell(r, 2, qty_val, size=9, fill=WHITE, align="right", border=True)
+                ws.cell(r, 2).font = _font(color="888888", size=9)
+            elif p.qty > ZERO:
+                _cell(r, 2, int(p.qty), size=9, fill=WHITE, align="right", border=True)
+            else:
+                _cell(r, 2, "—", size=9, fill=WHITE, align="right", border=True)
+
+            # EUR Value col
+            if p.eur_value > ZERO:
+                _cell(r, 3, float(p.eur_value), size=9, fill=WHITE, fmt='#,##0', align="right", border=True)
+            else:
+                _cell(r, 3, "—", size=9, fill=WHITE, align="right", border=True)
+
+            # Port% col
+            if p.portfolio_pct is not None:
+                _cell(r, 4, p.portfolio_pct, size=9, fill=WHITE, fmt='0.0"%"', align="right", border=True)
+            else:
+                _cell(r, 4, "—", size=9, fill=WHITE, align="right", border=True)
+
+            # Divs EUR col
+            if p.dividends_eur > ZERO:
+                _cell(r, 5, float(p.dividends_eur), size=9, fill=WHITE, fmt='#,##0.00', align="right", border=True)
+            else:
+                _cell(r, 5, "—", size=9, fill=WHITE, align="right", border=True)
+
+            # Yield% col
+            if p.yield_pct is not None:
+                yld_fill = GREEN_FILL if p.yield_pct > 5 else WHITE
+                _cell(r, 6, p.yield_pct, size=9, fill=yld_fill, fmt='0.0"%"', align="right", border=True)
+            else:
+                _cell(r, 6, "—", size=9, fill=WHITE, align="right", border=True)
+
+            ws.row_dimensions[r].height = 14
+
+        # Totals row
+        total_port = sum(float(p.eur_value) for p in positions)
+        total_divs = sum(float(p.dividends_eur) for p in positions)
+        overall_yield = (total_divs / total_port * 100) if total_port > 0 else None
+
+        r = _r()
+        _cell(r, 1, "TOTAL", bold=True, size=9, fill=LIGHT_FILL, border=True)
+        _cell(r, 2, "", size=9, fill=LIGHT_FILL, border=True)
+        _cell(r, 3, total_port, bold=True, size=9, fill=LIGHT_FILL, fmt='#,##0', align="right", border=True)
+        _cell(r, 4, "", size=9, fill=LIGHT_FILL, border=True)
+        _cell(r, 5, total_divs, bold=True, size=9, fill=LIGHT_FILL, fmt='#,##0.00', align="right", border=True)
+        if overall_yield is not None:
+            _cell(r, 6, overall_yield, bold=True, size=9, fill=LIGHT_FILL, fmt='0.0"%"', align="right", border=True)
+        else:
+            _cell(r, 6, "—", bold=True, size=9, fill=LIGHT_FILL, align="right", border=True)
+        ws.row_dimensions[r].height = 14
 
     row[0] += 1  # blank
 
     # ── 10-Year Projection ────────────────────────────────────────────────────
     r = _r()
-    ws.merge_cells(f"A{r}:E{r}")
+    ws.merge_cells(f"A{r}:F{r}")
     c = ws[f"A{r}"]
     c.value = "10-YEAR PROJECTION  (static at config assumptions)"
     c.font = _font(bold=True, color=WHITE, size=10)
@@ -1145,7 +1203,7 @@ def _fill_freedom_sheet(
 
     # note
     r = _r() + 1
-    ws.merge_cells(f"A{r}:E{r}")
+    ws.merge_cells(f"A{r}:F{r}")
     c = ws[f"A{r}"]
     port_note = (
         "auto-computed from remaining FIFO lots × Dec 31 prices."

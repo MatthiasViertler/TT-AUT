@@ -212,7 +212,7 @@ def test_compute_portfolio_value_basic():
     config = {"price_cache_dir": "/tmp/nonexistent"}
 
     with patch("core.pipeline.get_year_end_price", return_value=Decimal("150.0")):
-        total = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
+        total, _ = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
 
     # 10 × 150 × 0.92 = 1380 EUR
     assert total == Decimal("1380.00")
@@ -232,7 +232,7 @@ def test_compute_portfolio_value_skips_synthetic():
     config = {"price_cache_dir": "/tmp/nonexistent"}
 
     with patch("core.pipeline.get_year_end_price", return_value=Decimal("100.0")):
-        total = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
+        total, _ = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
 
     assert total == Decimal("1000.00")  # only AAPL: 10 × 100 × 1.0
 
@@ -245,7 +245,7 @@ def test_compute_portfolio_value_skips_missing_price():
     config = {"price_cache_dir": "/tmp/nonexistent"}
 
     with patch("core.pipeline.get_year_end_price", return_value=None):
-        total = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
+        total, _ = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
 
     assert total == ZERO
 
@@ -259,7 +259,7 @@ def test_compute_portfolio_value_skips_missing_fx():
     config = {"price_cache_dir": "/tmp/nonexistent"}
 
     with patch("core.pipeline.get_year_end_price", return_value=Decimal("150.0")):
-        total = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
+        total, _ = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
 
     assert total == ZERO
 
@@ -279,7 +279,7 @@ def test_compute_portfolio_value_multiple_positions():
 
     prices = {"AAPL": Decimal("200.0"), "MSFT": Decimal("300.0")}
     with patch("core.pipeline.get_year_end_price", side_effect=lambda sym, *a, **k: prices[sym]):
-        total = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
+        total, _ = _compute_portfolio_value(remaining, symbol_meta, fx, 2025, config)
 
     # AAPL: 10 × 200 = 2000, MSFT: 5 × 300 = 1500 → 3500
     assert total == Decimal("3500.00")
@@ -288,8 +288,9 @@ def test_compute_portfolio_value_multiple_positions():
 def test_compute_portfolio_value_empty_positions():
     """No positions → returns 0."""
     config = {"price_cache_dir": "/tmp/nonexistent"}
-    total = _compute_portfolio_value({}, {}, MagicMock(), 2025, config)
+    total, positions = _compute_portfolio_value({}, {}, MagicMock(), 2025, config)
     assert total == ZERO
+    assert positions == []
 
 
 # ── _compute_dividend_yield ───────────────────────────────────────────────────

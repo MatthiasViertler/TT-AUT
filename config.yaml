@@ -38,6 +38,8 @@ freedom_dashboard:
   yield_pct: 3.0                      # expected dividend yield %
   growth_pct: 7.0                     # expected annual portfolio growth %
   # portfolio_eur: 10000              # override in users/{person}/config.local.yaml
+  # holdings_sort: value              # value | yield | alpha (default: value)
+  # holdings_group_by_type: false     # group holdings by Stock/ETF/REIT/BDC (default: false)
 
 # Meldefonds — funds registered with OeKB (most UCITS ETFs: IE/LU domicile, AT funds).
 # AE and WA figures are sourced from the curated dataset in data/oekb_ae.yaml.
