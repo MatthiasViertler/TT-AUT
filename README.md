@@ -58,7 +58,7 @@ cp .hooks/pre-commit .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 
-The hook reads your real account IDs from `users/*/config.local.yaml` at commit time and blocks any staged file that contains them. It covers every broker automatically — no updates needed when you add a new one (E*Trade, etc.).
+The hook reads your real account IDs and IBKR Flex token from `users/*/config.local.yaml` at commit time and blocks any staged file that contains them. It covers every broker and credential automatically — no updates needed when you add a new one (E*Trade, etc.).
 
 **Placeholder IDs to use in all committed files** (docs, tests, config examples):
 
@@ -124,7 +124,38 @@ freedom_dashboard:
 
 ## Getting an IB Flex Query export
 
-In Client Portal / TWS:
+### Option A — auto-fetch (recommended)
+
+Configure once in `users/{yourname}/config.local.yaml`, then the tool fetches the report for you:
+
+```yaml
+ibkr_flex:
+  token: "your_flex_token"   # see below for where to find this
+  query_id: 123456           # see below for where to find this
+```
+
+Then run:
+
+```bash
+python main.py --person matthias --year 2025 --fetch-ibkr
+# Re-download even if a cached file already exists:
+python main.py --person matthias --year 2025 --force-fetch-ibkr
+```
+
+The report is saved automatically to `users/{yourname}/data/IB/{yourname}_ibkr_flex.csv` and picked up in the same run. On future runs without `--fetch-ibkr`, the cached file is still used — re-fetch only when you want updated data.
+
+**Where to find your token and query ID:**
+
+1. **Token** — IB Client Portal → Settings → Flex Web Service → Manage Service Tokens → Create Token. Keep it secret: treat it like a password (the pre-commit hook blocks it from being committed to git).
+2. **Query ID** — Reports → Flex Queries → open (or create) your Activity Flex Query → the numeric ID appears in the page URL (e.g. `queryId=123456`).
+
+**Flex Query settings** (when creating a new query):
+- Type: **Activity Flex Query**
+- Sections to include: **Trades**, **Cash Transactions**
+- Date range: **from your first trade ever** (all years needed for FIFO)
+- Format: **CSV**
+
+### Option B — manual export
 
 1. **Reports → Flex Queries → Create**
 2. Select **Activity Flex Query**
@@ -187,6 +218,10 @@ All files under `users/{person}/data/` are picked up automatically when you run 
 python main.py --person matthias --year 2025
 python main.py --person jessie   --year 2025
 
+# Auto-fetch from IBKR (requires ibkr_flex: token + query_id in config.local.yaml)
+python main.py --person matthias --year 2025 --fetch-ibkr
+python main.py --person matthias --year 2025 --force-fetch-ibkr   # re-download
+
 # Explicit input files (non-standard layout or mixing sources)
 python main.py --person matthias --input users/matthias/data/IB/2025/file.csv --year 2025
 
@@ -203,6 +238,9 @@ All options:
 --users-dir DIR           root for per-user data (default: ./users)
 --config FILE             universal config file (default: config.yaml)
 --output-dir DIR          output directory override (default: users/{person}/output/)
+--fetch-ibkr              download report from IBKR Flex Web Service before processing
+--force-fetch-ibkr        re-download even if a cached file already exists (implies --fetch-ibkr)
+--no-fx-fetch             skip fetching live FX rates (use cached only)
 ```
 
 ---
@@ -358,7 +396,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-235 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, Verlustausgleich year-over-year tracking, ISIN rename hint, same-day round-trip detection, Meldefonds AE/WA calculation (KZ 936/937, WA credit, share inference).
+282 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), IBKR Flex Web Service auto-fetch (retry logic, error handling, file management), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, Verlustausgleich year-over-year tracking, ISIN rename hint, same-day round-trip detection, Meldefonds AE/WA calculation (KZ 936/937, WA credit, share inference), portfolio holdings table (sort, grouping, synthetic positions, sold positions).
 
 ---
 

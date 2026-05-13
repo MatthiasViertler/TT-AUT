@@ -18,6 +18,7 @@ core/nichtmeldefonds.py      § 186 InvFG pauschal AE calculation
 core/price_fetcher.py        Yahoo Finance year-end price fetch + cache
 core/pipeline.py             parse → FX → tax → output orchestration
 brokers/ib_csv.py            IB Flex Query CSV parser (BOS/EOS + HEADER/DATA)
+brokers/ibkr_flex_fetch.py   IBKR Flex Web Service auto-fetch (--fetch-ibkr / --force-fetch-ibkr)
 brokers/saxo_xlsx.py         SAXO Bank xlsx parser (AggregatedAmounts + ShareDividends)
 brokers/saxo_closedpos_xlsx.py  SAXO ClosedPositions xlsx parser (real quantities)
 generators/writer.py             write_all() — orchestrates all output files
@@ -38,6 +39,7 @@ cache/price_cache/           shared year-end price cache (gitignored)
 users/matthias/
   config.local.yaml
   data/IB/2025/matthias_2025.csv
+  data/IB/matthias_ibkr_flex.csv        ← auto-fetched (--fetch-ibkr); picked up by rglob
   data/SAXO/2025/ClosedPositions_19999999_2025-01-01_2025-12-31.xlsx
   output/matthias_2025_tax_summary.txt  ← generated
 users/jessie/
@@ -142,7 +144,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 235 tests, all green
+- `python -m pytest tests/` — 282 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -200,17 +202,27 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - **Corporate acquisitions**: "Corporate Actions - Cash Compensation" rows → treated as SELL (e.g. SWAV acquired by JNJ Jun 2024 for €3695.01)
 - **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `users/matthias/config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
+## IBKR Flex Web Service auto-fetch
+- **CLI**: `python main.py --person matthias --year 2025 --fetch-ibkr`
+- **Force re-download**: `--force-fetch-ibkr`
+- **Config** in `users/{person}/config.local.yaml`:
+  ```yaml
+  ibkr_flex:
+    token: "your_token"      # IB Client Portal → Settings → Flex Web Service → Manage Tokens
+    query_id: 123456         # Reports → Flex Queries → (open query) → numeric ID in URL
+  ```
+- Saves to `users/{person}/data/IB/{person}_ibkr_flex.csv`; picked up by rglob automatically.
+- Pre-commit hook also blocks the token from leaking into committed files.
+
 ## Next up (priority order)
 1. **🔴 WHT reclaim forms** — AT Ansässigkeitsbescheinigung (ZS-AD) received signed 2026-05-13.
    - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
    - Germany: DE €775.00 excess; also DK €37.91 excess pending.
    - Ireland Interest Reclaim Form pending.
 2. **E\*Trade parser** — needs sample export from Matthias first; blocks capturing any E*Trade holdings
-3. **Freedom tab — per-symbol holdings table** — expand HTML + Excel Freedom tab with per-position breakdown (symbol, qty, Dec31 price, EUR value) from `remaining_positions`
-4. **IBKR Flex Web Service auto-fetch** — `--fetch-ibkr` flag; token + query_id in config.local.yaml; eliminates manual CSV export step each year
-5. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
-6. **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → correct portfolio value; low priority (users can set `freedom_dashboard.portfolio_eur` manually)
-7. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
+3. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
+4. **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → correct portfolio value; low priority (users can set `freedom_dashboard.portfolio_eur` manually)
+5. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
