@@ -5,6 +5,7 @@ Load sequence:
   1. Built-in DEFAULTS (hardcoded here)
   2. config.yaml  — universal settings, committed to git
   3. users/{person}/config.local.yaml  — person-specific overrides, gitignored
+  4. users/{person}/secrets.local.yaml — broker credentials (tokens, query IDs), gitignored
 
 scan_account_ids() scans all users/*/config.local.yaml for account_id entries and
 returns a {account_id: person_name} mapping used for auto-detecting --person.
@@ -98,8 +99,9 @@ def load_config(
 
     Layer order (each overrides the previous):
       1. DEFAULTS
-      2. config.yaml  (committed, universal)
-      3. users/{person}/config.local.yaml  (gitignored, person-specific)
+      2. config.yaml                         (committed, universal)
+      3. users/{person}/config.local.yaml    (gitignored, person-specific)
+      4. users/{person}/secrets.local.yaml   (gitignored, broker credentials)
 
     If person is None, only layers 1–2 are applied. The pipeline then
     calls this again (or uses scan_account_ids) after detecting the person
@@ -126,6 +128,13 @@ def load_config(
             print(f"[config] Loaded person overrides: {local_path}")
         else:
             print(f"[config] No person config found at '{local_path}'")
+
+        secrets_path = users_dir / person / "secrets.local.yaml"
+        if secrets_path.exists():
+            with open(secrets_path) as f:
+                secrets = yaml.safe_load(f) or {}
+            _deep_merge(config, secrets)
+            print(f"[config] Loaded secrets: {secrets_path}")
 
     return config
 

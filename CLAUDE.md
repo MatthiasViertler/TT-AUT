@@ -19,6 +19,7 @@ core/price_fetcher.py        Yahoo Finance year-end price fetch + cache
 core/pipeline.py             parse → FX → tax → output orchestration
 brokers/ib_csv.py            IB Flex Query CSV parser (BOS/EOS + HEADER/DATA)
 brokers/ibkr_flex_fetch.py   IBKR Flex Web Service auto-fetch (--fetch-ibkr / --force-fetch-ibkr)
+brokers/ibkr_positions.py    IBKR Open Positions parser (auto-detected from activity statement or separate file)
 brokers/saxo_xlsx.py         SAXO Bank xlsx parser (AggregatedAmounts + ShareDividends)
 brokers/saxo_closedpos_xlsx.py  SAXO ClosedPositions xlsx parser (real quantities)
 generators/writer.py             write_all() — orchestrates all output files
@@ -205,14 +206,24 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 ## IBKR Flex Web Service auto-fetch
 - **CLI**: `python main.py --person matthias --year 2025 --fetch-ibkr`
 - **Force re-download**: `--force-fetch-ibkr`
-- **Config** in `users/{person}/config.local.yaml`:
+- **Credentials** in `users/{person}/secrets.local.yaml` (gitignored, edit rarely):
   ```yaml
   ibkr_flex:
     token: "your_token"      # IB Client Portal → Settings → Flex Web Service → Manage Tokens
     query_id: 123456         # Reports → Flex Queries → (open query) → numeric ID in URL
+    # positions_query_id: 234567  # optional: separate Open Positions query
   ```
 - Saves to `users/{person}/data/IB/{person}_ibkr_flex.csv`; picked up by rglob automatically.
-- Pre-commit hook also blocks the token from leaking into committed files.
+- Pre-commit hook scans `secrets.local.yaml` and blocks all its values from leaking into committed files.
+
+### Open Positions (portfolio value)
+- **Recommended**: add "Open Positions" section to the existing Activity Flex Query — no new config needed.
+  - IBKR: Reports → Flex Queries → edit existing query → tick **Open Positions**
+  - Required fields: **Symbol**, **ISIN**, **Position**, **Mark Price**, **Currency**, **Asset Class**, **Level of Detail**
+  - Run `--force-fetch-ibkr` once to re-download with the new section; auto-detected thereafter.
+- **Alternative**: separate query → set `ibkr_flex.positions_query_id` + `--fetch-ibkr-positions` flag.
+- Pipeline priority: explicit positions file → Open Positions section in any input file → FIFO × yfinance fallback.
+- Solves European stock ticker issues (RENK, RHM, TKMS, etc.) where yfinance returns no price.
 
 ## Next up (priority order)
 1. **🔴 WHT reclaim forms** — AT Ansässigkeitsbescheinigung (ZS-AD) received signed 2026-05-13.

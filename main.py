@@ -21,6 +21,7 @@ from pathlib import Path
 from core.pipeline import run_pipeline
 from core.config import load_config, scan_account_ids
 from brokers.ibkr_flex_fetch import fetch_flex_report, FlexFetchError
+from brokers.ibkr_positions import parse_ibkr_positions
 
 # File extensions recognised as potential broker exports
 _BROKER_EXTENSIONS = {'.csv', '.xml', '.xlsx', '.xls', '.txt'}
@@ -96,6 +97,13 @@ def main():
     parser.add_argument("--force-fetch-ibkr", action="store_true",
                         help="Re-download the IBKR Flex report even if a cached file exists. "
                              "Implies --fetch-ibkr.")
+    parser.add_argument("--fetch-ibkr-positions", action="store_true",
+                        help="Download Open Positions report from IBKR Flex Web Service. "
+                             "Used for accurate portfolio value (avoids yfinance ticker issues). "
+                             "Requires ibkr_flex.token + ibkr_flex.positions_query_id in config.")
+    parser.add_argument("--force-fetch-ibkr-positions", action="store_true",
+                        help="Re-download the IBKR Open Positions report even if cached. "
+                             "Implies --fetch-ibkr-positions.")
 
     args = parser.parse_args()
     users_dir = Path(args.users_dir)
@@ -152,6 +160,43 @@ def main():
             if fetched_str not in args.input:
                 args.input = list(args.input) + [fetched_str]
 
+    # ── IBKR Open Positions fetch (for accurate portfolio value) ─────────────
+    ibkr_positions_path = None
+    do_fetch_pos = args.fetch_ibkr_positions or args.force_fetch_ibkr_positions
+    if do_fetch_pos:
+        if person == "auto":
+            print("ERROR: --fetch-ibkr-positions requires --person to be specified.", file=sys.stderr)
+            sys.exit(1)
+        flex_cfg = config.get("ibkr_flex") or {}
+        flex_token = flex_cfg.get("token", "").strip()
+        pos_qid = flex_cfg.get("positions_query_id", "")
+        if not flex_token or not pos_qid:
+            print(
+                "ERROR: ibkr_flex.token and ibkr_flex.positions_query_id must be set in "
+                f"users/{person}/config.local.yaml",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        ib_data_dir = users_dir / person / "data" / "IB"
+        pos_save_path = ib_data_dir / f"{person}_ibkr_positions.csv"
+        try:
+            ibkr_positions_path = fetch_flex_report(
+                token=flex_token,
+                query_id=pos_qid,
+                save_path=pos_save_path,
+                overwrite=args.force_fetch_ibkr_positions,
+            )
+        except FlexFetchError as e:
+            print(f"ERROR fetching positions: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # Auto-load cached positions file if it exists (no re-download)
+        if person != "auto":
+            cached = users_dir / person / "data" / "IB" / f"{person}_ibkr_positions.csv"
+            if cached.exists():
+                ibkr_positions_path = cached
+                print(f"  [ibkr-pos] Using cached positions: {cached.name}")
+
     # ── Resolve input files ───────────────────────────────────────────────────
     if args.input:
         raw_paths = [Path(p) for p in args.input]
@@ -195,6 +240,7 @@ def main():
         output_dir=output_dir,
         fetch_fx=not args.no_fx_fetch,
         users_dir=users_dir,
+        ibkr_positions_path=ibkr_positions_path,
     )
 
 

@@ -126,7 +126,7 @@ freedom_dashboard:
 
 ### Option A — auto-fetch (recommended)
 
-Configure once in `users/{yourname}/config.local.yaml`, then the tool fetches the report for you:
+Create `users/{yourname}/secrets.local.yaml` (edit rarely — only when credentials change):
 
 ```yaml
 ibkr_flex:
@@ -149,17 +149,32 @@ The report is saved automatically to `users/{yourname}/data/IB/{yourname}_ibkr_f
 1. **Token** — IB Client Portal → Settings → Flex Web Service → Manage Service Tokens → Create Token. Keep it secret: treat it like a password (the pre-commit hook blocks it from being committed to git).
 2. **Query ID** — Reports → Flex Queries → open (or create) your Activity Flex Query → the numeric ID appears in the page URL (e.g. `queryId=123456`).
 
-**Flex Query settings** (when creating a new query):
+**Flex Query settings** (when creating or editing your query):
 - Type: **Activity Flex Query**
-- Sections to include: **Trades**, **Cash Transactions**
-- Date range: **from your first trade ever** (all years needed for FIFO)
 - Format: **CSV**
+- Date range: **from your first trade ever** (all years needed for FIFO)
+- Sections to include:
+
+| Section | Purpose | Required fields |
+|---------|---------|-----------------|
+| **Trades** | Capital gains (buys/sells) | all defaults |
+| **Cash Transactions** | Dividends + WHT | all defaults |
+| **Open Positions** | Portfolio value (Dec 31 snapshot) | Symbol, ISIN, Position, Mark Price, Currency, Asset Class, Level of Detail |
+
+Adding **Open Positions** to your existing query is a one-time edit — no new config key needed. After the next `--fetch-ibkr` run, portfolio value is computed from IBKR's own mark prices instead of Yahoo Finance, which resolves ticker-matching issues for European stocks (RENK, RHM, etc.).
+
+**How to add Open Positions to an existing query:**
+1. IB Client Portal → Reports → Flex Queries → click your existing Activity Flex Query
+2. Scroll to **Open Positions** → tick the checkbox to enable it
+3. In the field selector, ensure these are checked: **Symbol**, **ISIN**, **Position**, **Mark Price**, **Currency** (= CurrencyPrimary), **Asset Class**, **Level of Detail**
+4. Save the query — the query ID stays the same, no config change needed
+5. Run `--force-fetch-ibkr` once to re-download with the new section included
 
 ### Option B — manual export
 
 1. **Reports → Flex Queries → Create**
 2. Select **Activity Flex Query**
-3. Include sections: **Trades**, **Cash Transactions**
+3. Include sections: **Trades**, **Cash Transactions**, **Open Positions** (same fields as above)
 4. Date range: full calendar year(s) you want to calculate
 5. Format: **CSV**
 6. Run query and save the file to `users/{yourname}/data/IB/{year}/`
@@ -220,7 +235,9 @@ python main.py --person jessie   --year 2025
 
 # Auto-fetch from IBKR (requires ibkr_flex: token + query_id in config.local.yaml)
 python main.py --person matthias --year 2025 --fetch-ibkr
-python main.py --person matthias --year 2025 --force-fetch-ibkr   # re-download
+python main.py --person matthias --year 2025 --force-fetch-ibkr          # re-download
+python main.py --person matthias --year 2025 --fetch-ibkr-positions       # positions only
+python main.py --person matthias --year 2025 --force-fetch-ibkr-positions # force re-download
 
 # Explicit input files (non-standard layout or mixing sources)
 python main.py --person matthias --input users/matthias/data/IB/2025/file.csv --year 2025
@@ -238,8 +255,10 @@ All options:
 --users-dir DIR           root for per-user data (default: ./users)
 --config FILE             universal config file (default: config.yaml)
 --output-dir DIR          output directory override (default: users/{person}/output/)
---fetch-ibkr              download report from IBKR Flex Web Service before processing
+--fetch-ibkr              download activity statement from IBKR Flex Web Service before processing
 --force-fetch-ibkr        re-download even if a cached file already exists (implies --fetch-ibkr)
+--fetch-ibkr-positions    download Open Positions report separately (if using a dedicated query)
+--force-fetch-ibkr-positions  re-download positions even if cached (implies --fetch-ibkr-positions)
 --no-fx-fetch             skip fetching live FX rates (use cached only)
 ```
 

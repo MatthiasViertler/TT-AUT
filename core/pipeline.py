@@ -9,6 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from brokers import load_transactions
+from brokers.ibkr_positions import parse_ibkr_positions
 from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
 from core.models import NormalizedTransaction, PortfolioPosition, TransactionType
@@ -31,6 +32,7 @@ def run_pipeline(
     output_dir: Path,
     fetch_fx: bool,
     users_dir: Path = Path("users"),
+    ibkr_positions_path: Path | None = None,
 ) -> None:
 
     print(f"\n{'='*60}")
@@ -174,6 +176,25 @@ def run_pipeline(
     # ── 3e. Dynamic portfolio value (Dec 31 market price × remaining lots) ───
     symbol_divs = _compute_symbol_dividends(all_transactions, tax_year)
     symbol_info = _build_symbol_info(config, mf_results, nmf_results)
+
+    # Parse IBKR Open Positions data (more accurate than FIFO × yfinance).
+    # Priority: explicit positions file → Open Positions section in any input file.
+    ibkr_pos_data: dict = {}
+    ibkr_pos_source: str = ""
+    if ibkr_positions_path is not None and ibkr_positions_path.exists():
+        ibkr_pos_data = parse_ibkr_positions(ibkr_positions_path)
+        ibkr_pos_source = ibkr_positions_path.name
+    if not ibkr_pos_data:
+        # Option A: Open Positions section embedded in activity statement file
+        for p in input_paths:
+            candidate = parse_ibkr_positions(p)
+            if candidate:
+                ibkr_pos_data = candidate
+                ibkr_pos_source = p.name
+                break
+    if ibkr_pos_data:
+        print(f"  [ibkr-pos] {len(ibkr_pos_data)} positions from {ibkr_pos_source}")
+
     portfolio_eur, portfolio_positions = _compute_portfolio_value(
         engine.remaining_positions,
         engine.symbol_meta,
@@ -182,15 +203,17 @@ def run_pipeline(
         config,
         symbol_divs=symbol_divs,
         symbol_info=symbol_info,
+        ibkr_positions=ibkr_pos_data,
     )
     summary.portfolio_positions = portfolio_positions
     if portfolio_eur > ZERO:
         summary.portfolio_eur_computed = portfolio_eur
         n_valued = len([p for p in portfolio_positions if not p.is_synthetic and p.eur_value > ZERO])
         n_synthetic = len([p for p in portfolio_positions if p.is_synthetic])
+        src_note = " (from IBKR positions file)" if ibkr_pos_data else ""
         print(f"  [port]   Portfolio value (computed): EUR {portfolio_eur:,.2f} "
               f"({n_valued} positions valued; "
-              f"{n_synthetic} synthetic skipped)")
+              f"{n_synthetic} synthetic skipped){src_note}")
     else:
         print(f"  [port]   Portfolio value: could not compute (no prices available) "
               f"— using config value if set")
@@ -281,9 +304,14 @@ def _compute_portfolio_value(
     config: dict,
     symbol_divs: "dict[str, Decimal] | None" = None,
     symbol_info: "dict[str, dict] | None" = None,
+    ibkr_positions: "dict | None" = None,
 ) -> "tuple[Decimal, list]":
     """
     Compute EUR portfolio value from remaining FIFO lots at Dec 31.
+
+    When ibkr_positions is provided (from an IBKR Open Positions Flex report),
+    uses IBKR's actual Dec-31 quantity and mark price instead of FIFO × yfinance.
+    This is more accurate for European stocks and any ticker yfinance can't resolve.
 
     Builds a list of PortfolioPosition objects with market value, dividends,
     yield%, and portfolio% filled in.  Sold positions (dividend but no
@@ -296,6 +324,8 @@ def _compute_portfolio_value(
         symbol_divs = {}
     if symbol_info is None:
         symbol_info = {}
+    if ibkr_positions is None:
+        ibkr_positions = {}
 
     price_cache_dir = config.get("price_cache_dir", "./cache/price_cache")
     dec31 = date(tax_year, 12, 31)
@@ -315,19 +345,36 @@ def _compute_portfolio_value(
 
         eur_value = ZERO
         if not is_synthetic and qty > ZERO:
-            price = get_year_end_price(symbol, info_currency or currency, tax_year, price_cache_dir)
-            if price is not None and price > ZERO:
-                fx_rate = fx.get_rate(info_currency or currency, dec31)
+            ibkr_pos = ibkr_positions.get(symbol)
+            if ibkr_pos:
+                # Use IBKR's actual Dec-31 quantity and mark price (no yfinance needed)
+                ibkr_qty   = ibkr_pos["qty"]
+                ibkr_price = ibkr_pos["price"]
+                ibkr_ccy   = ibkr_pos.get("currency") or info_currency or currency
+                fx_rate = fx.get_rate(ibkr_ccy, dec31)
                 if fx_rate is not None and fx_rate > ZERO:
-                    eur_value = (qty * price * fx_rate).quantize(Decimal("0.01"))
+                    eur_value = (ibkr_qty * ibkr_price * fx_rate).quantize(Decimal("0.01"))
+                    qty = ibkr_qty  # use IBKR's actual quantity
                     log.debug(
-                        f"Portfolio: {symbol} {qty} × {price} {info_currency or currency} "
-                        f"× {fx_rate} = EUR {eur_value}"
+                        "Portfolio (IBKR): %s %s × %s %s × %s = EUR %s",
+                        symbol, ibkr_qty, ibkr_price, ibkr_ccy, fx_rate, eur_value,
                     )
                 else:
-                    log.debug(f"Portfolio: no Dec31 FX rate for {info_currency or currency} — skipping {symbol}")
+                    log.debug("Portfolio (IBKR): no Dec31 FX rate for %s — skipping %s", ibkr_ccy, symbol)
             else:
-                log.debug(f"Portfolio: no Dec31 {tax_year} price for {symbol} — skipping")
+                price = get_year_end_price(symbol, info_currency or currency, tax_year, price_cache_dir)
+                if price is not None and price > ZERO:
+                    fx_rate = fx.get_rate(info_currency or currency, dec31)
+                    if fx_rate is not None and fx_rate > ZERO:
+                        eur_value = (qty * price * fx_rate).quantize(Decimal("0.01"))
+                        log.debug(
+                            "Portfolio: %s %s × %s %s × %s = EUR %s",
+                            symbol, qty, price, info_currency or currency, fx_rate, eur_value,
+                        )
+                    else:
+                        log.debug("Portfolio: no Dec31 FX rate for %s — skipping %s", info_currency or currency, symbol)
+                else:
+                    log.debug("Portfolio: no Dec31 %s price for %s — skipping", tax_year, symbol)
 
         total += eur_value
         divs_eur = symbol_divs.get(symbol, ZERO)

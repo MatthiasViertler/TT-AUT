@@ -117,16 +117,28 @@ freedom_dashboard:
 #   prior_year_income_eur: 0      # prior year gross income (donation limit = 10%)
 
 # IBKR Flex Web Service auto-fetch — set per-person in config.local.yaml.
-# Allows downloading the Activity Statement directly from IBKR without manual CSV export.
-# token:    IB Client Portal → Settings → Flex Web Service → Manage Service Tokens
-# query_id: Reports → Flex Queries → (open your query) → the numeric ID in the URL
-# Usage: python main.py --person matthias --year 2025 --fetch-ibkr
-#        python main.py --person matthias --year 2025 --force-fetch-ibkr  (re-download)
-# Saves report to users/{person}/data/IB/{person}_ibkr_flex.csv (picked up automatically).
+# Allows downloading reports directly from IBKR without manual CSV export.
+#
+# token:              IB Client Portal → Settings → Flex Web Service → Manage Service Tokens
+# query_id:           Reports → Flex Queries → Activity Statement query → numeric ID in URL
+# positions_query_id: Reports → Flex Queries → Open Positions query → numeric ID in URL
+#                     (optional; enables accurate portfolio value — avoids yfinance ticker issues)
+#
+# Activity Statement fetch:
+#   python main.py --person matthias --year 2025 --fetch-ibkr
+#   python main.py --person matthias --year 2025 --force-fetch-ibkr   (re-download)
+#   Saves to users/{person}/data/IB/{person}_ibkr_flex.csv
+#
+# Open Positions fetch (for Dec 31 portfolio snapshot):
+#   python main.py --person matthias --year 2025 --fetch-ibkr-positions
+#   python main.py --person matthias --year 2025 --force-fetch-ibkr-positions
+#   Saves to users/{person}/data/IB/{person}_ibkr_positions.csv
+#   Auto-loaded on subsequent runs if file exists (no re-download flag needed).
 #
 # ibkr_flex:
 #   token: "your_flex_token_here"
 #   query_id: 123456
+#   positions_query_id: 234567   # optional
 
 # Account ID → person mapping is now automatic.
 # Each person's account_id is declared in users/{person}/config.local.yaml.

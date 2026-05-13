@@ -41,11 +41,14 @@ def write_freedom_html(
     fd = {**_FD_DEFAULTS, **config.get("freedom_dashboard", {})}
     total_div = float(summary.total_dividends_eur)
 
-    # Use computed portfolio value if available, else fall back to config
+    # Use computed portfolio value if available, else fall back to config.
+    # portfolio_eur_supplement adds a manually-specified amount on top of the computed
+    # value (e.g. SAXO broker value that can't yet be auto-computed).
+    supplement = int(fd.get("portfolio_eur_supplement", 0))
     computed = summary.portfolio_eur_computed
     if computed is not None and computed > ZERO:
-        portfolio_eur = int(computed)
-        portfolio_source = "computed"
+        portfolio_eur = int(computed) + supplement
+        portfolio_source = "computed+manual" if supplement else "computed"
     else:
         portfolio_eur = int(fd["portfolio_eur"])
         portfolio_source = "config"
@@ -395,7 +398,7 @@ input[type=range]::-moz-range-thumb {
 
     <div class="freedom-bar-wrap">
       <div class="freedom-bar-header">
-        <span>Freedom progress (current dividends vs target)</span>
+        <span>Dividend coverage (actual dividends vs. target)</span>
         <span id="l-bar-pct"></span>
       </div>
       <div class="freedom-bar-outer">
@@ -429,7 +432,7 @@ input[type=range]::-moz-range-thumb {
 
   <!-- Right: projection chart -->
   <div class="panel">
-    <div class="panel-title">Passive Income Projection</div>
+    <div class="panel-title">Income Projection &mdash; Total Return (dividends + growth)</div>
     <div class="chart-container">
       <canvas id="projChart"></canvas>
     </div>
@@ -575,19 +578,22 @@ function project(portfolioStart, monthlyExp, monthlyContrib, yieldPct, growthPct
   const growthRate    = growthPct / 100;
   const annualContrib = monthlyContrib * 12;
 
-  const labels = [], income = [];
+  const labels = [], income = [], divOnly = [];
   const ms = {25: null, 50: null, 75: null, 100: null};
   let portfolio = portfolioStart;
 
   for (let yr = 0; yr <= 40; yr++) {
-    const passive = portfolio * yieldRate;
+    // Total return = dividends + capital growth (sustainable withdrawal without depleting capital)
+    const totalReturn = portfolio * (yieldRate + growthRate);
+    const dividends   = portfolio * yieldRate;
     labels.push(yr === 0 ? 'Now' : '+' + yr + 'y');
-    income.push(Math.round(passive));
-    const p = targetAnnual > 0 ? passive / targetAnnual * 100 : 0;
+    income.push(Math.round(totalReturn));
+    divOnly.push(Math.round(dividends));
+    const p = targetAnnual > 0 ? totalReturn / targetAnnual * 100 : 0;
     [25, 50, 75, 100].forEach(m => { if (ms[m] === null && p >= m) ms[m] = yr; });
     portfolio = portfolio * (1 + growthRate) + annualContrib;
   }
-  return { labels, income, ms, targetAnnual };
+  return { labels, income, divOnly, ms, targetAnnual };
 }
 
 function update() {
@@ -603,7 +609,7 @@ function update() {
   E('l-yield').textContent     = pct(yieldPct);
   E('l-growth').textContent    = pct(growthPct);
 
-  const { labels, income, ms, targetAnnual } = project(
+  const { labels, income, divOnly, ms, targetAnnual } = project(
     portfolioStart, monthlyExp, monthlyContrib, yieldPct, growthPct
   );
 
@@ -616,18 +622,18 @@ function update() {
   freedomEl.style.color = freedomPct >= 100 ? '#10b981' : freedomPct >= 50 ? '#60a5fa' : '#f59e0b';
   E('c-freedom-sub').textContent = eur(DATA.monthly_dividends_eur) + ' of ' + eur(monthlyExp) + ' goal';
 
-  // FIRE card
+  // FIRE card (based on total return: dividends + portfolio growth)
   const fireYr = ms[100];
   const fireEl = E('c-fire-years');
   if (fireYr === 0) {
     fireEl.textContent = 'Now!';
     fireEl.style.color = '#10b981';
-    E('c-fire-sub').textContent = 'Already financially free';
+    E('c-fire-sub').textContent = 'Total return covers expenses';
   } else if (fireYr !== null) {
     fireEl.textContent = fireYr + ' yr' + (fireYr === 1 ? '' : 's');
     fireEl.style.color = fireYr <= 15 ? '#10b981' : '#f59e0b';
     const fireYear = new Date().getFullYear() + fireYr;
-    E('c-fire-sub').textContent = 'Target year ' + fireYear;
+    E('c-fire-sub').textContent = 'Total return: target ' + fireYear;
   } else {
     fireEl.textContent = '> 40 yrs';
     fireEl.style.color = '#ef4444';
@@ -665,7 +671,7 @@ function update() {
       labels,
       datasets: [
         {
-          label: 'Passive Income',
+          label: 'Total Return (yield + growth)',
           data: income,
           borderColor: '#10b981',
           backgroundColor: 'rgba(16,185,129,0.12)',
@@ -673,6 +679,17 @@ function update() {
           tension: 0.4,
           pointRadius: 0,
           borderWidth: 2,
+        },
+        {
+          label: 'Dividends only',
+          data: divOnly,
+          borderColor: '#60a5fa',
+          backgroundColor: 'transparent',
+          borderDash: [4, 3],
+          fill: false,
+          tension: 0.4,
+          pointRadius: 0,
+          borderWidth: 1.5,
         },
         {
           label: 'FIRE target (' + eur(monthlyExp) + '/mo)',
