@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Blocks real broker account IDs from being committed.
-# Reads account_id values from users/*/config.local.yaml (all gitignored).
+# Blocks real broker account IDs and API tokens from being committed.
+# Reads account_id + ibkr_flex.token from users/*/config.local.yaml (all gitignored).
 # Covers IBKR, SAXO, E*Trade, and any future broker automatically — no maintenance needed.
 
 REAL_IDS=()
@@ -17,6 +17,10 @@ if isinstance(ids, (str, int)):
     ids = [str(ids)]
 for i in ids:
     print(str(i).strip())
+# Also extract IBKR Flex token (sensitive API credential)
+flex_token = (c.get('ibkr_flex') or {}).get('token', '')
+if flex_token and str(flex_token).strip():
+    print(str(flex_token).strip())
 " "$cfg" 2>/dev/null)
 done
 

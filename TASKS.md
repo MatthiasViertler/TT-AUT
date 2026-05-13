@@ -134,8 +134,11 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] **`--input-dir` folder scanning** — `--input` already accepts directories; `_resolve_inputs()`
       uses `rglob` to scan recursively, auto-detects broker per file, loads all years for FIFO.
       11 tests added (191 total). *(2026-05-08)*
-- [ ] **IBKR Flex Web Service auto-fetch** — configure token + query_id in config.local.yaml,
-      `python main.py --fetch-ibkr --year 2025` pulls report directly, no browser needed
+- [x] **IBKR Flex Web Service auto-fetch** — `--fetch-ibkr` / `--force-fetch-ibkr` flags *(2026-05-13)*
+      Config: `ibkr_flex: {token, query_id}` in `users/{person}/config.local.yaml`.
+      Two-step IBKR API (SendRequest → GetStatement); auto-retry on 1019; saves to
+      `users/{person}/data/IB/{person}_ibkr_flex.csv`; pre-commit hook blocks token leaks.
+      21 tests → 282 total.
 - [ ] **Local web UI** — Flask/FastAPI + HTML; folder picker, pipeline progress, inline results,
       download buttons. One command to start. No CLI knowledge required.
 - [ ] **FinanzOnline XML output** — machine-readable upload format for direct e-filing

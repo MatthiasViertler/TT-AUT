@@ -116,6 +116,18 @@ freedom_dashboard:
 #   family_bonus_children: 0      # children under 18 (Familienbonus Plus: €2,000/child)
 #   prior_year_income_eur: 0      # prior year gross income (donation limit = 10%)
 
+# IBKR Flex Web Service auto-fetch — set per-person in config.local.yaml.
+# Allows downloading the Activity Statement directly from IBKR without manual CSV export.
+# token:    IB Client Portal → Settings → Flex Web Service → Manage Service Tokens
+# query_id: Reports → Flex Queries → (open your query) → the numeric ID in the URL
+# Usage: python main.py --person matthias --year 2025 --fetch-ibkr
+#        python main.py --person matthias --year 2025 --force-fetch-ibkr  (re-download)
+# Saves report to users/{person}/data/IB/{person}_ibkr_flex.csv (picked up automatically).
+#
+# ibkr_flex:
+#   token: "your_flex_token_here"
+#   query_id: 123456
+
 # Account ID → person mapping is now automatic.
 # Each person's account_id is declared in users/{person}/config.local.yaml.
 # account_id may be a scalar string or a list (for multi-broker / migrated accounts):

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from core.pipeline import run_pipeline
 from core.config import load_config, scan_account_ids
+from brokers.ibkr_flex_fetch import fetch_flex_report, FlexFetchError
 
 # File extensions recognised as potential broker exports
 _BROKER_EXTENSIONS = {'.csv', '.xml', '.xlsx', '.xls', '.txt'}
@@ -89,6 +90,12 @@ def main():
                              "Default: users/{person}/output/")
     parser.add_argument("--no-fx-fetch", action="store_true",
                         help="Skip fetching live FX rates (use cached only)")
+    parser.add_argument("--fetch-ibkr", action="store_true",
+                        help="Download report from IBKR Flex Web Service before processing. "
+                             "Requires ibkr_flex.token + ibkr_flex.query_id in config.local.yaml.")
+    parser.add_argument("--force-fetch-ibkr", action="store_true",
+                        help="Re-download the IBKR Flex report even if a cached file exists. "
+                             "Implies --fetch-ibkr.")
 
     args = parser.parse_args()
     users_dir = Path(args.users_dir)
@@ -110,6 +117,40 @@ def main():
     # account_ids found in the parsed files and re-apply person overrides.
     known_person = person if person != "auto" else None
     config = load_config(args.config, person=known_person, users_dir=users_dir)
+
+    # ── IBKR Flex Web Service auto-fetch ─────────────────────────────────────
+    do_fetch = args.fetch_ibkr or args.force_fetch_ibkr
+    if do_fetch:
+        if person == "auto":
+            print("ERROR: --fetch-ibkr requires --person to be specified.", file=sys.stderr)
+            sys.exit(1)
+        flex_cfg = config.get("ibkr_flex") or {}
+        flex_token = flex_cfg.get("token", "").strip()
+        flex_qid = flex_cfg.get("query_id", "")
+        if not flex_token or not flex_qid:
+            print(
+                "ERROR: ibkr_flex.token and ibkr_flex.query_id must be set in "
+                f"users/{person}/config.local.yaml",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        ib_data_dir = users_dir / person / "data" / "IB"
+        flex_save_path = ib_data_dir / f"{person}_ibkr_flex.csv"
+        try:
+            fetched = fetch_flex_report(
+                token=flex_token,
+                query_id=flex_qid,
+                save_path=flex_save_path,
+                overwrite=args.force_fetch_ibkr,
+            )
+        except FlexFetchError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(1)
+        # Ensure the fetched file is included even if --input is explicit
+        if args.input:
+            fetched_str = str(fetched)
+            if fetched_str not in args.input:
+                args.input = list(args.input) + [fetched_str]
 
     # ── Resolve input files ───────────────────────────────────────────────────
     if args.input:
