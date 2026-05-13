@@ -80,8 +80,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       → `summary.dividend_yield_computed`. HTML yield slider defaults to computed; green "auto" / grey "config"
       badge. xlsx subtitle + projection use computed value. Warning when synthetic positions inflate yield.
       5 tests → 218 total. *(2026-05-12)*
-- [ ] **Freedom tab — per-symbol holdings table** — expand `remaining_positions` from today's work
-      into a per-position breakdown (symbol, qty, price, EUR value) in HTML and Excel.
+- [x] **Freedom tab — per-symbol holdings table** *(2026-05-13)* — Symbol [Type] / Qty / EUR Value /
+      Port% / Divs EUR / Yield% in both Freedom HTML and Excel tab. Synthetic lots: ~qty + —.
+      Sold positions at bottom. Sort: value|yield|alpha. Optional group_by_type. 26 tests → 261 total.
 
 ---
 
@@ -155,9 +156,7 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ---
 
-- [ ] **Freedom tab — per-symbol holdings table** — expand Freedom HTML + Excel tab with a
-      per-position breakdown (symbol, qty, Dec31 price, EUR value) sourced from `remaining_positions`.
-      Exclude synthetic positions (AggregatedAmounts qty=1 and manual_cost_basis lots).
+- [x] **Freedom tab — per-symbol holdings table** *(2026-05-13)* — see 🟡 Dashboard section above.
 
 ## 📋 Start-of-Session Checklist
 

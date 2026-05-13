@@ -1,37 +1,33 @@
-# Session Handoff — 2026-05-12
+# Session Handoff — 2026-05-13
 
 ## What was done
-- **Dynamic dividend yield** — trailing yield (actual dividends / Dec31 portfolio value) computed in pipeline and surfaced in Freedom dashboard and xlsx Freedom tab
-  - `TaxSummary.dividend_yield_computed` field added to `core/models.py`
-  - `_compute_dividend_yield()` helper in `core/pipeline.py` (testable, same pattern as `_compute_portfolio_value`)
-  - Freedom HTML: yield slider defaults to computed value; green "auto" / grey "config" badge added (parallel to portfolio badge)
-  - xlsx Freedom tab: computed yield in projection table and subtitle text
-  - Warning printed when synthetic positions are excluded (inflated yield)
-  - 5 new tests → **218 total**, all green
-- **OeKB / Meldefonds research** — investigated data accessibility for future ETF/KZ 937 support
-  - Public fund registry CSV (no auth): `https://my.oekb.at/kms-reporting/public?report=steuerdaten-liste-mf-gesamt&format=CSV` — confirms Meldefonds status by ISIN
-  - Per-fund AE/WA figures are behind authenticated Angular SPA — no public API discovered
-  - Decision: v1.0 via curated `data/oekb_ae.yaml`; v2.0 via OeKB data license (taxdata@oekb.at)
-- **Roadmap updated** — CLAUDE.md Next up, memory, README, status handoff all reflect new priorities
-- **Product strategy aligned** — v1.0 = reliable KeSt for AT stock investors (IB + SAXO + ETFs via curated dataset); website/blog post-v1.0
+
+- **Session wrap-up from previous session** — marked Meldefonds done in TASKS.md, updated CLAUDE.md/README.md, committed + pushed
+- **Meldefonds/ETF AE support (KZ 936/937)** — `core/meldefonds.py` + `data/oekb_ae.yaml` (curated dataset); AE/WA/KeSt calculation per OeKB position; WA (Withhaltungsabzug) offsets KeSt; KZ 936 (AT ISIN) / KZ 937 (foreign); symbol + ISIN fallback share count; Excel "Meldefonds" tab; 17 tests
+- **Per-symbol portfolio holdings table** — replaces dividend-only breakdown in both Freedom HTML and Excel Freedom tab; columns: Symbol [Type] | Qty | EUR Value | Port% | Divs EUR | Yield%; synthetic lots show ~qty; sold positions shown at bottom; configurable sort (value|yield|alpha) and group_by_type; 26 tests
+- **Updated `/wrap-up` skill** — added Step 3 (version tag suggestion with semver classification guide); renumbered to 8 steps total
+- **Branching strategy decided** — user tells Claude at session start; wrap-up handoff will remind; IBKR auto-fetch → use feature branch next session
+- **WHT reclaim context** — AT Ansässigkeitsbescheinigung (ZS-AD) signed confirmation received 2026-05-13; ready to file FR/DE/DK/IE reclaims
 
 ## Current state
-- Tests: **218 passed**, 0 failed
-- Key figures (Matthias 2025): KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €2,628 | KeSt remaining €3,560
-- Computed portfolio: €63,914 (IB FIFO only; SAXO synthetic excluded) → trailing yield 18.39% (inflated — noted in output; resolves once portfolio snapshot parsers built)
-- Known issues:
-  - Yield inflated when SAXO positions excluded from portfolio valuation
-  - `VER→OEWA` alias in Matthias config — remove before `--year 2026`
-  - SOLV cost_eur=0 (spin-off allocation ratio unconfirmed — minor impact)
-  - E*Trade holdings not captured (no parser yet — needs sample export)
+
+- Tests: **261 passed**, 0 failed
+- All commits on main, pushed to GitHub
+- PLACEHOLDER AE/WA values remain in `data/oekb_ae.yaml` — must be verified on my.oekb.at before filing
+- Version tag `v0.2.0` proposed but not yet created (pending user approval)
 
 ## Next session priorities
-1. **E*Trade parser** — waiting on sample export from Matthias; start immediately once available
-2. **Meldefonds/ETF KZ 937** — begin with curated `data/oekb_ae.yaml` for top ~15 ETFs; same module pattern as `core/nichtmeldefonds.py`
-3. **OeKB data license email** — one email to taxdata@oekb.at before v2.0 ETF automation work
-4. **🔴 France WHT reclaim** — deadline 2026-12-31; paper filing; tool could pre-fill data sheet
+
+1. **IBKR Flex Web Service auto-fetch** (`--fetch-ibkr` flag) — use feature branch `feature/ibkr-flex-autofetch`; token + query_id in config.local.yaml; eliminates manual CSV export each year
+2. **WHT reclaim form submissions** — FR (deadline 2026-12-31!), DE, DK, IE — paperwork, not coding; AT Finanzamt confirmation in hand
+3. **Verify oekb_ae.yaml PLACEHOLDER values** — log into my.oekb.at and fill in real AE/WA per share for VWRL, VWCE, VFEM, VFEA, IWDA
+4. **OeKB data license inquiry** — email taxdata@oekb.at (single email, low effort, high upside for v2.0)
 
 ## Blockers
-- E*Trade parser: needs sample broker export from Matthias
-- Meldefonds AE/WA data: no public API; curated dataset requires manual sourcing from fund "Steuerliche Mitteilung" PDFs
-- France WHT: paper filing — Matthias must initiate; tool can prepare data but cannot file
+
+- E*Trade parser: waiting for sample export from Matthias
+- IBKR auto-fetch: need token + query_id (from IB Client Portal → Reports → Flex Queries)
+
+---
+
+*Next session: tell me at the start whether to use a feature branch (suggest: `feature/ibkr-flex-autofetch` for IBKR auto-fetch).*
