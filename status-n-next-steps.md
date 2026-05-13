@@ -2,32 +2,39 @@
 
 ## What was done
 
-- **Session wrap-up from previous session** — marked Meldefonds done in TASKS.md, updated CLAUDE.md/README.md, committed + pushed
-- **Meldefonds/ETF AE support (KZ 936/937)** — `core/meldefonds.py` + `data/oekb_ae.yaml` (curated dataset); AE/WA/KeSt calculation per OeKB position; WA (Withhaltungsabzug) offsets KeSt; KZ 936 (AT ISIN) / KZ 937 (foreign); symbol + ISIN fallback share count; Excel "Meldefonds" tab; 17 tests
-- **Per-symbol portfolio holdings table** — replaces dividend-only breakdown in both Freedom HTML and Excel Freedom tab; columns: Symbol [Type] | Qty | EUR Value | Port% | Divs EUR | Yield%; synthetic lots show ~qty; sold positions shown at bottom; configurable sort (value|yield|alpha) and group_by_type; 26 tests
-- **Updated `/wrap-up` skill** — added Step 3 (version tag suggestion with semver classification guide); renumbered to 8 steps total
-- **Branching strategy decided** — user tells Claude at session start; wrap-up handoff will remind; IBKR auto-fetch → use feature branch next session
-- **WHT reclaim context** — AT Ansässigkeitsbescheinigung (ZS-AD) signed confirmation received 2026-05-13; ready to file FR/DE/DK/IE reclaims
+- **IBKR Flex Web Service auto-fetch** — `--fetch-ibkr` / `--force-fetch-ibkr` flags
+  - `brokers/ibkr_flex_fetch.py`: two-step IBKR API (SendRequest → GetStatement); auto-retry on 1019; `FlexFetchError` on auth/network failures
+  - Config: `ibkr_flex: {token, query_id}` in `users/{person}/config.local.yaml`
+  - Saves to `users/{person}/data/IB/{person}_ibkr_flex.csv`; rglob picks it up automatically
+  - Pre-commit hook extended to also block the flex token from leaking into committed files
+  - 21 new tests → 282 total
+- **README.md** — full auto-fetch setup section with token/query_id location instructions, updated Usage table with new flags, updated test count
+- **CLAUDE.md** — new IBKR Flex Web Service section, updated Next up, updated test count
 
 ## Current state
 
-- Tests: **261 passed**, 0 failed
-- All commits on main, pushed to GitHub
+- Tests: **282 passed**, 0 failed
+- Branch: `feature/ibkr-flex-autofetch` — PR #5 open on GitHub (pending user review + merge)
+- After merge: tag `v0.2.1` (patch: new feature on existing base, no breaking changes — user pre-agreed)
 - PLACEHOLDER AE/WA values remain in `data/oekb_ae.yaml` — must be verified on my.oekb.at before filing
-- Version tag `v0.2.0` proposed but not yet created (pending user approval)
+- VER→OEWA alias still in Matthias config — remove before running --year 2026
 
 ## Next session priorities
 
-1. **IBKR Flex Web Service auto-fetch** (`--fetch-ibkr` flag) — use feature branch `feature/ibkr-flex-autofetch`; token + query_id in config.local.yaml; eliminates manual CSV export each year
-2. **WHT reclaim form submissions** — FR (deadline 2026-12-31!), DE, DK, IE — paperwork, not coding; AT Finanzamt confirmation in hand
-3. **Verify oekb_ae.yaml PLACEHOLDER values** — log into my.oekb.at and fill in real AE/WA per share for VWRL, VWCE, VFEM, VFEA, IWDA
-4. **OeKB data license inquiry** — email taxdata@oekb.at (single email, low effort, high upside for v2.0)
+1. **WHT reclaim form submissions** (URGENT: France deadline 2026-12-31)
+   - France: Cerfa n°12816 (Formulaire 5000 + 5001); MC €7.00 + SAF €5.06 = €12.06 excess
+   - Germany: €775.00 excess; Bundeszentralamt für Steuern portal
+   - Denmark: €37.91 excess; SKAT
+   - Ireland: Interest Reclaim Form; amount TBD
+2. **OeKB data license inquiry** — email taxdata@oekb.at; single email, high upside
+3. **E*Trade parser** — blocked waiting for sample export from Matthias
+4. **Verify oekb_ae.yaml PLACEHOLDER values** — log into my.oekb.at; VWRL, VWCE, VFEM, VFEA, IWDA
 
 ## Blockers
 
+- IBKR Flex auto-fetch: needs real token + query_id from Matthias to test against live API
 - E*Trade parser: waiting for sample export from Matthias
-- IBKR auto-fetch: need token + query_id (from IB Client Portal → Reports → Flex Queries)
 
 ---
 
-*Next session: tell me at the start whether to use a feature branch (suggest: `feature/ibkr-flex-autofetch` for IBKR auto-fetch).*
+*Next session: no feature branch needed for WHT paperwork tasks. For E*Trade parser (when sample arrives), use `feature/etrade-parser`.*
