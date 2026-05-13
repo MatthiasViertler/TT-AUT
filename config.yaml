@@ -39,6 +39,27 @@ freedom_dashboard:
   growth_pct: 7.0                     # expected annual portfolio growth %
   # portfolio_eur: 10000              # override in users/{person}/config.local.yaml
 
+# Meldefonds — funds registered with OeKB (most UCITS ETFs: IE/LU domicile, AT funds).
+# AE and WA figures are sourced from the curated dataset in data/oekb_ae.yaml.
+# AE (Ausschüttungsgleiche Erträge): taxable income equivalent, even if not distributed.
+# WA (Withhaltungsabzug): fund-internal foreign tax credit, reduces KeSt due.
+# KZ routing: AT-prefix ISIN → KZ 936; all others (IE, LU, …) → KZ 937.
+# Tax treatment is IDENTICAL for ausschüttend and thesaurierend — both file AE via KZ 937.
+# For ausschüttend: distributions are separately taxed via broker (KZ 898); AE = additional
+#   undistributed income (may be 0 for many years, e.g. VWRL 2024).
+# For thesaurierend: ALL fund income is AE (no cash distribution) — declare annually.
+# ⚠ Verify AE/WA per-share values on my.oekb.at before filing. PLACEHOLDER entries in
+#   data/oekb_ae.yaml must be filled in for the tool to compute actual KeSt.
+#
+# meldefonds_data_file: ./data/oekb_ae.yaml   # default path (committed, not gitignored)
+#
+# Set per-person in users/{person}/config.local.yaml:
+# meldefonds:
+#   - isin: IE00B3RBWM25   # VWRL — looks up AE/WA from data/oekb_ae.yaml automatically
+#     symbol: VWRL          # ticker as it appears in your broker export (for share count)
+#   - isin: IE00BK5BQT80   # VWCE accumulating
+#     symbol: VWCE
+
 # Nichtmeldefonds — funds NOT registered with OeKB (US REITs, BDCs, foreign ETFs).
 # Tax: 27.5% on max(90% × annual price gain, 10% × Dec31 price) per share.
 # Shares held are inferred from transaction history automatically.

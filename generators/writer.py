@@ -281,6 +281,11 @@ def _write_excel(txns: list[NormalizedTransaction],
         wnmf = wb.create_sheet("Nichtmeldefonds")
         _fill_nichtmeldefonds_sheet(wnmf, summary)
 
+    # ── Tab 8: Meldefonds (only if positions exist) ───────────────────────────
+    if summary.meldefonds:
+        wmf = wb.create_sheet("Meldefonds")
+        _fill_meldefonds_sheet(wmf, summary)
+
     wb.save(path)
 
 
@@ -482,8 +487,10 @@ def _fill_summary_sheet(ws, s: TaxSummary,
     # ── 1.3.4 Investmentfonds ─────────────────────────────────────────────────
     section("1.3.4", "Einkünfte aus Investmentfonds und Immobilieninvestmentfonds (§ 27 Abs. 3+4 InvFG)")
     kz_row("897", "898", "Ausschüttungen — 27,5%", s.kz_897, s.kz_898)
-    kz_row("936", "937", "Ausschüttungsgleiche Erträge — 27,5%  ⚠ OeKB-Daten erforderlich",
-           s.kz_936, s.kz_937, warn=(s.kz_937 == 0))
+    has_mf = bool(s.meldefonds)
+    kz_row("936", "937",
+           "Ausschüttungsgleiche Erträge — 27,5%" + (" ⚠ PLACEHOLDERs in Dataset!" if has_mf and s.kz_937 == 0 else ""),
+           s.kz_936, s.kz_937, warn=(not has_mf and s.kz_937 == 0))
     blank()
 
     # ── 1.3.5 Kryptowährungen ─────────────────────────────────────────────────
@@ -552,8 +559,8 @@ def _fill_summary_sheet(ws, s: TaxSummary,
     notes_row = row[0]
     using_formulas = bool(trade_refs or div_refs)
     notes = [
-        "⚠  KZ 936/937 (Ausschüttungsgleiche Erträge) werden NICHT automatisch berechnet — OeKB-Daten erforderlich.",
-        "⚠  Nichtmeldefonds (REITs, BDCs): Sonderbehandlung — wird in einem eigenen Abschnitt ausgewiesen (noch nicht implementiert).",
+        "" if s.meldefonds else "⚠  KZ 936/937 (Ausschüttungsgleiche Erträge): Meldefonds unter 'meldefonds:' in config.local.yaml konfigurieren; AE/WA-Daten in data/oekb_ae.yaml eintragen.",
+        "⚠  Nichtmeldefonds (REITs, BDCs): pauschal-AE-Berechnung läuft automatisch — siehe 'Nichtmeldefonds'-Tab.",
         "    Verluste (KZ 891/892) werden hier als negative Werte dargestellt; in FinanzOnline als Absolutbeträge eintragen.",
         "    KeSt-Berechnung (WHT-Anrechnung) enthält Treaty-Rate-Logik — nicht in Excel repliziert; Wert bleibt fix."
         if using_formulas else "",
@@ -1264,6 +1271,126 @@ def _fill_nichtmeldefonds_sheet(ws, summary) -> None:
         c = ws.cell(note_row + i, 1)
         c.value = note
         c.font = OFont(color="666666", italic=True, size=9)
+
+    ws.freeze_panes = "A2"
+
+
+# ── Meldefonds tab ────────────────────────────────────────────────────────────
+
+def _fill_meldefonds_sheet(ws, summary) -> None:
+    from openpyxl.styles import Font as OFont
+
+    ws.column_dimensions["A"].width = 16   # ISIN
+    ws.column_dimensions["B"].width = 8    # Symbol
+    ws.column_dimensions["C"].width = 6    # KZ
+    ws.column_dimensions["D"].width = 30   # Name
+    ws.column_dimensions["E"].width = 14   # Ertragsverw.
+    ws.column_dimensions["F"].width = 5    # Ccy
+    ws.column_dimensions["G"].width = 10   # Shares
+    ws.column_dimensions["H"].width = 13   # AE/share (native)
+    ws.column_dimensions["I"].width = 13   # WA/share (native)
+    ws.column_dimensions["J"].width = 13   # AE total (native)
+    ws.column_dimensions["K"].width = 11   # FX rate
+    ws.column_dimensions["L"].width = 14   # AE (EUR)
+    ws.column_dimensions["M"].width = 14   # WA (EUR)
+    ws.column_dimensions["N"].width = 14   # KeSt gross (EUR)
+    ws.column_dimensions["O"].width = 14   # KeSt net (EUR)
+    ws.column_dimensions["P"].width = 16   # AK-Korrektur (EUR)
+    ws.column_dimensions["Q"].width = 12   # Meldedatum
+
+    headers = [
+        "ISIN", "Symbol", "KZ", "Name", "Ertragsverw.", "Ccy", "Shares",
+        "AE/share", "WA/share",
+        f"AE ({summary.tax_year} native)", "FX rate",
+        "AE (EUR)", "WA (EUR)", "KeSt 27.5% gross", "KeSt net (after WA)",
+        "AK-Korrektur (EUR)", "Meldedatum",
+    ]
+
+    ws.append(headers)
+    for col_idx, _ in enumerate(headers, 1):
+        cell = ws.cell(1, col_idx)
+        cell.font = _font(bold=True, color=WHITE)
+        cell.fill = _hfill(SECTION_FILL)
+        cell.alignment = _center()
+        cell.border = _border()
+
+    for r in summary.meldefonds:
+        def fv(v):
+            return float(v) if v is not None else None
+
+        row_data = [
+            r.isin,
+            r.symbol,
+            r.kz,
+            r.name,
+            r.ertragsverwendung,
+            r.currency,
+            float(r.shares_held),
+            fv(r.ae_per_share),
+            fv(r.wa_per_share),
+            fv(r.ae_total_native),
+            fv(r.fx_rate),
+            fv(r.ae_total_eur),
+            fv(r.wa_total_eur),
+            fv(r.kest_gross_eur),
+            fv(r.kest_net_eur),
+            fv(r.ak_korrektur_eur),
+            r.meldedatum or "",
+        ]
+        ws.append(row_data)
+        row_idx = ws.max_row
+
+        ws.cell(row_idx, 2).font = _font(bold=True)   # symbol bold
+        for col_idx in [8, 9, 10]:
+            ws.cell(row_idx, col_idx).number_format = '#,##0.0000'
+        ws.cell(row_idx, 11).number_format = '0.0000'  # FX rate
+        for col_idx in [12, 13, 14, 15, 16]:
+            ws.cell(row_idx, col_idx).number_format = '#,##0.00 "EUR"'
+        ws.cell(row_idx, 14).font = _font(bold=True)
+        ws.cell(row_idx, 15).fill = _hfill(WARN_FILL)
+        ws.cell(row_idx, 15).font = _font(bold=True)
+        if r.ak_korrektur_eur and r.ak_korrektur_eur < 0:
+            ws.cell(row_idx, 16).font = OFont(color="0070C0")  # blue for negative correction
+
+        if r.warning:
+            ws.cell(row_idx, 2).font = OFont(color="C00000", bold=True)
+
+        for col_idx in range(1, 18):
+            ws.cell(row_idx, col_idx).border = _border()
+
+    # Totals row
+    total_row = ws.max_row + 1
+    ws.cell(total_row, 11).value = "TOTAL"
+    ws.cell(total_row, 11).font = _font(bold=True)
+    for col_idx, val in [
+        (12, summary.meldefonds_ae_eur),
+        (13, summary.meldefonds_wa_eur),
+        (14, summary.meldefonds_kest_gross_eur),
+        (15, summary.meldefonds_kest_net_eur),
+    ]:
+        ws.cell(total_row, col_idx).value = float(val)
+        ws.cell(total_row, col_idx).number_format = '#,##0.00 "EUR"'
+        ws.cell(total_row, col_idx).font = _font(bold=True)
+        ws.cell(total_row, col_idx).fill = _hfill(WARN_FILL if col_idx >= 14 else LIGHT_FILL)
+        ws.cell(total_row, col_idx).border = _border()
+
+    # Notes
+    note_row = total_row + 2
+    notes = [
+        f"KZ 937 (Ausschüttungsgleiche Erträge Ausland) = {float(summary.meldefonds_ae_eur):,.2f} EUR  →  KeSt netto = {float(summary.meldefonds_kest_net_eur):,.2f} EUR (nach WA-Abzug)",
+        "WA = Withhaltungsabzug: vom Fonds intern einbehaltene Quellensteuern — reduziert die KeSt-Schuld auf AE.",
+        "AK-Korrektur = Anschaffungskosten-Korrektur (lt. OeKB): positiv erhöht, negativ senkt die steuerliche Anschaffungskosten.",
+        "AE-Werte aus data/oekb_ae.yaml — Daten auf my.oekb.at verifizieren. PLACEHOLDER-Einträge vor Abgabe befüllen!",
+        "Ausschüttend: Ausschüttungen separat in KZ 898; AE hier = nur thesaurierter Anteil (ggf. 0).",
+        "Thesaurierend: GESAMTE Fondserträge als AE — auch ohne Barausschüttung jährlich steuerpflichtig.",
+    ]
+    for i, note in enumerate(notes):
+        ws.merge_cells(f"A{note_row + i}:Q{note_row + i}")
+        c = ws.cell(note_row + i, 1)
+        c.value = note
+        c.font = OFont(color="666666", italic=True, size=9)
+
+    ws.freeze_panes = "A2"
 
     ws.freeze_panes = "A2"
 

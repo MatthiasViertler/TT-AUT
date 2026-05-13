@@ -12,6 +12,7 @@ from brokers import load_transactions
 from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
 from core.models import NormalizedTransaction, TransactionType
+from core.meldefonds import calculate_meldefonds
 from core.nichtmeldefonds import calculate_nichtmeldefonds
 from core.price_fetcher import get_year_end_price
 from core.tax_engine import TaxEngine
@@ -140,7 +141,37 @@ def run_pipeline(
               f"KeSt = EUR {summary.nichtmeldefonds_kest_eur:,.2f}"
               + (f"  ⚠ {positions_warn} missing price(s)" if positions_warn else ""))
 
-    # ── 3c. Dynamic portfolio value (Dec 31 market price × remaining lots) ───
+    # ── 3c. Meldefonds (OeKB-registered fund AE/WA) ──────────────────────────
+    mf_results = calculate_meldefonds(config, tax_year, all_transactions, fx)
+    if mf_results:
+        summary.meldefonds              = mf_results
+        summary.meldefonds_ae_eur       = sum(r.ae_total_eur   for r in mf_results)
+        summary.meldefonds_kest_gross_eur = sum(r.kest_gross_eur for r in mf_results)
+        summary.meldefonds_wa_eur       = sum(r.wa_total_eur   for r in mf_results)
+        summary.meldefonds_kest_net_eur = sum(r.kest_net_eur   for r in mf_results)
+        for r in mf_results:
+            if r.kz == "936":
+                summary.kz_936        += r.ae_total_eur
+                summary.saldo_inland  += r.ae_total_eur
+            else:
+                summary.kz_937        += r.ae_total_eur
+                summary.saldo_ausland += r.ae_total_eur
+            summary.net_taxable_eur += r.ae_total_eur
+            summary.kest_due_eur    += r.kest_gross_eur
+        # WA is a fund-internal credit that reduces the KeSt remaining to pay
+        summary.kest_remaining_eur = max(
+            ZERO,
+            (summary.kest_due_eur
+             - summary.wht_creditable_eur
+             - summary.meldefonds_wa_eur).quantize(Decimal("0.01"))
+        )
+        mf_warn = sum(1 for r in mf_results if r.warning)
+        print(f"  [mf]     Meldefonds: {len(mf_results)} position(s), "
+              f"AE = EUR {summary.meldefonds_ae_eur:,.2f}, "
+              f"KeSt = EUR {summary.meldefonds_kest_net_eur:,.2f}"
+              + (f"  ⚠ {mf_warn} with zero AE (verify on my.oekb.at)" if mf_warn else ""))
+
+    # ── 3e. Dynamic portfolio value (Dec 31 market price × remaining lots) ───
     portfolio_eur = _compute_portfolio_value(
         engine.remaining_positions,
         engine.symbol_meta,
@@ -159,7 +190,7 @@ def run_pipeline(
         print(f"  [port]   Portfolio value: could not compute (no prices available) "
               f"— using config value if set")
 
-    # ── 3d. Trailing dividend yield (actual dividends / Dec31 portfolio) ──────
+    # ── 3f. Trailing dividend yield (actual dividends / Dec31 portfolio) ──────
     computed_yield = _compute_dividend_yield(summary)
     if computed_yield is not None:
         summary.dividend_yield_computed = computed_yield

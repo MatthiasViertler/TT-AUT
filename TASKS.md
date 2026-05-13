@@ -5,11 +5,17 @@ Move completed items to ## Done with the date.
 
 ---
 
-## 🔴 URGENT — France 2024 Reclaim Deadline
+## 🔴 URGENT — WHT Reclaim Forms
 
-- [ ] **File France 2024 WHT reclaim** — deadline 2026-12-31 (241 days). Excess: EUR 12.06.
+AT Ansässigkeitsbescheinigung (ZS-AD) received signed from Finanzamt 2026-05-13 ✓
+
+- [ ] **File France 2024 WHT reclaim** — deadline 2026-12-31 (232 days). Excess: EUR 12.06.
       Cerfa n°12816 (Formulaire 5000 + 5001). Verify applicable WHT rate first.
       Stocks: MC (FR0000121014, EUR 7.00 excess), SAF (FR0000073272, EUR 5.06 excess).
+- [ ] **File Germany WHT reclaim** — Erstattung Kapitalertragsteuer. Excess: EUR 775.00.
+      File with Bundeszentralamt für Steuern (BZSt) — use their online portal or Erstattungsantrag form.
+- [ ] **File Denmark WHT reclaim** — Excess: EUR 37.91. File with SKAT (Danish tax authority).
+- [ ] **File Ireland Interest Reclaim** — form pending; amount TBD.
 
 ---
 
@@ -104,10 +110,13 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] **Verlustausgleich tracker** — Overview tab expanded: Dom Gains (KZ 981), Dom Losses (KZ 891),
       Fgn Gains (KZ 994), Fgn Losses (KZ 892) as separate columns; per-year netting visible at a glance.
       6 new sheet-rendering tests (197 total). *(2026-05-08)*
-- [ ] **Meldefonds/ETF KZ 937 support** — v1.0: curated `data/oekb_ae.yaml` with annual AE/WA per share
-      for ~15 most common ETFs (VWRL, IWDA, CSPX, VHYL, …); same module pattern as `core/nichtmeldefonds.py`.
-      OeKB fund registry (no auth) usable for Meldefonds status check by ISIN. AE/WA sourced from
-      fund "Steuerliche Mitteilung" PDFs. v2.0: live feed via OeKB data license.
+- [x] **Meldefonds/ETF AE support (KZ 936/937)** *(2026-05-13)*
+      `core/meldefonds.py` + `data/oekb_ae.yaml` (curated dataset). Seed ETFs: VWRL (A1JX52),
+      VWCE (A2PKXG), VFEM (A1JX51), VFEA (A2PLTC), IWDA (A0RPWH). 17 tests → 235 total.
+      AE/WA per share from OeKB "Steuerliche Mitteilung"; WA offsets KeSt (tracked separately from WHT).
+      KZ 936 (AT ISIN) / KZ 937 (foreign). Shares inferred from transaction history (symbol + ISIN fallback).
+      Excel "Meldefonds" tab auto-generated when positions configured.
+      ⚠ Verify PLACEHOLDER AE/WA values on my.oekb.at before filing — especially VWRL 2024 WA.
 - [ ] **OeKB data license inquiry** — email taxdata@oekb.at; open-source tool may qualify for free
       structured AE/WA feed; do before building v2.0 ETF automation.
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
@@ -145,6 +154,10 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [ ] Prior-year loss carryforward input
 
 ---
+
+- [ ] **Freedom tab — per-symbol holdings table** — expand Freedom HTML + Excel tab with a
+      per-position breakdown (symbol, qty, Dec31 price, EUR value) sourced from `remaining_positions`.
+      Exclude synthetic positions (AggregatedAmounts qty=1 and manual_cost_basis lots).
 
 ## 📋 Start-of-Session Checklist
 

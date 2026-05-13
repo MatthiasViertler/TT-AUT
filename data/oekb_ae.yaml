@@ -1,0 +1,192 @@
+# OeKB Steuerliche Mitteilungen — curated dataset for common Meldefonds.
+#
+# Source: my.oekb.at (authenticated SPA — no public API for AE/WA figures).
+# All values MUST be manually verified on my.oekb.at before filing.
+# Entries marked PLACEHOLDER need to be filled in from the fund's Meldung.
+#
+# ─── Field reference ───────────────────────────────────────────────────────
+# ae_per_share       Ausschüttungsgleiche Erträge per unit, in fund currency.
+#                    For ausschüttend: additional undistributed income beyond
+#                    what was distributed (often 0 or small).
+#                    For thesaurierend: ALL fund income (dividends + interest
+#                    + intra-fund realized gains earned in the fiscal year).
+#
+# wa_per_share       Withhaltungsabzug per unit — foreign taxes already
+#                    withheld within the fund on the AE. Reduces KeSt due.
+#                    (e.g. US dividends withheld at 15% inside an Irish ETF)
+#
+# ak_korrektur_per_share
+#                    Anschaffungskosten-Korrektur per unit in EUR.
+#                    Positive = cost basis increases (prevents double-tax on sale).
+#                    Negative = cost basis decreases (distributing funds where
+#                    distributions exceeded AE; excess returned as tax-neutral).
+#                    NOTE: this field is in EUR, not fund currency.
+#
+# meldedatum         Date OeKB received the fund's fiscal-year tax report.
+#                    Shares held ON this date determine the tax obligation.
+#                    May differ from calendar Dec 31 (Irish funds often report
+#                    Jan/Feb for the prior year).
+#
+# domicile           ISIN country prefix determines KZ routing on E1kv:
+#                    AT-prefix → KZ 936 (inländisch)
+#                    All others (IE, LU, …) → KZ 937 (ausländisch)
+#
+# ertragsverwendung  ausschüttend or thesaurierend. Tax treatment is the SAME
+#                    (same KZ 936/937); the difference is whether distributions
+#                    have already been taxed via the broker (KZ 898) separately.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# How to look up values on my.oekb.at:
+#   1. Go to https://my.oekb.at → Steuerdaten → Fonds-Steuerdaten
+#   2. Search by ISIN
+#   3. Find the Meldung for the relevant fiscal year
+#   4. Download "Steuerliche Mitteilung" PDF — AE/WA/AK-Korrektur are on page 1
+#   5. Enter per-share figures here under the calendar year the meldedatum falls in
+#
+# OeKB Meldefonds registry (no auth, ISIN validation only):
+#   https://my.oekb.at/kms-reporting/public?report=steuerdaten-liste-mf-gesamt&format=CSV
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VANGUARD FTSE EMERGING MARKETS — DISTRIBUTING
+# WKN: A1JX51 | ISIN: IE00B3VVMM84 | Meldefonds since 2013-05-22
+# ─────────────────────────────────────────────────────────────────────────────
+IE00B3VVMM84:
+  symbol: VFEM            # ticker as it appears in your broker export
+  wkn: A1JX51
+  name: Vanguard FTSE Emerging Markets UCITS ETF (Distributing)
+  type: ETF
+  currency: USD
+  domicile: IE            # → KZ 937 (ausländisch)
+  ertragsverwendung: ausschüttend
+  meldefonds_since: "2013-05-22"
+  steuerlicher_vertreter: Deloitte Tax Wirtschaftsprüfungs GmbH
+  data:
+    2023:
+      ae_per_share: 0.0000        # PLACEHOLDER — verify on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.0000  # PLACEHOLDER (EUR)
+      meldedatum: "2024-01-01"    # PLACEHOLDER
+    2024:
+      ae_per_share: 0.0000        # PLACEHOLDER — verify on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.0000  # PLACEHOLDER (EUR)
+      meldedatum: "2025-01-01"    # PLACEHOLDER
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VANGUARD FTSE EMERGING MARKETS — ACCUMULATING
+# WKN: A2PLTC | ISIN: IE00BK5BR733 | Meldefonds since 2019-09-26
+# ─────────────────────────────────────────────────────────────────────────────
+IE00BK5BR733:
+  symbol: VFEA            # ticker as it appears in your broker export
+  wkn: A2PLTC
+  name: Vanguard FTSE Emerging Markets UCITS ETF (Accumulating)
+  type: ETF
+  currency: USD
+  domicile: IE            # → KZ 937 (ausländisch)
+  ertragsverwendung: thesaurierend
+  meldefonds_since: "2019-09-26"
+  steuerlicher_vertreter: Deloitte Tax Wirtschaftsprüfungs GmbH
+  data:
+    2023:
+      ae_per_share: 0.0000        # PLACEHOLDER — verify on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.0000  # PLACEHOLDER (EUR)
+      meldedatum: "2024-01-01"    # PLACEHOLDER
+    2024:
+      ae_per_share: 0.0000        # PLACEHOLDER — verify on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.0000  # PLACEHOLDER (EUR)
+      meldedatum: "2025-01-01"    # PLACEHOLDER
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VANGUARD FTSE ALL-WORLD — ACCUMULATING (VWCE)
+# WKN: A2PKXG | ISIN: IE00BK5BQT80 | Meldefonds since 2019-08-05
+# ─────────────────────────────────────────────────────────────────────────────
+IE00BK5BQT80:
+  symbol: VWCE            # ticker as it appears in your broker export
+  wkn: A2PKXG
+  name: Vanguard FTSE All-World UCITS ETF (Accumulating)
+  type: ETF
+  currency: USD
+  domicile: IE            # → KZ 937 (ausländisch)
+  ertragsverwendung: thesaurierend
+  meldefonds_since: "2019-08-05"
+  steuerlicher_vertreter: Deloitte Tax Wirtschaftsprüfungs GmbH
+  data:
+    2023:
+      ae_per_share: 0.1936        # source: broker-test.at — VERIFY on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.1936  # PLACEHOLDER (EUR; = AE for thesaurierend, approx)
+      meldedatum: "2024-01-15"    # PLACEHOLDER
+    2024:
+      ae_per_share: 0.3618        # source: broker-test.at — VERIFY on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.3618  # PLACEHOLDER (EUR; = AE for thesaurierend, approx)
+      meldedatum: "2025-01-15"    # PLACEHOLDER
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VANGUARD FTSE ALL-WORLD — DISTRIBUTING (VWRL)
+# WKN: A1JX52 | ISIN: IE00B3RBWM25 | Meldefonds since 2013-05-22
+# ─────────────────────────────────────────────────────────────────────────────
+IE00B3RBWM25:
+  symbol: VWRL            # ticker as it appears in your broker export
+  wkn: A1JX52
+  name: Vanguard FTSE All-World UCITS ETF (Distributing)
+  type: ETF
+  currency: USD
+  domicile: IE            # → KZ 937 (ausländisch)
+  ertragsverwendung: ausschüttend
+  meldefonds_since: "2013-05-22"
+  steuerlicher_vertreter: Deloitte Tax Wirtschaftsprüfungs GmbH
+  data:
+    2023:
+      ae_per_share: 0.0000        # PLACEHOLDER — verify on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.0000  # PLACEHOLDER (EUR)
+      meldedatum: "2024-01-01"    # PLACEHOLDER
+    2024:
+      ae_per_share: 0.0000        # PLACEHOLDER — verify on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      # Negative correction: distributions exceeded AE (source: broker-test.at, approx)
+      ak_korrektur_per_share: -0.0988  # PLACEHOLDER (EUR) — VERIFY on my.oekb.at
+      meldedatum: "2025-01-01"    # PLACEHOLDER
+
+# ─────────────────────────────────────────────────────────────────────────────
+# iSHARES CORE MSCI WORLD — ACCUMULATING (SWDA / IWDA)
+# WKN: A0RPWH | ISIN: IE00B4L5Y983 | Meldefonds since 2010-10-12
+# ─────────────────────────────────────────────────────────────────────────────
+IE00B4L5Y983:
+  symbol: IWDA            # ticker as it appears in your broker export
+  wkn: A0RPWH
+  name: iShares Core MSCI World UCITS ETF (Accumulating)
+  type: ETF
+  currency: USD
+  domicile: IE            # → KZ 937 (ausländisch)
+  ertragsverwendung: thesaurierend
+  meldefonds_since: "2010-10-12"
+  steuerlicher_vertreter: Ernst & Young Steuerberatungsgesellschaft m.b.H.
+  data:
+    2023:
+      ae_per_share: 0.0000        # PLACEHOLDER — fund fiscal year may not align with
+      wa_per_share: 0.0000        # calendar year; meldungen in Dec/Jan may mean zero
+      ak_korrektur_per_share: 0.0000  # AE in a given calendar year. Verify on my.oekb.at.
+      meldedatum: "2024-01-01"    # PLACEHOLDER
+    2024:
+      ae_per_share: 0.0000        # PLACEHOLDER — verify on my.oekb.at
+      wa_per_share: 0.0000        # PLACEHOLDER
+      ak_korrektur_per_share: 0.0000  # PLACEHOLDER (EUR)
+      meldedatum: "2025-01-01"    # PLACEHOLDER
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTE on QQQ (Invesco QQQ Trust, ISIN: US46090E1038)
+# ─────────────────────────────────────────────────────────────────────────────
+# QQQ is NOT a Meldefonds — it is not registered with OeKB.
+# It falls under § 186 InvFG (Nichtmeldefonds, pauschal AE formula).
+# Configure it under nichtmeldefonds: in users/{person}/config.local.yaml instead:
+#
+#   nichtmeldefonds:
+#     - symbol: QQQ
+#       isin: US46090E1038
+#       name: Invesco QQQ Trust
+#       type: FUND
+#       currency: USD

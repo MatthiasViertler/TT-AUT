@@ -135,6 +135,41 @@ class NichtmeldefondsResult:
 
 
 @dataclass
+class MeldefondsResult:
+    """
+    Per-position Meldefonds (OeKB-registered fund) result for one tax year.
+    AE and WA figures are sourced from the curated data/oekb_ae.yaml dataset.
+
+    Key difference from NichtmeldefondsResult: AE is a real OeKB-published figure
+    (not a pauschal formula). WA (Withhaltungsabzug) is a fund-internal credit that
+    reduces KeSt due on the AE.
+    """
+    isin:               str
+    symbol:             str
+    name:               str
+    fund_type:          str            # "ETF", "FUND"
+    currency:           str
+    ertragsverwendung:  str            # "ausschüttend" or "thesaurierend"
+    kz:                 str            # "936" (AT ISIN) or "937" (foreign ISIN)
+
+    shares_held:        Decimal        # on meldedatum (or Dec 31 if unavailable)
+    ae_per_share:       Decimal        # in fund currency (from OeKB)
+    wa_per_share:       Decimal        # Withhaltungsabzug per share, in fund currency
+    fx_rate:            Optional[Decimal]   # EUR / fund_currency on meldedatum
+
+    ae_total_native:    Decimal = Decimal(0)   # ae_per_share × shares_held
+    wa_total_native:    Decimal = Decimal(0)   # wa_per_share × shares_held
+    ae_total_eur:       Decimal = Decimal(0)   # ae_total_native × fx_rate
+    wa_total_eur:       Decimal = Decimal(0)   # wa_total_native × fx_rate
+    kest_gross_eur:     Decimal = Decimal(0)   # 27.5% × ae_total_eur (before WA credit)
+    kest_net_eur:       Decimal = Decimal(0)   # kest_gross - wa_total_eur (what user owes)
+    ak_korrektur_eur:   Decimal = Decimal(0)   # cost basis adjustment from OeKB (EUR, may be negative)
+
+    meldedatum:         str = ""       # date of OeKB filing (YYYY-MM-DD)
+    warning:            str = ""
+
+
+@dataclass
 class MatchedTrade:
     """
     A realized gain/loss: one SELL matched against one or more BUYs.
@@ -223,6 +258,13 @@ class TaxSummary:
     nichtmeldefonds:            list = field(default_factory=list)  # list[NichtmeldefondsResult]
     nichtmeldefonds_ae_eur:     Decimal = Decimal(0)
     nichtmeldefonds_kest_eur:   Decimal = Decimal(0)
+
+    # ── Meldefonds (OeKB-registered funds) ───────────────────────────────────
+    meldefonds:                 list = field(default_factory=list)  # list[MeldefondsResult]
+    meldefonds_ae_eur:          Decimal = Decimal(0)   # total AE across all positions (EUR)
+    meldefonds_kest_gross_eur:  Decimal = Decimal(0)   # 27.5% × AE before WA credit
+    meldefonds_wa_eur:          Decimal = Decimal(0)   # total WA credit (reduces KeSt)
+    meldefonds_kest_net_eur:    Decimal = Decimal(0)   # = kest_gross - WA (what user owes)
 
     # ── Portfolio snapshot (computed from remaining FIFO lots at Dec 31) ─────
     # Populated by the pipeline after tax calculation. None = not computed.

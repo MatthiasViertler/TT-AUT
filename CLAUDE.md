@@ -53,7 +53,7 @@ users/jessie/
 - Output lands in `users/{person}/output/` by default
 - WHT warning only fires if excess > €0.05 (suppresses rounding noise)
 - Domestic = ISIN starts AT or exchange WBAG/XWBO
-- KZ 937 NOT auto-calculated (needs OeKB data)
+- **KZ 937 (Meldefonds AE)**: auto-calculated for ISINs configured in `meldefonds:` with verified values in `data/oekb_ae.yaml`. PLACEHOLDER entries produce zero — verify each AE/WA figure on my.oekb.at before filing.
 - **OPT rows (AssetClass=OPT) — SKIPPED intentionally.** Derivatives KZ deferred.
 - **Dynamic portfolio value**: pipeline computes Dec31 market value from remaining FIFO lots × yfinance price × ECB FX. SAXO AggregatedAmounts (`broker='saxo'`) and `manual_cost_basis` lots tagged `synthetic=True` and excluded (qty=1 convention makes them unvalueable). Result stored in `summary.portfolio_eur_computed`; Freedom tab uses it as default, slider max scales automatically.
 
@@ -106,7 +106,7 @@ python main.py --input users/matthias/data/IB/2025/file.csv --year 2025
 All land in `users/{person}/output/`:
 - `{person}_{year}_tax_summary.txt`   — E1kv Kennziffern for FinanzOnline
 - `{person}_{year}_transactions.csv`  — full transaction log
-- `{person}_{year}_dashboard.xlsx`    — E1kv Summary, Overview, Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds]
+- `{person}_{year}_dashboard.xlsx`    — E1kv Summary, Overview, Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds], [Meldefonds]
 - `{person}_{year}_freedom.html`      — interactive financial independence dashboard (sliders)
 - `{person}_{year}_wht_reclaim.txt`   — WHT reclaim report (if at_residency_start_year set)
 - `{person}_{year}_anv_checklist.txt` — L1 deduction checklist (if anv: section in config)
@@ -119,6 +119,7 @@ All land in `users/{person}/output/`:
 - `manual_cost_basis: [{symbol, isin, purchase_date, quantity, cost_eur}]` — seeds FIFO for spin-offs
 - `symbol_aliases: {NEWTICKER: OLDTICKER}` — tender/merger FIFO matching
 - `freedom_dashboard: {portfolio_eur, monthly_expenses_eur, monthly_contribution_eur, yield_pct, growth_pct}`
+- `meldefonds: [{isin, symbol}]` — OeKB-registered funds; AE/WA looked up from `data/oekb_ae.yaml`
 - `nichtmeldefonds: [{symbol, isin, name, type, currency}]`
 - `saxo_closedpos_skip_buy_open_dates: [...]` — skip BUY lots on these open dates (manual_cost_basis covers them)
 - `saxo_skip_agg_trades: true` — AggregatedAmounts emits dividends only (use with ClosedPositions)
@@ -141,7 +142,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 180 tests, all green
+- `python -m pytest tests/` — 235 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -200,20 +201,18 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `users/matthias/config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
 ## Next up (priority order)
-1. **🔴 France WHT reclaim** — deadline 2026-12-31; Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess. File before year-end.
+1. **🔴 WHT reclaim forms** — AT Ansässigkeitsbescheinigung (ZS-AD) received signed 2026-05-13.
+   - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
+   - Germany: DE €775.00 excess; also DK €37.91 excess pending.
+   - Ireland Interest Reclaim Form pending.
 2. **E\*Trade parser** — needs sample export from Matthias first; blocks capturing any E*Trade holdings
-3. **Freedom tab — dynamic dividend yield** ✅ done 2026-05-12 — trailing yield from actual dividends / Dec31 portfolio value
-4. **Meldefonds/ETF support (KZ 937)** — v1.0 blocker for broad AT audience. Plan:
-   - v1.0: curated `data/oekb_ae.yaml` with annual AE/WA per share for ~15 most common ETFs (VWRL, IWDA, CSPX, VHYL, …); user can override/extend
-   - OeKB public endpoint confirms Meldefonds status by ISIN (no auth needed): `https://my.oekb.at/kms-reporting/public?report=steuerdaten-liste-mf-gesamt&format=CSV`
-   - Actual AE/WA figures behind authenticated SPA — no public API found; sourced manually from fund "Steuerliche Mitteilung" PDFs
-   - v2.0: contact taxdata@oekb.at for data license / structured feed; or session-based scrape once pattern known
-   - Architecture: same module pattern as `core/nichtmeldefonds.py` but pulls AE from curated dataset instead of pauschal formula
-5. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured data feed; unlocks automated AE/WA for all Meldefonds in v2.0
-6. **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → correct portfolio value for dividend yield calculation; low priority (users can set `freedom_dashboard.portfolio_eur` manually)
+3. **Freedom tab — per-symbol holdings table** — expand HTML + Excel Freedom tab with per-position breakdown (symbol, qty, Dec31 price, EUR value) from `remaining_positions`
+4. **IBKR Flex Web Service auto-fetch** — `--fetch-ibkr` flag; token + query_id in config.local.yaml; eliminates manual CSV export step each year
+5. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
+6. **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → correct portfolio value; low priority (users can set `freedom_dashboard.portfolio_eur` manually)
 7. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
 - ⚠️ **France 2024 deadline: 2026-12-31** — Cerfa n°12816, MC + SAF, €12.06 excess
-- Ansässigkeitsbescheinigung (ZS-AD): filed at Finanzamt 2026-05-03
+- Ansässigkeitsbescheinigung (ZS-AD): signed confirmation from AT Finanzamt received 2026-05-13 ✓

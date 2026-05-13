@@ -14,7 +14,7 @@ For each run (`--person`, `--year`):
 |------|----------|
 | `users/{person}/output/{person}_{year}_tax_summary.txt` | E1kv Kennziffern ready to copy into FinanzOnline |
 | `users/{person}/output/{person}_{year}_transactions.csv` | Full transaction log with FX rates, cost basis, gain/loss |
-| `users/{person}/output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds] |
+| `users/{person}/output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds], [Meldefonds] |
 | `users/{person}/output/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
 | `users/{person}/output/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
 | `users/{person}/output/{person}_{year}_anv_checklist.txt` | L1 deduction checklist — Werbungskosten, Pendlerpauschale, Sonderausgaben, Familienbonus (if `anv:` set) |
@@ -220,7 +220,7 @@ All options:
 - **Same-day round-trip detection** — if a sell + same-day repurchase of the same symbol produces a gain/loss < 1% of proceeds (> €500), a warning flags possible FIFO mismatch against the new buy instead of older lots
 - **Nichtmeldefonds** (§ 186 InvFG) — pauschal AE = max(90% × annual gain, 10% × Dec31 price) per share; year-end prices auto-fetched from Yahoo Finance and cached
 - **Manual cost basis override** — seed the FIFO queue for positions with no IB buy record (spin-offs, broker transfers)
-- **KZ 937** (Ausschüttungsgleiche Erträge for accumulating funds) is **not** auto-calculated — requires OeKB data; flagged for manual entry
+- **Meldefonds (OeKB-registered funds, KZ 936/937)** — AE/WA per share from curated `data/oekb_ae.yaml`; KeSt = 27.5% × AE × shares × FX; WA (Withhaltungsabzug) reduces KeSt due; AT-domiciled ISINs → KZ 936, foreign (IE/LU) → KZ 937. Configured via `meldefonds:` in config.local.yaml.
 
 ---
 
@@ -238,6 +238,28 @@ nichtmeldefonds:
 ```
 
 Year-end prices are fetched automatically via yfinance and cached in `data/price_cache/`.
+
+---
+
+## Meldefonds — OeKB-registered funds (KZ 936/937)
+
+For UCITS ETFs and other funds registered with OeKB (most IE/LU-domiciled ETFs), add to `config.local.yaml`:
+
+```yaml
+meldefonds:
+  - isin: IE00B3RBWM25   # VWRL — Vanguard FTSE All-World (Distributing)
+    symbol: VWRL          # ticker as it appears in your broker export
+  - isin: IE00BK5BQT80   # VWCE — Vanguard FTSE All-World (Accumulating)
+    symbol: VWCE
+```
+
+AE (Ausschüttungsgleiche Erträge) and WA (Withhaltungsabzug) values are read from `data/oekb_ae.yaml` — a curated dataset keyed by ISIN. Share counts are inferred automatically from your transaction history.
+
+**KZ routing:** ISINs with `AT` prefix → KZ 936 (inländisch); all others (IE, LU, …) → KZ 937 (ausländisch).
+
+**Distributing vs. accumulating:** tax treatment is identical — both declare AE annually. For distributing funds, distributions are separately taxed by the broker (KZ 898); AE here = additional undistributed income (may be zero or negative). For accumulating funds, all fund income is AE.
+
+**⚠ Verify AE/WA values** on [my.oekb.at](https://my.oekb.at) before filing. PLACEHOLDER entries in `data/oekb_ae.yaml` produce zero — fill in the actual figures from the fund's "Steuerliche Mitteilung" PDF for each year.
 
 ---
 
@@ -334,7 +356,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-180 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, Verlustausgleich year-over-year tracking, ISIN rename hint, and same-day round-trip detection.
+235 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, Verlustausgleich year-over-year tracking, ISIN rename hint, same-day round-trip detection, Meldefonds AE/WA calculation (KZ 936/937, WA credit, share inference).
 
 ---
 
