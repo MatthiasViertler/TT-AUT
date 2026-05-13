@@ -58,7 +58,8 @@ users/jessie/
 - Domestic = ISIN starts AT or exchange WBAG/XWBO
 - **KZ 937 (Meldefonds AE)**: auto-calculated for ISINs configured in `meldefonds:` with verified values in `data/oekb_ae.yaml`. PLACEHOLDER entries produce zero — verify each AE/WA figure on my.oekb.at before filing.
 - **OPT rows (AssetClass=OPT) — SKIPPED intentionally.** Derivatives KZ deferred.
-- **Dynamic portfolio value**: pipeline computes Dec31 market value from remaining FIFO lots × yfinance price × ECB FX. SAXO AggregatedAmounts (`broker='saxo'`) and `manual_cost_basis` lots tagged `synthetic=True` and excluded (qty=1 convention makes them unvalueable). Result stored in `summary.portfolio_eur_computed`; Freedom tab uses it as default, slider max scales automatically.
+- **Dynamic portfolio value**: IBKR Open Positions mark prices used when available (POST section in flex CSV, auto-detected). Falls back to FIFO lots × yfinance. SAXO AggregatedAmounts (`broker='saxo'`) and `manual_cost_basis` lots (`synthetic=True`) excluded. `portfolio_eur_supplement` adds SAXO manual estimate. Stored in `summary.portfolio_eur_computed`.
+- **Freedom FIRE model**: total return = `portfolio × (yield + growth)` — not dividends-only. Chart shows both total-return and dividends-only lines.
 
 ## Security rule — NEVER violate
 **Never write real account IDs, API keys, passwords, or any PII into committed files.**
@@ -124,6 +125,7 @@ All land in `users/{person}/output/`:
 - `freedom_dashboard: {portfolio_eur, monthly_expenses_eur, monthly_contribution_eur, yield_pct, growth_pct}`
 - `meldefonds: [{isin, symbol}]` — OeKB-registered funds; AE/WA looked up from `data/oekb_ae.yaml`
 - `nichtmeldefonds: [{symbol, isin, name, type, currency}]`
+- `portfolio_eur_supplement: N` — added on top of IBKR auto-computed value (e.g. manual SAXO estimate)
 - `saxo_closedpos_skip_buy_open_dates: [...]` — skip BUY lots on these open dates (manual_cost_basis covers them)
 - `saxo_skip_agg_trades: true` — AggregatedAmounts emits dividends only (use with ClosedPositions)
 - `saxo_skip_agg_dividends: true` — AggregatedAmounts emits trades only (use when ShareDividends also loaded for same period — prevents double-counting)
@@ -145,7 +147,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 282 tests, all green
+- `python -m pytest tests/` — 300 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -231,8 +233,8 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
    - Germany: DE €775.00 excess; also DK €37.91 excess pending.
    - Ireland Interest Reclaim Form pending.
 2. **E\*Trade parser** — needs sample export from Matthias first; blocks capturing any E*Trade holdings
-3. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
-4. **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → correct portfolio value; low priority (users can set `freedom_dashboard.portfolio_eur` manually)
+3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO Holdings export sample
+4. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
 5. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)

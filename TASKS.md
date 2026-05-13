@@ -135,10 +135,17 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       uses `rglob` to scan recursively, auto-detects broker per file, loads all years for FIFO.
       11 tests added (191 total). *(2026-05-08)*
 - [x] **IBKR Flex Web Service auto-fetch** — `--fetch-ibkr` / `--force-fetch-ibkr` flags *(2026-05-13)*
-      Config: `ibkr_flex: {token, query_id}` in `users/{person}/config.local.yaml`.
+      Config: `ibkr_flex: {token, query_id}` in `users/{person}/secrets.local.yaml` (layer 4, gitignored).
       Two-step IBKR API (SendRequest → GetStatement); auto-retry on 1019; saves to
       `users/{person}/data/IB/{person}_ibkr_flex.csv`; pre-commit hook blocks token leaks.
       21 tests → 282 total.
+- [x] **IBKR Open Positions parser + total-return FIRE + secrets layer** *(2026-05-14)*
+      `brokers/ibkr_positions.py`: parses POST section (BOS/EOS, HEADER/DATA, Classic); uses mark prices
+      directly — bypasses yfinance, solving European ticker issues (RENK, RHM, TKMS, …).
+      FIRE model: `portfolio × (yield + growth)`; chart shows total-return + div-only lines.
+      `secrets.local.yaml`: 4th config layer for credentials (gitignored; pre-commit scans all values ≥ 6 chars).
+      `portfolio_eur_supplement`: SAXO manual add-on on top of IBKR auto-computed value.
+      18 new tests → 300 total. Tagged v0.2.2.
 - [ ] **Local web UI** — Flask/FastAPI + HTML; folder picker, pipeline progress, inline results,
       download buttons. One command to start. No CLI knowledge required.
 - [ ] **FinanzOnline XML output** — machine-readable upload format for direct e-filing
@@ -150,9 +157,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] SAXO parser — `brokers/saxo_xlsx.py` (AggregatedAmounts + ShareDividends) + `brokers/saxo_closedpos_xlsx.py`
       (ClosedPositions, real quantities); `saxo_skip_agg_trades` + `saxo_skip_agg_dividends` flags; 166 tests *(2026-05-05)*
 - [ ] **E\*Trade parser** (`brokers/etrade.py`) — needed for Matthias 2025 filing; need sample export first
-- [ ] **Portfolio snapshot parsers** — IB NAV Statement + SAXO Holdings report → seed `remaining_positions`
-      directly with real quantities for accurate portfolio value + dividend yield. Low priority: users can
-      set `freedom_dashboard.portfolio_eur` manually.
+- [ ] **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO
+      Holdings export sample from Matthias. Would make SAXO portfolio value automatic.
+- [ ] **IB NAV Statement parser** — alternative route to portfolio value; lower priority than IBKR Open Positions (already solved via mark prices in POST section).
 - [ ] REIT/BDC handling (US return of capital, §199A dividends, 1099-DIV boxes)
 - [ ] `--compare` mode — merge self + jessie into one dashboard
 - [ ] Prior-year loss carryforward input
