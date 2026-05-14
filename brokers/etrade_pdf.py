@@ -94,10 +94,12 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], str | 
     fmt = _detect_format(full_text)
     source = path.name
 
+    skip_dates = {date.fromisoformat(d) for d in config.get("etrade_skip_transfers", [])}
+
     if fmt == "old":
         txns, account_id = _parse_old(full_text, source)
     elif fmt == "new":
-        txns, account_id = _parse_new(pages_text, source)
+        txns, account_id = _parse_new(pages_text, source, skip_dates)
     else:
         log.warning(f"[etrade] Unrecognised E*TRADE statement format: {path.name}")
         return [], None
@@ -352,7 +354,8 @@ _NEW_TRANSFER_RE = re.compile(
 )
 
 
-def _parse_new(pages_text: list[str], source: str) -> tuple[list[NormalizedTransaction], str]:
+def _parse_new(pages_text: list[str], source: str,
+               skip_transfer_dates: set = None) -> tuple[list[NormalizedTransaction], str]:
     txns: list[NormalizedTransaction] = []
     full_text = "\n".join(pages_text)
 
@@ -472,6 +475,11 @@ def _parse_new(pages_text: list[str], source: str) -> tuple[list[NormalizedTrans
                 price = (fmv_total / qty).quantize(Decimal("0.0001"))
             except (InvalidOperation, ValueError, ZeroDivisionError) as e:
                 log.warning(f"[etrade-new] Skipping RSU transfer: {m.group()!r} ({e})")
+                continue
+
+            if skip_transfer_dates and d in skip_transfer_dates:
+                log.info(f"[etrade-new] Skipping account-migration transfer on {d} "
+                         f"({qty} shares of {desc.strip()}) — cost basis carried from original lots")
                 continue
 
             is_nxpi = "NXP" in desc.upper()
