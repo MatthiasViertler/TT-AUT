@@ -5,7 +5,7 @@ Austrian capital gains tax calculator (Python CLI).
 Repo: https://github.com/MatthiasViertler/TT-AUT
 
 ## Stack
-Python 3.11+, openpyxl, PyYAML, yfinance. Venv: `.venv/`. ECB FX cached in `cache/fx_cache/`. Year-end prices in `cache/price_cache/`.
+Python 3.11+, openpyxl, PyYAML, yfinance, pdfplumber. Venv: `.venv/`. ECB FX cached in `cache/fx_cache/`. Year-end prices in `cache/price_cache/`.
 
 ## Structure
 ```
@@ -22,6 +22,7 @@ brokers/ibkr_flex_fetch.py   IBKR Flex Web Service auto-fetch (--fetch-ibkr / --
 brokers/ibkr_positions.py    IBKR Open Positions parser (auto-detected from activity statement or separate file)
 brokers/saxo_xlsx.py         SAXO Bank xlsx parser (AggregatedAmounts + ShareDividends)
 brokers/saxo_closedpos_xlsx.py  SAXO ClosedPositions xlsx parser (real quantities)
+brokers/etrade_pdf.py        E*TRADE PDF parser (old E*TRADE Securities + new Morgan Stanley formats)
 generators/writer.py             write_all() — orchestrates all output files
 generators/freedom.py            Freedom dashboard HTML generator
 generators/wht_reclaim.py        WHT reclaim report generator
@@ -84,8 +85,9 @@ account_id:           # scalar or list — supports multi-broker and migrated ac
 
 Account IDs are **placeholders only** in this file — real IDs are in `users/{person}/config.local.yaml`.
 - Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
-- Matthias: IB + SAXO DK accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
+- Matthias: IB + SAXO DK + E*Trade accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
   2025 run: KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €2,628 | KeSt remaining **€3,560** (IB+SAXO, no double-count)
+  ⚠️ E*Trade 2022-2023 statements not yet obtained — NXPI FIFO cost basis for those years incomplete
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
   1COV/1CO Covestro tender (symbol_aliases) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓,
@@ -205,6 +207,26 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - **Corporate acquisitions**: "Corporate Actions - Cash Compensation" rows → treated as SELL (e.g. SWAV acquired by JNJ Jun 2024 for €3695.01)
 - **Matthias SAXO pre-2024 positions**: all 44 positions seeded in `users/matthias/config.local.yaml` via `manual_cost_basis`; cost basis = avg open price from 2023 Holdings, FX at ECB 2023-12-31 (EUR/USD 1.1050, EUR/HKD 8.5238)
 
+## E*Trade parser notes
+
+### Two format generations
+- **Old (2020-2021)**: E*TRADE Securities LLC, quarterly statements. Sections: "TRANSACTION HISTORY" (sells/buys), "OTHERACTIVITY" (RSU Receive rows, no price), "DIVIDENDS & INTEREST ACTIVITY". RSU cost basis fetched from yfinance (closing price on vesting date).
+- **New (2024+)**: E*TRADE from Morgan Stanley, monthly. Sections: "CASH FLOW ACTIVITY BY DATE" (sells/buys + dividends), "SECURITY TRANSFERS" (RSU vestings with FMV amount). RSU cost basis = FMV amount ÷ qty from statement.
+
+### RSU treatment (NXPI / NXP Semiconductors)
+- Sell-to-cover shares are withheld by NXP payroll off-statement — **not visible** in E*Trade exports.
+- Only net-issued shares appear as "Transfer into Account" (new) or "Receive" (old).
+- Cost basis = FMV at vesting date (from statement or yfinance). KeSt = 27.5% × (sale price − FMV).
+- NXPI: ISIN NL0009538784, NL domicile, 15% WHT.
+
+### Practical notes
+- Account IDs are extracted from PDF text dynamically (never hardcoded). E*Trade accounts in `users/{person}/config.local.yaml` under `account_id:`.
+- Old format: "E*TRADE Securities" is CID-encoded on page 1; `detect()` checks first + last 2 pages.
+- Old format sell regex: AMOUNT PURCHASED column is empty for sells; only one amount appears in text.
+- Annual December recap re-lists all prior-year Security Transfers — same `raw_id`s, pipeline dedup handles it.
+- Cash Management Recap PDFs (2 pages, "Recap of Cash Management Activity") contain no trades — correctly not detected.
+- **Missing 2022-2023 statements**: NXPI FIFO chain has a gap. Obtain via E*Trade web portal.
+
 ## IBKR Flex Web Service auto-fetch
 - **CLI**: `python main.py --person matthias --year 2025 --fetch-ibkr`
 - **Force re-download**: `--force-fetch-ibkr`
@@ -232,7 +254,7 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
    - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
    - Germany: DE €775.00 excess; also DK €37.91 excess pending.
    - Ireland Interest Reclaim Form pending.
-2. **E\*Trade parser** — needs sample export from Matthias first; blocks capturing any E*Trade holdings
+2. **E\*Trade 2022-2023 statements** — missing; needed to complete NXPI FIFO chain. Log in via web, export monthly statements for 2022 and 2023, place in `users/matthias/data/E*Trade/AccountStatements/{year}/`.
 3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO Holdings export sample
 4. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
 5. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)

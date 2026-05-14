@@ -156,7 +156,12 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 - [x] SAXO parser — `brokers/saxo_xlsx.py` (AggregatedAmounts + ShareDividends) + `brokers/saxo_closedpos_xlsx.py`
       (ClosedPositions, real quantities); `saxo_skip_agg_trades` + `saxo_skip_agg_dividends` flags; 166 tests *(2026-05-05)*
-- [ ] **E\*Trade parser** (`brokers/etrade.py`) — needed for Matthias 2025 filing; need sample export first
+- [x] **E\*Trade PDF parser** (`brokers/etrade_pdf.py`) *(2026-05-14)*
+      Two formats: old (2020-2021, E*TRADE Securities LLC) + new (2024+, Morgan Stanley).
+      Parses sells, buys, RSU vestings (FMV cost basis from statement or yfinance), dividends + WHT.
+      Account IDs extracted dynamically from PDF text (never hardcoded); added to config.local.yaml.
+      pdfplumber dependency uncommented in requirements.txt. 21 tests → 321 total.
+      ⚠️ Missing 2022-2023 statements; FIFO cost basis for those years incomplete until obtained.
 - [ ] **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO
       Holdings export sample from Matthias. Would make SAXO portfolio value automatic.
 - [ ] **IB NAV Statement parser** — alternative route to portfolio value; lower priority than IBKR Open Positions (already solved via mark prices in POST section).

@@ -13,8 +13,8 @@ yfinance>=0.2.0
 # Optional: faster CSV parsing for large IB exports (uncomment if needed)
 # pandas>=2.0.0
 
-# Optional: PDF parsing for brokers that only export PDFs (uncomment if needed)
-# pdfplumber>=0.10.0
+# PDF parsing for E*TRADE statements
+pdfplumber>=0.10.0
 
 # Testing
 pytest>=9.0.0

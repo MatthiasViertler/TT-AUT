@@ -19,6 +19,7 @@ _PARSER_MODULES = [
     ("brokers.ib_csv",             "Interactive Brokers CSV"),
     ("brokers.saxo_closedpos_xlsx","SAXO Bank ClosedPositions xlsx"),
     ("brokers.saxo_xlsx",          "SAXO Bank xlsx"),
+    ("brokers.etrade_pdf",         "E*TRADE PDF"),
     # ("brokers.degiro",  "DEGIRO"),           # TODO: implement
     # ("brokers.flatex",  "Flatex Austria"),   # TODO: implement
 ]
