@@ -40,6 +40,16 @@ def test_detect_format_new_fallback():
 def test_detect_format_unknown():
     assert _detect_format("Some Other Broker Statement") == "unknown"
 
+def test_detect_format_recap_skipped():
+    # Standalone recap PDF: "Recap of Cash Management Activity" but no "For the Period"
+    text = "Morgan Stanley at Work\n2023 Recap of Cash Management Activity 100-123456-789"
+    assert _detect_format(text) == "unknown"
+
+def test_detect_format_december_recap_not_skipped():
+    # December monthly statement (Morgan Stanley) embeds a recap section but has "For the Period"
+    text = "Morgan Stanley at Work\nFor the Period December 1-31, 2024\nRecap of Cash Management Activity"
+    assert _detect_format(text) == "new"
+
 
 # ── _extract_account_id ───────────────────────────────────────────────────────
 

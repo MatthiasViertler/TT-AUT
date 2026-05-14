@@ -111,6 +111,12 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], str | 
 # ── Format detection ──────────────────────────────────────────────────────────
 
 def _detect_format(text: str) -> str:
+    # Standalone annual recap PDFs have "Recap of Cash Management Activity" but no
+    # "For the Period" header. Monthly statements may contain the same phrase as a
+    # sub-section but always have a period header. Skip standalone recaps: they have
+    # no reliable year context and are fully covered by the monthly statements.
+    if "Recap of Cash Management Activity" in text and "For the Period" not in text:
+        return "unknown"
     if "Morgan Stanley" in text:
         return "new"
     if "E*TRADE Securities" in text:
