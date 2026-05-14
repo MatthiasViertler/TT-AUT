@@ -219,6 +219,17 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - Cost basis = FMV at vesting date (from statement or yfinance). KeSt = 27.5% × (sale price − FMV).
 - NXPI: ISIN NL0009538784, NL domicile, 15% WHT.
 
+### Which reports to download from E*Trade
+Log in → **Documents → Account Statements**. Download **monthly** statements (not quarterly, not annual recaps).
+
+| Period | Account | Where to get |
+|--------|---------|--------------|
+| 2020–2021 (quarterly) | old E*TRADE Securities (XXXX0725) | Documents → Account Statements → 2020, 2021 |
+| 2022–Aug 2023 (monthly) | old E*TRADE Securities (XXXX0725) | same; covers up to Aug 2023 closing statement |
+| Sep 2023+ (monthly) | E*Trade from Morgan Stanley (XXXX201) | Documents → Account Statements → 2023, 2024, 2025 |
+
+**Do NOT download** standalone "Recap of Cash Management Activity" PDFs — these are informational only, have no year context, and are correctly skipped by the parser. Download only the regular monthly/quarterly statements.
+
 ### Practical notes
 - Account IDs are extracted from PDF text dynamically (never hardcoded). E*Trade accounts in `users/{person}/config.local.yaml` under `account_id:`.
 - Old format: "E*TRADE Securities" is CID-encoded on page 1; `detect()` checks first + last 2 pages.

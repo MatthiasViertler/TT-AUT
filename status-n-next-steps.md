@@ -1,31 +1,30 @@
 # Session Handoff — 2026-05-14
 
 ## What was done
-- **Total-return FIRE model**: freedom dashboard now projects `portfolio × (yield + growth)` as primary income; dividends-only shown as a second dashed line for transparency. Portfolios with significant growth (e.g. 7%) now correctly show FIRE NOW when expenses are covered.
-- **IBKR Open Positions parser** (`brokers/ibkr_positions.py`): reads the POST/OpenPositions section from IBKR Flex CSV (BOS/EOS, HEADER/DATA, Classic formats). Uses broker mark prices directly — bypasses yfinance entirely, solving European stock ticker issues (RENK, RHM, TKMS, …). Auto-detected from any input file; no new config or flags needed. 38 positions parsed, €272k IBKR portfolio computed.
-- **`portfolio_eur_supplement`** config key: adds a manual SAXO estimate on top of the IBKR auto-computed value; freedom dashboard uses the combined total.
-- **`secrets.local.yaml`** architecture: new 4th config layer (gitignored) holds IBKR token/query_id and future broker credentials; never touched during routine config edits. Pre-commit hook extended to scan all string values (len ≥ 6) from this file.
-- **18 new tests** for the positions parser (300 total, all green).
-- Documentation: README, CLAUDE.md updated for all new features.
-- Tagged **v0.2.2**.
+- **E*Trade PDF parser completed** (`brokers/etrade_pdf.py`): both old (E*TRADE Securities LLC, quarterly) and new (Morgan Stanley, monthly) formats
+- **2022 + 2023 E*Trade statements added** to `users/matthias/data/E*Trade/AccountStatements/`; NXPI FIFO chain is now complete 2020–2026 (47 deduplicated transactions)
+- **`etrade_skip_transfers` config**: suppresses Sep 1 2023 account-migration "Transfer into Account" (123.977 NXPI) which is not a fresh RSU vest — cost basis traces to original 2020–2022 vesting lots
+- **Standalone Recap PDF skip**: `_detect_format()` now returns `"unknown"` for annual "Recap of Cash Management Activity" PDFs (no `For the Period` header → unreliable year context). Monthly statements with an embedded recap section are unaffected.
+- **CLAUDE.md**: added "Which reports to download from E*Trade" table; updated migration and recap notes
+- **26 E*Trade parser tests** (up from 21); 326 total passing
+- Tagged **v0.2.3**
 
 ## Current state
-- Tests: **300 passed**, 0 failed
-- Matthias 2025 KeSt figures (unchanged): KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €2,628 | KeSt remaining **€3,560**
-- Portfolio value computed: €272k IBKR (35 positions) + €250k SAXO supplement (manual estimate) = ~€522k
+- Tests: **326 passed** ✓
+- Key figures (Matthias 2025): KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KeSt remaining **€3,560**
+  - Note: E*Trade 2024/2025 sells not yet included in those totals (those are IB+SAXO only)
 - Known issues / open warnings:
-  - SAXO supplement (€250k) is a manual estimate — replace with real value or SAXO Holdings parser
-  - oekb_ae.yaml PLACEHOLDER AE/WA values for VWRL/VWCE/VFEM/VFEA/IWDA — verify before filing KZ 937
-  - VER→OEWA alias must be removed before running `--year 2026`
+  - `File 15.02.25, 16 59 26.pdf` (2023 folder) — permanently unrecognised; appears to be a non-E*Trade document. Safe to ignore or archive.
+  - PLACEHOLDER AE/WA values in `data/oekb_ae.yaml` — verify on my.oekb.at before filing
+  - ⚠️ Remove `VER: OEWA` alias from `config.local.yaml` before 2026 tax run (all OEWA lots consumed 2025-12-17)
 
 ## Next session priorities
-1. **WHT reclaim form submissions** — Ansässigkeitsbescheinigung signed 2026-05-13, France deadline 2026-12-31 (Cerfa n°12816). Germany €775, DK €37.91, FR €39.24 (excl. France €12.06 net).
-2. **E*Trade parser** — blocked on sample export from Matthias; branch `feature/etrade-parser`
-3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO Holdings export sample
-4. **OeKB data license** — email taxdata@oekb.at (one email unlocks automated AE/WA for v2.0)
-5. Verify oekb_ae.yaml PLACEHOLDER values on my.oekb.at before next filing
+1. **🔴 File France 2024 WHT reclaim** — deadline 2026-12-31 (231 days). Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess. AT Ansässigkeitsbescheinigung in hand ✓
+2. **File Germany WHT reclaim** — €775.00 excess; Bundeszentralamt für Steuern portal
+3. **File Denmark WHT reclaim** — €37.91 excess; SKAT
+4. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO Holdings export sample
+5. **OeKB data license inquiry** — email taxdata@oekb.at
 
 ## Blockers
-- E*Trade parser: needs sample export from Matthias
-- SAXO Holdings parser: needs SAXO Holdings export sample from Matthias
-- WHT forms: all documents now in hand, paper filing by user (not a code task)
+- SAXO Holdings parser: need Holdings export sample from Matthias
+- WHT reclaims: paper filings (not coding tasks); France deadline most urgent
