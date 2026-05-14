@@ -160,8 +160,11 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       Two formats: old (2020-2021, E*TRADE Securities LLC) + new (2024+, Morgan Stanley).
       Parses sells, buys, RSU vestings (FMV cost basis from statement or yfinance), dividends + WHT.
       Account IDs extracted dynamically from PDF text (never hardcoded); added to config.local.yaml.
-      pdfplumber dependency uncommented in requirements.txt. 21 tests → 321 total.
-      ⚠️ Missing 2022-2023 statements; FIFO cost basis for those years incomplete until obtained.
+      pdfplumber dependency uncommented in requirements.txt. 26 tests → 326 total.
+      `etrade_skip_transfers` config: suppresses account-migration "Transfer into Account" entries
+      (e.g. Sep 1 2023 old→Morgan Stanley migration of 123.977 NXPI — not a fresh RSU vest).
+      Standalone "Recap of Cash Management Activity" PDFs correctly skipped (no year header).
+      2022 + 2023 statements obtained and in data/; NXPI FIFO chain complete 2020–2026.
 - [ ] **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO
       Holdings export sample from Matthias. Would make SAXO portfolio value automatic.
 - [ ] **IB NAV Statement parser** — alternative route to portfolio value; lower priority than IBKR Open Positions (already solved via mark prices in POST section).

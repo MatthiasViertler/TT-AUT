@@ -87,7 +87,7 @@ Account IDs are **placeholders only** in this file — real IDs are in `users/{p
 - Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
 - Matthias: IB + SAXO DK + E*Trade accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
   2025 run: KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €2,628 | KeSt remaining **€3,560** (IB+SAXO, no double-count)
-  ⚠️ E*Trade 2022-2023 statements not yet obtained — NXPI FIFO cost basis for those years incomplete
+  E*Trade 2022-2023 statements obtained ✓; NXPI FIFO chain complete 2020–2026. Sep 2023 account migration handled via `etrade_skip_transfers`.
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
   1COV/1CO Covestro tender (symbol_aliases) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓,
@@ -224,8 +224,8 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
 - Old format: "E*TRADE Securities" is CID-encoded on page 1; `detect()` checks first + last 2 pages.
 - Old format sell regex: AMOUNT PURCHASED column is empty for sells; only one amount appears in text.
 - Annual December recap re-lists all prior-year Security Transfers — same `raw_id`s, pipeline dedup handles it.
-- Cash Management Recap PDFs (2 pages, "Recap of Cash Management Activity") contain no trades — correctly not detected.
-- **Missing 2022-2023 statements**: NXPI FIFO chain has a gap. Obtain via E*Trade web portal.
+- Standalone annual "Recap of Cash Management Activity" PDFs (no "For the Period" header) → `_detect_format` returns `"unknown"` and skips them. These have no reliable year context; monthly statements cover the same data.
+- **`etrade_skip_transfers`** config key (list of YYYY-MM-DD): suppresses "Transfer into Account" entries on those dates. Use for account migrations (e.g. Sep 1 2023 old→Morgan Stanley migration of 123.977 NXPI). Genuine vestings on other dates are unaffected.
 
 ## IBKR Flex Web Service auto-fetch
 - **CLI**: `python main.py --person matthias --year 2025 --fetch-ibkr`
@@ -254,10 +254,9 @@ SAXO AggregatedAmounts exports carry no per-share quantity. Each row is one trad
    - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
    - Germany: DE €775.00 excess; also DK €37.91 excess pending.
    - Ireland Interest Reclaim Form pending.
-2. **E\*Trade 2022-2023 statements** — missing; needed to complete NXPI FIFO chain. Log in via web, export monthly statements for 2022 and 2023, place in `users/matthias/data/E*Trade/AccountStatements/{year}/`.
-3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO Holdings export sample
-4. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
-5. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
+2. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO Holdings export sample
+3. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
+4. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
