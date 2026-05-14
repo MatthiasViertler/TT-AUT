@@ -33,7 +33,8 @@ FX rates are fetched from the ECB and cached locally — no API key needed.
 | SAXO — ClosedPositions | Reports → ClosedPositions xlsx | ✓ supported (preferred for trades — real share quantities) |
 | SAXO — AggregatedAmounts | Reports → AggregatedAmounts xlsx | ✓ supported (preferred for dividends; set `saxo_skip_agg_trades: true` when combined with ClosedPositions) |
 | SAXO — ShareDividends | Reports → ShareDividends xlsx | ✓ supported (optional — better WHT detail) |
-| E*Trade | — | planned |
+| E*Trade (old) | E*TRADE Securities LLC quarterly PDF | ✓ supported (2020–2021 format) |
+| E*Trade (new) | Morgan Stanley monthly PDF | ✓ supported (2023+ format); requires `pdfplumber` |
 
 ---
 
