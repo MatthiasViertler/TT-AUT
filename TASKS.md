@@ -167,6 +167,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       2022 + 2023 statements obtained and in data/; NXPI FIFO chain complete 2020–2026.
 - [ ] **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO
       Holdings export sample from Matthias. Would make SAXO portfolio value automatic.
+- [ ] **E\*Trade CSV parser** (`brokers/etrade_csv.py`) — parse `tradesdownload.csv` exports (currently
+      skipped as unrecognised). Would eliminate reliance on iPhone-scanned PDFs for Morgan Stanley
+      account statements; cleaner data source for dividends and RSU vests.
 - [ ] **IB NAV Statement parser** — alternative route to portfolio value; lower priority than IBKR Open Positions (already solved via mark prices in POST section).
 - [ ] REIT/BDC handling (US return of capital, §199A dividends, 1099-DIV boxes)
 - [ ] `--compare` mode — merge self + jessie into one dashboard

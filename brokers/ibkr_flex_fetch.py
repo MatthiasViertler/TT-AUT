@@ -101,6 +101,11 @@ def _send_request(token: str, query_id: str | int) -> str:
             time.sleep(_RETRY_DELAY_S)
             continue
 
+        if error_code == "1001":
+            raise FlexFetchError(
+                "IBKR cooldown active (error 1001) — wait ~10 minutes, then re-run with --force-fetch-ibkr"
+            )
+
         raise FlexFetchError(
             f"IBKR Flex SendRequest error {error_code}: {error_msg}"
         )

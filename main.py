@@ -24,7 +24,7 @@ from brokers.ibkr_flex_fetch import fetch_flex_report, FlexFetchError
 from brokers.ibkr_positions import parse_ibkr_positions
 
 # File extensions recognised as potential broker exports
-_BROKER_EXTENSIONS = {'.csv', '.xml', '.xlsx', '.xls', '.txt'}
+_BROKER_EXTENSIONS = {'.csv', '.xml', '.xlsx', '.xls', '.pdf'}
 
 
 def _resolve_inputs(paths: list[Path]) -> list[Path]:

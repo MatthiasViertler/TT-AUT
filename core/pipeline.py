@@ -43,13 +43,19 @@ def run_pipeline(
     all_transactions: list[NormalizedTransaction] = []
     account_ids: set[str] = set()
 
+    skipped = 0
     for path in input_paths:
         txns, account_id = load_transactions(path, config, broker_hint)
+        if txns is None:
+            skipped += 1
+            continue
         all_transactions.extend(txns)
         if account_id:
             account_ids.add(account_id)
         print(f"  [parse]  {path.name}  →  {len(txns)} transactions"
               + (f"  (account: {account_id})" if account_id else ""))
+    if skipped:
+        print(f"  [skip]   {skipped} file(s) not recognised as broker exports (see log for names)")
 
     if not all_transactions:
         print("  [warn]  No transactions loaded. Check your input files.")
@@ -92,6 +98,8 @@ def run_pipeline(
     if len(unique) < len(all_transactions):
         print(f"  [dedup]  Removed {len(all_transactions) - len(unique)} duplicate rows")
     all_transactions = unique
+
+    _print_coverage(all_transactions, tax_year)
 
     # ── 2. FX enrichment ─────────────────────────────────────────────────────
     fx = FXRateProvider(
@@ -451,6 +459,40 @@ def _compute_dividend_yield(summary) -> "float | None":
     if port is None or port <= ZERO or divs <= ZERO:
         return None
     return round(float(divs / port * 100), 2)
+
+
+def _print_coverage(transactions: list, tax_year: int) -> None:
+    """Print a data-coverage table grouped by broker so missing months are visible."""
+    from collections import defaultdict
+
+    _BROKER_LABELS = {
+        "ib": "IBKR", "ibkr": "IBKR",
+        "saxo": "SAXO", "etrade": "E*Trade",
+    }
+
+    # date range per broker: overall, and restricted to tax_year
+    overall:  dict[str, list] = defaultdict(lambda: [None, None, 0])
+    in_year:  dict[str, list] = defaultdict(lambda: [None, None, 0])
+
+    for t in transactions:
+        d      = t.trade_date
+        broker = t.broker or "unknown"
+        lo, hi, n = overall[broker]
+        overall[broker] = [min(lo, d) if lo else d, max(hi, d) if hi else d, n + 1]
+        if d.year == tax_year:
+            lo, hi, n = in_year[broker]
+            in_year[broker] = [min(lo, d) if lo else d, max(hi, d) if hi else d, n + 1]
+
+    print("  [cover]  Data coverage by broker (by transaction date, not statement date):")
+    for broker in sorted(overall):
+        label       = _BROKER_LABELS.get(broker, broker)
+        lo, hi, _   = overall[broker]
+        if broker in in_year:
+            ylo, yhi, yn = in_year[broker]
+            year_part = f"{tax_year}: {ylo.strftime('%b %d')} → {yhi.strftime('%b %d')} ({yn} txns)"
+        else:
+            year_part = f"⚠ no {tax_year} transactions — check for missing files"
+        print(f"           {label:<10}  {lo} → {hi}   |  {year_part}")
 
 
 def _print_summary(s) -> None:

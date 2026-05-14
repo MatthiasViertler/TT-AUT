@@ -53,8 +53,5 @@ def load_transactions(path: Path, config: dict,
             log.info(f"Auto-detected broker: {label} for {path.name}")
             return mod.parse(path, config)
 
-    raise ValueError(
-        f"Could not auto-detect broker format for: {path.name}\n"
-        f"Supported brokers: {[l for _, l in _PARSER_MODULES]}\n"
-        f"Use --broker flag to force a specific parser."
-    )
+    log.warning("Skipping unrecognised file (no parser matched): %s", path.name)
+    return None, None

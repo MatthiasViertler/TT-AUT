@@ -46,7 +46,24 @@ def test_directory_skips_dotfiles(tmp_path):
 
 
 def test_directory_skips_unknown_extensions(tmp_path):
-    (tmp_path / "notes.pdf").touch()
+    (tmp_path / "notes.docx").touch()
+    (tmp_path / "image.png").touch()
+    (tmp_path / "readme.txt").touch()
+    (tmp_path / "export.csv").touch()
+    result = _resolve_inputs([tmp_path])
+    assert result == [tmp_path / "export.csv"]
+
+
+def test_pdf_included(tmp_path):
+    # E*Trade PDFs must be picked up by the scanner
+    f = tmp_path / "statement.pdf"
+    f.touch()
+    assert _resolve_inputs([tmp_path]) == [f]
+
+
+def test_txt_excluded(tmp_path):
+    # .txt files are not a broker export format; iOS transfer artifacts must be ignored
+    (tmp_path / "File 15.02.25, 16 55 59.txt").touch()
     (tmp_path / "export.csv").touch()
     result = _resolve_inputs([tmp_path])
     assert result == [tmp_path / "export.csv"]
