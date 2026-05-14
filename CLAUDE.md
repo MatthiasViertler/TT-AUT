@@ -263,11 +263,12 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 ## Next up (priority order)
 1. **🔴 WHT reclaim forms** — AT Ansässigkeitsbescheinigung (ZS-AD) received signed 2026-05-13.
    - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
-   - Germany: DE €775.00 excess; also DK €37.91 excess pending.
-   - Ireland Interest Reclaim Form pending.
-2. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO Holdings export sample
-3. **OeKB data license inquiry** — email taxdata@oekb.at; open-source community tool may qualify for free structured AE/WA feed; unlocks automated AE/WA for all Meldefonds in v2.0
-4. `--regelbesteuerung` flag — low priority (Matthias progressive rate > 27.5%; N/A Jessie 2025)
+   - Germany: DE €775.00 excess; BZSt portal. Denmark: €37.91 excess; SKAT. Paper filings only.
+2. **IBKR Cash Report parser** — Cash Report section added to flex query (Currency + EndingCash fields).
+   Parser side not yet built. FX via ECB layer. Result adds cash to `portfolio_eur_computed`.
+3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement`; blocked on Holdings export sample
+4. **E*Trade CSV parser** — parse `tradesdownload.csv`; eliminates iPhone-scan PDF reliance
+5. **OeKB data license inquiry** — email taxdata@oekb.at; unlocks automated AE/WA for all Meldefonds
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
