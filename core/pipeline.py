@@ -9,7 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from brokers import load_transactions
-from brokers.ib_csv import parse_ibkr_cash_report
+from brokers.ib_csv import parse_ibkr_cash_report, parse_ibkr_interest, _iter_interest_rows
 from brokers.ibkr_positions import parse_ibkr_positions
 from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
@@ -258,6 +258,35 @@ def run_pipeline(
     else:
         print(f"  [port]   Portfolio value: could not compute (no prices available) "
               f"— using config value if set")
+
+    # ── 3e-iii. IBKR Cash Interest ────────────────────────────────────────────
+    # 'Broker Interest Received' rows from CTRN section.  Fully optional: absent
+    # rows → ZERO, no change to tax output.  Present rows added to KZ 863 and kest_due.
+    # Deduplicate by (currency, description): the same monthly payment appears in
+    # both the auto-fetched flex CSV and the annual TT-AUT export — count it once.
+    interest_eur = ZERO
+    seen_interest: dict[tuple, Decimal] = {}
+    for p in input_paths:
+        for key, eur_amt in _iter_interest_rows(p, tax_year):
+            if key not in seen_interest:
+                seen_interest[key] = eur_amt
+    if seen_interest:
+        interest_eur = sum(seen_interest.values(), ZERO)
+        print(f"  [interest] EUR {interest_eur:,.2f} cash interest for {tax_year} "
+              f"({len(seen_interest)} unique payments across {len(input_paths)} files)")
+
+    if interest_eur > ZERO:
+        summary.interest_eur = interest_eur
+        summary.kz_863          += interest_eur
+        summary.saldo_ausland   += interest_eur
+        summary.net_taxable_eur += interest_eur
+        summary.kest_due_eur    += (interest_eur * Decimal("0.275")).quantize(Decimal("0.01"))
+        summary.kest_remaining_eur = max(
+            ZERO,
+            (summary.kest_due_eur
+             - summary.wht_creditable_eur
+             - summary.meldefonds_wa_eur).quantize(Decimal("0.01"))
+        )
 
     # ── 3f. Trailing dividend yield (actual dividends / Dec31 portfolio) ──────
     computed_yield = _compute_dividend_yield(summary)

@@ -58,6 +58,10 @@ FULL_TYPE_MAP = {
 
 
 _CASH_REPORT_SECTION_NAMES = {"Cash Report", "CashReport", "CRTT"}
+_CTRN_SECTION_NAMES        = {"Cash Transactions", "CashTransactions", "CTRN"}
+
+# Matches the year at the end of IB interest descriptions: "EUR CREDIT INT FOR MAY-2025"
+_INTEREST_YEAR_RE = re.compile(r'\b(\d{4})\b')
 
 
 def detect(path: Path) -> bool:
@@ -658,8 +662,58 @@ def parse_ibkr_cash_report(path: Path) -> Optional[Decimal]:
     return None
 
 
+def parse_ibkr_interest(path: Path, year: int) -> Decimal:
+    """Parse the CTRN section and return total cash interest income for the given year in EUR.
+
+    Identifies 'Broker Interest Received' rows and extracts the year from the description
+    (e.g. 'EUR CREDIT INT FOR MAY-2025' → 2025).  Non-EUR amounts are converted using
+    IB's FXRateToBase column (same base-currency assumption as parse_ibkr_cash_report).
+    Returns ZERO if no interest rows are found for the given year.
+    """
+    total = sum((amt for _, amt in _iter_interest_rows(path, year)), ZERO)
+    if total > ZERO:
+        log.info("ibkr-interest: EUR %.2f interest for %d from %s", total, year, path.name)
+    return total
+
+
+def _iter_interest_rows(path: Path, year: int):
+    """Yield ((currency, description), eur_amount) for each interest row in target year.
+
+    Used by the pipeline for cross-file deduplication: the same monthly payment
+    appears identically in multiple IB export files (flex query + annual TT-AUT
+    exports).  Callers deduplicate by the returned key before summing.
+    """
+    for row in _read_ctrn_section(path):
+        if row.get("Type", "").strip() != "Broker Interest Received":
+            continue
+        desc = row.get("Description", "")
+        m = _INTEREST_YEAR_RE.search(desc)
+        if not m or int(m.group(1)) != year:
+            continue
+        currency = row.get("CurrencyPrimary", "").strip()
+        try:
+            amount = Decimal(row.get("Amount", "0").strip().replace(",", ""))
+            fx     = Decimal(row.get("FXRateToBase", "1").strip().replace(",", "") or "1")
+        except InvalidOperation:
+            log.warning("ibkr-interest: unparseable row in %s: %s", path.name, row)
+            continue
+        if amount > ZERO:
+            yield (currency, desc), (amount * fx).quantize(Decimal("0.01"))
+
+
 def _read_cash_report_section(path: Path) -> list[dict]:
-    """Read all rows from the CRTT (Cash Report) section of an IB Flex CSV file."""
+    return _read_ibkr_section(path, _CASH_REPORT_SECTION_NAMES)
+
+
+def _read_ctrn_section(path: Path) -> list[dict]:
+    return _read_ibkr_section(path, _CTRN_SECTION_NAMES)
+
+
+def _read_ibkr_section(path: Path, section_names: set) -> list[dict]:
+    """Read all rows from a named section of an IB Flex CSV file.
+
+    Supports BOS/EOS (TT-AUT), HEADER/DATA (Flex Query), and Classic formats.
+    """
     rows: list[dict] = []
     headers: list[str] = []
     in_section = False
@@ -675,7 +729,7 @@ def _read_cash_report_section(path: Path) -> list[dict]:
 
             # ── BOS/EOS format ────────────────────────────────────────────────
             if marker == "BOS":
-                if col1 in _CASH_REPORT_SECTION_NAMES:
+                if col1 in section_names:
                     in_section = True
                     bos_state = "header_next"
                 continue
@@ -698,7 +752,7 @@ def _read_cash_report_section(path: Path) -> list[dict]:
 
             # ── HEADER/DATA Flex Query format ─────────────────────────────────
             if marker == "HEADER":
-                if col1 in _CASH_REPORT_SECTION_NAMES:
+                if col1 in section_names:
                     headers = [c.strip() for c in row[2:]]
                     in_section = True
                 elif in_section:
@@ -711,7 +765,7 @@ def _read_cash_report_section(path: Path) -> list[dict]:
 
             # ── Classic Activity Statement format ─────────────────────────────
             if col1 == "Header":
-                if marker in _CASH_REPORT_SECTION_NAMES:
+                if marker in section_names:
                     headers = [c.strip() for c in row[2:]]
                     in_section = True
                 elif in_section:

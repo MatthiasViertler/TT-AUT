@@ -84,11 +84,25 @@ def write_freedom_html(
     # Keep holdings for backward-compat (subtitle count uses it)
     holdings = _build_holdings(transactions, summary.tax_year)
 
+    interest_eur    = float(summary.interest_eur)
+    wht_total       = float(summary.total_wht_paid_eur)
+    wht_creditable  = float(summary.wht_creditable_eur)
+    wht_excess      = max(0.0, wht_total - wht_creditable)
+    gross_income    = total_div + interest_eur
+    # Net cash = gross × 72.5% minus non-creditable (excess) WHT already paid
+    net_income      = max(0.0, gross_income * 0.725 - wht_excess)
+
     data = {
         "person": summary.person_label,
         "year": summary.tax_year,
         "total_dividends_eur": round(total_div, 2),
         "monthly_dividends_eur": round(total_div / 12, 2),
+        "interest_eur": round(interest_eur, 2),
+        "wht_total_eur": round(wht_total, 2),
+        "wht_creditable_eur": round(wht_creditable, 2),
+        "wht_excess_eur": round(wht_excess, 2),
+        "net_income_eur": round(net_income, 2),
+        "net_monthly_income_eur": round(net_income / 12, 2),
         "holdings": holdings,
         "portfolio_positions": portfolio_json,
         "defaults": {
@@ -332,14 +346,14 @@ input[type=range]::-moz-range-thumb {
 
 <div class="cards">
   <div class="card">
-    <div class="card-label">Annual Passive Income</div>
+    <div class="card-label">Annual Dividends (gross)</div>
     <div class="card-value" style="color:#10b981" id="c-annual"></div>
-    <div class="card-sub">dividends received in <span id="c-year"></span></div>
+    <div class="card-sub">before tax, <span id="c-year"></span></div>
   </div>
   <div class="card">
-    <div class="card-label">Monthly Passive Income</div>
+    <div class="card-label">Net Monthly Income</div>
     <div class="card-value" style="color:#60a5fa" id="c-monthly"></div>
-    <div class="card-sub">avg per month</div>
+    <div class="card-sub">after KeSt &amp; WHT</div>
   </div>
   <div class="card">
     <div class="card-label">Financial Freedom</div>
@@ -351,6 +365,25 @@ input[type=range]::-moz-range-thumb {
     <div class="card-value" style="color:#f59e0b" id="c-fire-years"></div>
     <div class="card-sub" id="c-fire-sub"></div>
   </div>
+</div>
+
+<!-- Tax Breakdown -->
+<div class="panel" style="margin-bottom:1.5rem" id="tax-breakdown-panel">
+  <div class="panel-title">Income After Tax &mdash; Tax Year <span id="breakdown-tax-year"></span></div>
+  <table class="holdings-table" id="tax-breakdown-table">
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th class="r">Gross</th>
+        <th class="r">WHT paid</th>
+        <th class="r">AT KeSt (net)</th>
+        <th class="r">Net cash</th>
+      </tr>
+    </thead>
+    <tbody id="tax-breakdown-body"></tbody>
+    <tfoot id="tax-breakdown-foot"></tfoot>
+  </table>
+  <div style="font-size:0.75rem;color:#64748b;margin-top:0.625rem" id="tax-breakdown-note"></div>
 </div>
 
 <div class="main-grid">
@@ -398,7 +431,7 @@ input[type=range]::-moz-range-thumb {
 
     <div class="freedom-bar-wrap">
       <div class="freedom-bar-header">
-        <span>Dividend coverage (actual dividends vs. target)</span>
+        <span>Net income coverage (post-tax vs. monthly target)</span>
         <span id="l-bar-pct"></span>
       </div>
       <div class="freedom-bar-outer">
@@ -512,10 +545,65 @@ if (DATA.defaults.yield_source === 'computed') {
   yieldBadge.title = 'Yield from config (yield_pct) — run with all broker files for computed value';
 }
 
-// Static header
-E('c-year').textContent  = DATA.year;
+// Static header — DATA.year is the tax year (e.g. 2025); used wherever the year
+// appears as display text. Adding more spans with these IDs just works automatically.
+E('c-year').textContent           = DATA.year;
+E('breakdown-tax-year').textContent = DATA.year;
 E('c-annual').textContent  = eur(DATA.total_dividends_eur);
-E('c-monthly').textContent = eur(DATA.monthly_dividends_eur);
+E('c-monthly').textContent = eur(DATA.net_monthly_income_eur);
+
+// ── Tax Breakdown table ───────────────────────────────────────────────────────
+(function() {
+  const divGross  = DATA.total_dividends_eur;
+  const intGross  = DATA.interest_eur;
+  const whtTotal  = DATA.wht_total_eur;
+  const whtCred   = DATA.wht_creditable_eur;
+  const whtExcess = DATA.wht_excess_eur;
+  const netIncome = DATA.net_income_eur;
+  const kestNet   = Math.max(0, (divGross + intGross) * 0.275 - whtCred);
+
+  const tbody = E('tax-breakdown-body');
+
+  function addRow(label, gross, wht, kest, net) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + label + '</td>' +
+      '<td class="r">' + eur(gross) + '</td>' +
+      '<td class="r" style="color:#f59e0b">' + (wht > 0.005 ? '\\u2212' + eur(wht) : '\\u2014') + '</td>' +
+      '<td class="r" style="color:#f59e0b">' + (kest > 0.005 ? '\\u2212' + eur(kest) : '\\u2014') + '</td>' +
+      '<td class="r" style="color:#10b981">' + eur(net) + '</td>';
+    tbody.appendChild(tr);
+  }
+
+  if (divGross > 0) {
+    const dKest = Math.max(0, divGross * 0.275 - whtCred);
+    addRow('Dividends', divGross, whtTotal, dKest, divGross - whtTotal - dKest);
+  }
+  if (intGross > 0.005) {
+    const iKest = intGross * 0.275;
+    addRow('Cash interest (IBKR)', intGross, 0, iKest, intGross - iKest);
+  }
+
+  const tfoot = E('tax-breakdown-foot');
+  const tfr = document.createElement('tr');
+  tfr.style.fontWeight = '600';
+  tfr.style.borderTop  = '1px solid #334155';
+  tfr.innerHTML =
+    '<td>TOTAL</td>' +
+    '<td class="r">' + eur(divGross + intGross) + '</td>' +
+    '<td class="r" style="color:#f59e0b">' + (whtTotal > 0.005 ? '\\u2212' + eur(whtTotal) : '\\u2014') + '</td>' +
+    '<td class="r" style="color:#f59e0b">\\u2212' + eur(kestNet) + '</td>' +
+    '<td class="r" style="color:#10b981;font-size:1rem">' + eur(netIncome) + '</td>';
+  tfoot.appendChild(tfr);
+
+  if (whtExcess > 0.05) {
+    E('tax-breakdown-note').innerHTML =
+      '\\u26a0 Excess WHT (non-creditable, beyond AT treaty rate): <strong style="color:#f59e0b">' +
+      eur(whtExcess) + '</strong> \\u2014 reclaimable from source countries (1\\u20132 yr lag, separate filing required).';
+  } else if ((divGross + intGross) === 0) {
+    E('tax-breakdown-panel').style.display = 'none';
+  }
+})();
 
 const nValued = DATA.portfolio_positions.filter(p => !p.is_synthetic && p.eur_value > 0).length;
 const nDivs   = DATA.portfolio_positions.filter(p => p.dividends_eur > 0).length;
@@ -613,14 +701,14 @@ function update() {
     portfolioStart, monthlyExp, monthlyContrib, yieldPct, growthPct
   );
 
-  // Freedom card (current dividends vs target)
+  // Freedom card (current net income vs target — uses post-tax spendable amount)
   const freedomPct = monthlyExp > 0
-    ? Math.min(DATA.monthly_dividends_eur / monthlyExp * 100, 999)
+    ? Math.min(DATA.net_monthly_income_eur / monthlyExp * 100, 999)
     : 0;
   const freedomEl = E('c-freedom');
   freedomEl.textContent = pct(Math.min(freedomPct, 100));
   freedomEl.style.color = freedomPct >= 100 ? '#10b981' : freedomPct >= 50 ? '#60a5fa' : '#f59e0b';
-  E('c-freedom-sub').textContent = eur(DATA.monthly_dividends_eur) + ' of ' + eur(monthlyExp) + ' goal';
+  E('c-freedom-sub').textContent = eur(DATA.net_monthly_income_eur) + ' net of ' + eur(monthlyExp) + ' goal';
 
   // FIRE card (based on total return: dividends + portfolio growth)
   const fireYr = ms[100];
@@ -645,8 +733,8 @@ function update() {
   E('freedom-bar').style.width = barPct + '%';
   E('l-bar-pct').textContent   = pct(barPct);
 
-  // Milestones
-  const currentPct = targetAnnual > 0 ? DATA.total_dividends_eur / targetAnnual * 100 : 0;
+  // Milestones — use net income (post-tax) for achievement check
+  const currentPct = targetAnnual > 0 ? DATA.net_income_eur / targetAnnual * 100 : 0;
   [25, 50, 75, 100].forEach(m => {
     const el   = E('m' + m);
     const yrEl = E('m' + m + '-yr');

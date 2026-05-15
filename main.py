@@ -88,7 +88,7 @@ def main():
                         help="Root directory for per-user data (default: ./users)")
     parser.add_argument("--output-dir", default=None,
                         help="Output directory override. "
-                             "Default: users/{person}/output/")
+                             "Default: users/{person}/output/{year}/")
     parser.add_argument("--no-fx-fetch", action="store_true",
                         help="Skip fetching live FX rates (use cached only)")
     parser.add_argument("--fetch-ibkr", action="store_true",
@@ -225,9 +225,9 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     elif person != "auto":
-        output_dir = users_dir / person / "output"
+        output_dir = users_dir / person / "output" / str(args.year)
     else:
-        output_dir = Path("./output")  # fallback for full auto-detect mode
+        output_dir = Path("./output") / str(args.year)  # fallback for full auto-detect mode
 
     output_dir.mkdir(parents=True, exist_ok=True)
 

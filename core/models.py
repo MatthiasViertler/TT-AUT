@@ -295,6 +295,11 @@ class TaxSummary:
     # Included in portfolio_eur_computed when available.
     ibkr_cash_eur: Optional[Decimal] = None
 
+    # ── Broker cash interest (from CTRN section, 'Broker Interest Received') ──
+    # Summed across all input files for the target year; already EUR-converted.
+    # Taxable in AT: added to KZ 863 (foreign Zinsen/Dividenden) and kest_due.
+    interest_eur: Decimal = Decimal(0)
+
     # ── Trailing dividend yield (actual dividends / Dec31 portfolio value) ────
     # Populated only when both portfolio_eur_computed and total_dividends_eur > 0.
     dividend_yield_computed: Optional[float] = None

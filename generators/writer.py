@@ -110,6 +110,9 @@ def _save_summary_json(summary: TaxSummary, path: Path) -> None:
         val = getattr(summary, opt_field, None)
         data[opt_field] = str(val) if val is not None else None
 
+    # Interest income (always present; ZERO if no IBKR interest section found)
+    data["interest_eur"] = str(summary.interest_eur)
+
     # portfolio_positions: serialize for the multi-year Overview tab
     data["portfolio_positions"] = [
         {
