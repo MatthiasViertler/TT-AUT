@@ -57,6 +57,9 @@ FULL_TYPE_MAP = {
 }
 
 
+_CASH_REPORT_SECTION_NAMES = {"Cash Report", "CashReport", "CRTT"}
+
+
 def detect(path: Path) -> bool:
     """Return True if this file looks like an IB CSV export."""
     try:
@@ -630,3 +633,92 @@ def _classify_domicile(isin: Optional[str], country: Optional[str],
     if country:
         return Domicile.FOREIGN
     return Domicile.UNKNOWN
+
+
+# ── Cash Report ───────────────────────────────────────────────────────────────
+
+def parse_ibkr_cash_report(path: Path) -> Optional[Decimal]:
+    """Parse the CRTT (Cash Report) section and return total cash in base currency.
+
+    Uses the BASE_SUMMARY row which IB pre-converts to the account's base currency
+    (assumes EUR; for non-EUR-base accounts the returned value would need FX).
+    Returns None if no Cash Report section is found or BASE_SUMMARY is absent.
+    """
+    rows = _read_cash_report_section(path)
+    for row in rows:
+        if row.get("CurrencyPrimary", "").strip() == "BASE_SUMMARY":
+            try:
+                val = Decimal(row.get("EndingCash", "").strip())
+            except InvalidOperation:
+                log.warning("ibkr-cash: unparseable BASE_SUMMARY EndingCash in %s", path.name)
+                return None
+            if val > ZERO:
+                log.info("ibkr-cash: %s EUR cash from %s", val, path.name)
+                return val
+    return None
+
+
+def _read_cash_report_section(path: Path) -> list[dict]:
+    """Read all rows from the CRTT (Cash Report) section of an IB Flex CSV file."""
+    rows: list[dict] = []
+    headers: list[str] = []
+    in_section = False
+    bos_state: Optional[str] = None
+
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row:
+                continue
+            marker = row[0].strip()
+            col1   = row[1].strip() if len(row) > 1 else ""
+
+            # ── BOS/EOS format ────────────────────────────────────────────────
+            if marker == "BOS":
+                if col1 in _CASH_REPORT_SECTION_NAMES:
+                    in_section = True
+                    bos_state = "header_next"
+                continue
+
+            if marker == "EOS":
+                if in_section:
+                    in_section = False
+                    bos_state = None
+                    headers = []
+                continue
+
+            if bos_state == "header_next":
+                headers = [c.strip() for c in row]
+                bos_state = "data"
+                continue
+
+            if bos_state == "data" and in_section:
+                rows.append(dict(zip(headers, [c.strip() for c in row])))
+                continue
+
+            # ── HEADER/DATA Flex Query format ─────────────────────────────────
+            if marker == "HEADER":
+                if col1 in _CASH_REPORT_SECTION_NAMES:
+                    headers = [c.strip() for c in row[2:]]
+                    in_section = True
+                elif in_section:
+                    in_section = False
+                continue
+
+            if marker == "DATA" and in_section:
+                rows.append(dict(zip(headers, [c.strip() for c in row[2:]])))
+                continue
+
+            # ── Classic Activity Statement format ─────────────────────────────
+            if col1 == "Header":
+                if marker in _CASH_REPORT_SECTION_NAMES:
+                    headers = [c.strip() for c in row[2:]]
+                    in_section = True
+                elif in_section:
+                    in_section = False
+                continue
+
+            if col1 == "Data" and in_section:
+                rows.append(dict(zip(headers, [c.strip() for c in row[2:]])))
+
+    return rows

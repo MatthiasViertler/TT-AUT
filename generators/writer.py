@@ -104,6 +104,29 @@ def _save_summary_json(summary: TaxSummary, path: Path) -> None:
     }
     for field in _SUMMARY_FIELDS:
         data[field] = str(getattr(summary, field))
+
+    # Optional computed fields — serialized as float strings or null
+    for opt_field in ("portfolio_eur_computed", "ibkr_cash_eur", "dividend_yield_computed"):
+        val = getattr(summary, opt_field, None)
+        data[opt_field] = str(val) if val is not None else None
+
+    # portfolio_positions: serialize for the multi-year Overview tab
+    data["portfolio_positions"] = [
+        {
+            "symbol": p.symbol,
+            "name": p.name,
+            "fund_type": p.fund_type,
+            "currency": p.currency,
+            "qty": str(p.qty),
+            "is_synthetic": p.is_synthetic,
+            "eur_value": str(p.eur_value),
+            "dividends_eur": str(p.dividends_eur),
+            "yield_pct": p.yield_pct,
+            "portfolio_pct": p.portfolio_pct,
+        }
+        for p in summary.portfolio_positions
+    ]
+
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 

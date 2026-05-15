@@ -9,6 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from brokers import load_transactions
+from brokers.ib_csv import parse_ibkr_cash_report
 from brokers.ibkr_positions import parse_ibkr_positions
 from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
@@ -213,15 +214,47 @@ def run_pipeline(
         symbol_info=symbol_info,
         ibkr_positions=ibkr_pos_data,
     )
+    # ── 3e-ii. IBKR Cash Report ───────────────────────────────────────────────
+    ibkr_cash_eur = ZERO
+    for p in input_paths:
+        cash = parse_ibkr_cash_report(p)
+        if cash is not None and cash > ZERO:
+            ibkr_cash_eur = cash
+            summary.ibkr_cash_eur = cash
+            print(f"  [cash]   IBKR cash: EUR {cash:,.2f} (from {p.name})")
+            break
+
+    if ibkr_cash_eur > ZERO:
+        portfolio_eur += ibkr_cash_eur
+        portfolio_positions.append(PortfolioPosition(
+            symbol="CASH",
+            name="IBKR Cash",
+            fund_type="Cash",
+            currency="EUR",
+            qty=ibkr_cash_eur,
+            is_synthetic=False,
+            eur_value=ibkr_cash_eur,
+            dividends_eur=ZERO,
+            yield_pct=None,
+            portfolio_pct=None,
+        ))
+        # Re-normalize portfolio_pct now that total includes cash
+        for pos in portfolio_positions:
+            if pos.eur_value > ZERO:
+                pos.portfolio_pct = round(float(pos.eur_value / portfolio_eur * 100), 2)
+
     summary.portfolio_positions = portfolio_positions
     if portfolio_eur > ZERO:
         summary.portfolio_eur_computed = portfolio_eur
-        n_valued = len([p for p in portfolio_positions if not p.is_synthetic and p.eur_value > ZERO])
+        n_valued = len([p for p in portfolio_positions
+                        if not p.is_synthetic and p.eur_value > ZERO
+                        and p.symbol != "CASH"])
         n_synthetic = len([p for p in portfolio_positions if p.is_synthetic])
         src_note = " (from IBKR positions file)" if ibkr_pos_data else ""
+        cash_note = f" + EUR {ibkr_cash_eur:,.2f} cash" if ibkr_cash_eur > ZERO else ""
         print(f"  [port]   Portfolio value (computed): EUR {portfolio_eur:,.2f} "
               f"({n_valued} positions valued; "
-              f"{n_synthetic} synthetic skipped){src_note}")
+              f"{n_synthetic} synthetic skipped{cash_note}){src_note}")
     else:
         print(f"  [port]   Portfolio value: could not compute (no prices available) "
               f"— using config value if set")

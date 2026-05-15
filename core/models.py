@@ -290,6 +290,11 @@ class TaxSummary:
     # Future: can also be seeded from broker portfolio reports (position exports).
     portfolio_eur_computed: Optional[Decimal] = None
 
+    # ── IBKR cash balance (from Cash Report section in Flex Query) ─────────
+    # BASE_SUMMARY EndingCash: total cash across all currencies, in EUR (account base).
+    # Included in portfolio_eur_computed when available.
+    ibkr_cash_eur: Optional[Decimal] = None
+
     # ── Trailing dividend yield (actual dividends / Dec31 portfolio value) ────
     # Populated only when both portfolio_eur_computed and total_dividends_eur > 0.
     dividend_yield_computed: Optional[float] = None
