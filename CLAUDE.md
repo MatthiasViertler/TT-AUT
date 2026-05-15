@@ -59,7 +59,7 @@ users/jessie/
 - Domestic = ISIN starts AT or exchange WBAG/XWBO
 - **KZ 937 (Meldefonds AE)**: auto-calculated for ISINs configured in `meldefonds:` with verified values in `data/oekb_ae.yaml`. PLACEHOLDER entries produce zero — verify each AE/WA figure on my.oekb.at before filing.
 - **OPT rows (AssetClass=OPT) — SKIPPED intentionally.** Derivatives KZ deferred.
-- **Dynamic portfolio value**: IBKR Open Positions mark prices used when available (POST section in flex CSV, auto-detected). Falls back to FIFO lots × yfinance. SAXO AggregatedAmounts (`broker='saxo'`) and `manual_cost_basis` lots (`synthetic=True`) excluded. `portfolio_eur_supplement` adds SAXO manual estimate. Stored in `summary.portfolio_eur_computed`.
+- **Dynamic portfolio value**: IBKR Open Positions mark prices used when available (POST section in flex CSV, auto-detected). Falls back to FIFO lots × yfinance. SAXO AggregatedAmounts (`broker='saxo'`) and `manual_cost_basis` lots (`synthetic=True`) excluded. `portfolio_eur_supplement` adds SAXO manual estimate. IBKR Cash Report (CRTT section, optional) adds cash balance. Stored in `summary.portfolio_eur_computed`; `summary.ibkr_cash_eur` holds cash component separately.
 - **Freedom FIRE model**: total return = `portfolio × (yield + growth)` — not dividends-only. Chart shows both total-return and dividends-only lines.
 
 ## Security rule — NEVER violate
@@ -149,7 +149,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 300 tests, all green
+- `python -m pytest tests/` — 335 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -260,15 +260,24 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 - Pipeline priority: explicit positions file → Open Positions section in any input file → FIFO × yfinance fallback.
 - Solves European stock ticker issues (RENK, RHM, TKMS, etc.) where yfinance returns no price.
 
+### Cash Report (portfolio value, optional)
+- **Optional**: add "Cash Report" section to the existing Activity Flex Query.
+  - IBKR: Reports → Flex Queries → edit existing query → tick **Cash Report** (trade date basis)
+  - Required fields: **Currency**, **Ending Cash** (EndingCash column — the others are optional)
+  - Run `--force-fetch-ibkr` once; auto-detected thereafter from the `CRTT` section.
+- Uses the `BASE_SUMMARY` row: IB's own EUR-equivalent of all cash balances (no ECB FX lookup needed).
+- Adds cash to `portfolio_eur_computed`; shows as "IBKR Cash" position in Freedom dashboard.
+- **Fully optional**: if CRTT section is absent, tax output is unchanged — only affects FIRE dashboard.
+- ⚠️ **Privacy note**: users who prefer not to expose full portfolio value can omit Cash Report entirely.
+- Error 1001 on `--fetch-ibkr`: cooldown between consecutive fetches (~10 min). Not a query structure issue.
+
 ## Next up (priority order)
 1. **🔴 WHT reclaim forms** — AT Ansässigkeitsbescheinigung (ZS-AD) received signed 2026-05-13.
    - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
    - Germany: DE €775.00 excess; BZSt portal. Denmark: €37.91 excess; SKAT. Paper filings only.
-2. **IBKR Cash Report parser** — Cash Report section added to flex query (Currency + EndingCash fields).
-   Parser side not yet built. FX via ECB layer. Result adds cash to `portfolio_eur_computed`.
-3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement`; blocked on Holdings export sample
-4. **E*Trade CSV parser** — parse `tradesdownload.csv`; eliminates iPhone-scan PDF reliance
-5. **OeKB data license inquiry** — email taxdata@oekb.at; unlocks automated AE/WA for all Meldefonds
+2. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement`; blocked on Holdings export sample
+3. **E*Trade CSV parser** — parse `tradesdownload.csv`; eliminates iPhone-scan PDF reliance
+4. **OeKB data license inquiry** — email taxdata@oekb.at; unlocks automated AE/WA for all Meldefonds
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)

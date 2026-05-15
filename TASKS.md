@@ -207,6 +207,13 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## ✅ Done
 
+- [x] **IBKR Cash Report parser** *(2026-05-15)* — `parse_ibkr_cash_report()` in `brokers/ib_csv.py`.
+      Parses CRTT section (BOS/EOS + HEADER/DATA + Classic). Uses `BASE_SUMMARY` EndingCash (IB pre-converts
+      to EUR). Adds to `portfolio_eur_computed`; shows as "IBKR Cash" position in Freedom dashboard.
+      Re-normalises `portfolio_pct`. Fully optional — absent CRTT = no change to tax output.
+      `summary.json` now also includes `portfolio_eur_computed`, `ibkr_cash_eur`, `dividend_yield_computed`,
+      `portfolio_positions`. 7 tests → 335 total. Tagged v0.2.5.
+
 - [x] **Per-user directory structure refactor** — `users/{person}/data/`, `users/{person}/output/`, `users/{person}/config.local.yaml`; `cache/fx_cache/`, `cache/price_cache/` shared; `generators/` package rename *(2026-05-05)*
       3-layer config merge (DEFAULTS → config.yaml → config.local.yaml); `account_id` scalar/list; scan_account_ids() auto-detection; `--input` optional; 14 new config tests
 - [x] **SAXO AggregatedAmounts + ShareDividends double-counting fix** — `saxo_skip_agg_dividends: true` config knob; suppresses dividend rows from AA when SD loaded for same period *(2026-05-05)*

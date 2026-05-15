@@ -160,22 +160,26 @@ The report is saved automatically to `users/{yourname}/data/IB/{yourname}_ibkr_f
 |---------|---------|-----------------|
 | **Trades** | Capital gains (buys/sells) | all defaults |
 | **Cash Transactions** | Dividends + WHT | all defaults |
-| **Open Positions** | Portfolio value (Dec 31 snapshot) | Symbol, ISIN, Position, Mark Price, Currency, Asset Class, Level of Detail |
+| **Open Positions** | Portfolio value — securities (Dec 31 snapshot) | Symbol, ISIN, Position, Mark Price, Currency, Asset Class, Level of Detail |
+| **Cash Report** *(optional)* | Cash balances in portfolio value | Currency, Ending Cash (EndingCash) |
 
 Adding **Open Positions** to your existing query is a one-time edit — no new config key needed. After the next `--fetch-ibkr` run, portfolio value is computed from IBKR's own mark prices instead of Yahoo Finance, which resolves ticker-matching issues for European stocks (RENK, RHM, etc.).
 
-**How to add Open Positions to an existing query:**
+**Cash Report is optional** — it adds your IBKR cash balances to the Freedom dashboard portfolio total. If you prefer not to include cash (e.g. for privacy), simply omit the section and the tool works identically for all tax calculations.
+
+**How to add Open Positions (and optionally Cash Report) to an existing query:**
 1. IB Client Portal → Reports → Flex Queries → click your existing Activity Flex Query
 2. Scroll to **Open Positions** → tick the checkbox to enable it
 3. In the field selector, ensure these are checked: **Symbol**, **ISIN**, **Position**, **Mark Price**, **Currency** (= CurrencyPrimary), **Asset Class**, **Level of Detail**
-4. Save the query — the query ID stays the same, no config change needed
-5. Run `--force-fetch-ibkr` once to re-download with the new section included
+4. *(Optional)* Scroll to **Cash Report** → tick the checkbox → enable field **Currency** and **Ending Cash**
+5. Save the query — the query ID stays the same, no config change needed
+6. Run `--force-fetch-ibkr` once to re-download with the new section(s) included
 
 ### Option B — manual export
 
 1. **Reports → Flex Queries → Create**
 2. Select **Activity Flex Query**
-3. Include sections: **Trades**, **Cash Transactions**, **Open Positions** (same fields as above)
+3. Include sections: **Trades**, **Cash Transactions**, **Open Positions** (same fields as above), optionally **Cash Report**
 4. Date range: full calendar year(s) you want to calculate
 5. Format: **CSV**
 6. Run query and save the file to `users/{yourname}/data/IB/{year}/`
@@ -370,7 +374,7 @@ The report covers dividends from that year onward and shows the reclaimable exce
 
 The HTML dashboard (`_freedom.html`) is interactive — sliders for portfolio value, monthly expenses, contribution, yield, and growth rate. Pre-populated with actual dividend data from the run.
 
-**Portfolio value is computed automatically** — IBKR Open Positions mark prices are used when available (the POST section is auto-detected in the Flex CSV; no extra config needed). This bypasses yfinance entirely, solving European stock ticker issues (RENK, RHM, TKMS, …). Falls back to remaining FIFO lots × yfinance price × ECB FX. Positions from SAXO AggregatedAmounts (qty=1 convention) and `manual_cost_basis` entries are excluded from valuation since their recorded quantities are not real share counts. Add `portfolio_eur_supplement` in `freedom_dashboard` to layer in a SAXO manual estimate on top of the IBKR auto-computed value. The slider shows a green **auto** badge when computed, grey **config** when falling back to the config value. The slider max scales dynamically.
+**Portfolio value is computed automatically** — IBKR Open Positions mark prices are used when available (the POST section is auto-detected in the Flex CSV; no extra config needed). This bypasses yfinance entirely, solving European stock ticker issues (RENK, RHM, TKMS, …). Falls back to remaining FIFO lots × yfinance price × ECB FX. Positions from SAXO AggregatedAmounts (qty=1 convention) and `manual_cost_basis` entries are excluded from valuation since their recorded quantities are not real share counts. Add `portfolio_eur_supplement` in `freedom_dashboard` to layer in a SAXO manual estimate on top of the IBKR auto-computed value. If the IBKR Flex Query includes a **Cash Report** section (optional), cash balances are added to the portfolio total and shown as an "IBKR Cash" line in the holdings table. The slider shows a green **auto** badge when computed, grey **config** when falling back to the config value. The slider max scales dynamically.
 
 **Dividend yield is also computed automatically** as trailing yield = actual annual dividends ÷ Dec 31 portfolio value.
 
