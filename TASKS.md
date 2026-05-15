@@ -278,6 +278,15 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## ✅ Done
 
+- [x] **NMF share count fix — `shares_held_override`** *(2026-05-16)* — `core/nichtmeldefonds.py`.
+      SAXO qty=1 convention caused _net_shares_at_year_end() to return 1 instead of real count.
+      Added optional `shares_held_override: {year: count}` per nichtmeldefonds entry; falls back
+      to transaction history when not set. Matthias 2024: 1 position (€1 KeSt) → 5 (€841).
+      2025: €985 KeSt. KeSt remaining updated €3,268 → €4,252. 9 tests → 353 total. v0.3.2.
+- [x] **FAQ docs** *(2026-05-16)* — `docs/faq-steuereinfach-brokers.md`, `docs/faq-meldefonds-etfs.md`,
+      `docs/faq-nichtmeldefonds-reits.md`. Cover steuereinfach cross-broker Verlustausgleich value,
+      accumulating ETF phantom income, dist vs acc comparison, NMF double-taxation, exit strategy.
+
 - [x] **IBKR cash interest parser + Freedom net income** *(2026-05-15)* — `parse_ibkr_interest()` in `brokers/ib_csv.py`.
       Reads CTRN section (Cash Transactions) — already in standard Activity Flex Query, no new config needed.
       Deduplicates across multiple input files by `(currency, description)` key. Adds to KZ 863 / net_taxable.

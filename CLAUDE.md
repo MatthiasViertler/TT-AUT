@@ -87,7 +87,7 @@ account_id:           # scalar or list — supports multi-broker and migrated ac
 Account IDs are **placeholders only** in this file — real IDs are in `users/{person}/config.local.yaml`.
 - Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
 - Matthias: IB + SAXO DK + E*Trade accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
-  2025 run: KZ 863 €11,340.73 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €4,735 | KeSt remaining **€3,267.63** (IB+SAXO+E*Trade+interest)
+  2025 run: KZ 863 €11,340.73 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €4,735 | NMF KeSt €985 | KeSt remaining **€4,251.72** (IB+SAXO+E*Trade+interest+NMF)
   E*Trade 2022-2023 statements obtained ✓; NXPI FIFO chain complete 2020–2026. Sep 2023 account migration handled via `etrade_skip_transfers`.
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
@@ -119,6 +119,7 @@ All land in `users/{person}/output/{year}/`:
 - `{person}_{year}_wht_reclaim.txt`   — WHT reclaim report (if at_residency_start_year set)
 - `{person}_{year}_anv_checklist.txt` — L1 deduction checklist (if anv: section in config)
 - `{person}_{year}_summary.json`      — machine-readable snapshot; drives the multi-year Overview tab
+- `{person}_{year}_nichtmeldefonds.txt` — per-symbol NMF breakdown (shares, prices, AE, KeSt); generated on demand via script, not pipeline
 
 ## Key config knobs (users/{person}/config.local.yaml)
 - `account_id: [...]` — account ID(s); scalar or list; drives auto-detection
@@ -128,7 +129,8 @@ All land in `users/{person}/output/{year}/`:
 - `symbol_aliases: {NEWTICKER: OLDTICKER}` — **only needed for corporate actions where IB assigns a new ISIN** (tender offers, mergers). Plain broker ticker renames (same ISIN, new symbol) are resolved automatically by ISIN auto-alias — no entry needed.
 - `freedom_dashboard: {portfolio_eur, monthly_expenses_eur, monthly_contribution_eur, yield_pct, growth_pct}`
 - `meldefonds: [{isin, symbol}]` — OeKB-registered funds; AE/WA looked up from `data/oekb_ae.yaml`
-- `nichtmeldefonds: [{symbol, isin, name, type, currency}]`
+- `nichtmeldefonds: [{symbol, isin, name, type, currency, shares_held_override: {year: count}}]`
+  — `shares_held_override` required for SAXO positions (qty=1 convention makes transaction count unreliable)
 - `portfolio_eur_supplement: N` — added on top of IBKR auto-computed value (e.g. manual SAXO estimate)
 - `saxo_closedpos_skip_buy_open_dates: [...]` — skip BUY lots on these open dates (manual_cost_basis covers them)
 - `saxo_skip_agg_trades: true` — AggregatedAmounts emits dividends only (use with ClosedPositions)
@@ -146,13 +148,16 @@ All land in `users/{person}/output/{year}/`:
 ## Nichtmeldefonds (§ 186 InvFG)
 AE = max(90% × annual gain, 10% × Dec31 price) per share × FX. KeSt = 27.5% × AE.
 Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol under `nichtmeldefonds:` in person config.
+- **shares_held_override required for SAXO positions**: SAXO qty=1 convention means transaction history returns 1 share instead of real count. Set `shares_held_override: {2024: N, 2025: N}` per symbol.
+- **AE cost basis step-up (gap)**: each year's AE must be added to steuerliche Anschaffungskosten at FIFO sell time. NOT YET IMPLEMENTED — sells will overstate gain. Fix required before Matthias 2026 filing (plans to exit O/EPR/WPC/ARCC).
+- **Double taxation note**: dividends taxed as KZ 863 AND AE charged separately. 10% minimum fires even when price flat/down.
 
 ## Manual cost basis
 `manual_cost_basis` in person config seeds FIFO lots in date order alongside real buys.
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 344 tests, all green
+- `python -m pytest tests/` — 353 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -280,13 +285,20 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 - Error 1001 on `--fetch-ibkr`: cooldown between consecutive fetches (~10 min). Not a query structure issue.
 
 ## Next up (priority order)
-1. **🔴 WHT reclaim forms** — AT Ansässigkeitsbescheinigung (ZS-AD) received signed 2026-05-13.
-   - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
-   - Germany: DE €775.00 excess; BZSt portal. Denmark: €37.91 excess; SKAT. Paper filings only.
-2. **Jessie 2025 filing** — E1kv data ready; ANV/L1 worth submitting (~€485 Werbungskosten, ~€106 refund).
-3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement`; blocked on Holdings export sample
-4. **E*Trade CSV parser** — parse `tradesdownload.csv`; eliminates iPhone-scan PDF reliance
-5. **OeKB data license inquiry** — email taxdata@oekb.at; unlocks automated AE/WA for all Meldefonds
+1. **🔴 AT tax efficiency analyzer** — per-position NMF flag + embedded loss estimate + alternatives.
+   Data already available; no new APIs. Most urgent coding task next session.
+2. **🔴 NMF AE cost basis step-up on sale** — FIFO must use original cost + cumulative AE at sell time.
+   Required before Matthias 2026 filing (plans to exit O/EPR/WPC/ARCC for tax-loss harvesting).
+3. **WHT reclaim forms** — paper filings (user action). France deadline 2026-12-31.
+4. **Jessie 2025 filing** — E1kv data entered; considered done.
+5. **SAXO Holdings parser** — blocked on Holdings export sample.
+6. **E*Trade CSV parser** — `tradesdownload.csv` format.
+7. **OeKB data license inquiry** — email taxdata@oekb.at.
+
+## Done this session (v0.3.2)
+- **NMF share count fix** ✅ — `shares_held_override` per year; 2025 KeSt remaining €3,268 → **€4,252**.
+- **FAQ docs** ✅ — 3 new files in `docs/`: steuereinfach brokers, Meldefonds, Nichtmeldefonds REITs.
+- **TASKS.md** ✅ — 12+ new tasks: Portfolio Intelligence section, bonds, savings interest, Trade Republic, physical metals, crypto, FinanzOnline guide, etc.
 
 ## Done this session (v0.3.1)
 - **ISIN auto-alias** ✅ — same-ISIN ticker renames resolved without any config; `symbol_aliases` now only for corporate actions (different ISIN). VER→OEWA and NOV→NOVd entries removed.
