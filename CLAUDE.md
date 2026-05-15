@@ -288,6 +288,9 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 4. **E*Trade CSV parser** — parse `tradesdownload.csv`; eliminates iPhone-scan PDF reliance
 5. **OeKB data license inquiry** — email taxdata@oekb.at; unlocks automated AE/WA for all Meldefonds
 
+## Done this session (v0.3.1)
+- **ISIN auto-alias** ✅ — same-ISIN ticker renames resolved without any config; `symbol_aliases` now only for corporate actions (different ISIN). VER→OEWA and NOV→NOVd entries removed.
+
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
 - ⚠️ **France 2024 deadline: 2026-12-31** — Cerfa n°12816, MC + SAF, €12.06 excess

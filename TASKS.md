@@ -128,23 +128,20 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ---
 
-## 🟡 ISIN-based auto-alias (next session priority)
+## ~~🟡 ISIN-based auto-alias~~ ✅ Done (v0.3.1, 2026-05-15)
 
-- [ ] **Auto-resolve ticker renames via ISIN matching** — when a sell has no FIFO queue by symbol
-      but the ISIN exists under exactly one other symbol, auto-alias silently (log, don't warn).
-      Handles all plain broker renames (NOV.d→NOV, OEWA→VER, etc.) without any user config.
-      Rule: same ISIN both sides → auto-alias. Different ISIN → still requires `symbol_aliases`
-      (corporate actions: tenders, mergers genuinely change the ISIN on the sell side).
-      Add quantity plausibility filter: only auto-alias if sell_qty ≤ open_qty_remaining_under_matched_symbol
-      (rules out short-selling edge case; safe for 99.99% of retail users).
-      Future GUI hook: expose unresolved cases as "conflict cards" — show user the candidate match
-      (symbol, ISIN, open qty, purchase date) and let them confirm or pick from a list.
+- [x] **Auto-resolve ticker renames via ISIN matching** — `_try_isin_auto_alias()` in `core/tax_engine.py`.
+      Trigger: sell has no prior-dated lots under its own symbol (covers no-queue AND same-day-rebuy pattern).
+      Rule: same ISIN → auto-alias silently. Different ISIN → still requires `symbol_aliases`.
+      Qty plausibility + older-lot filter applied. VER→OEWA and NOV→NOVd entries removed from matthias config.
+      `symbol_aliases` now only for corporate actions (different ISIN). 6 tests → 344 total.
+      Future GUI hook: expose ambiguous/unresolved cases as "conflict cards" — deferred.
 
 ---
 
 ## 🔵 Usability & Automation
 
-- [ ] **Remove `VER: OEWA` alias before 2026 run** — alias added 2026-05-06; all OEWA lots consumed by 2025-12-17 sell (150 shares). Remove from `users/matthias/config.local.yaml` before running `--year 2026`, otherwise VER sells will look in empty OEWA queue.
+- [x] **Remove `VER: OEWA` alias** — no longer needed; ISIN auto-alias handles it. Removed 2026-05-15. *(v0.3.1)*
 - [x] **`--input-dir` folder scanning** — `--input` already accepts directories; `_resolve_inputs()`
       uses `rglob` to scan recursively, auto-detects broker per file, loads all years for FIFO.
       11 tests added (191 total). *(2026-05-08)*
