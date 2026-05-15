@@ -112,12 +112,29 @@ class TaxEngine:
     def _check_negative_positions(self, transactions: list[NormalizedTransaction],
                                    summary: TaxSummary) -> None:
         """Warn if any symbol's net holding goes negative across all input years."""
+        # Pre-build ISIN → buy-symbol map for auto-alias resolution (mirrors FIFO engine logic)
+        buy_isin_to_syms: dict[str, set] = defaultdict(set)
+        buy_symbols: set[str] = set()
+        for t in transactions:
+            if t.txn_type == TransactionType.BUY:
+                buy_symbols.add(t.symbol)
+                if t.isin:
+                    buy_isin_to_syms[t.isin].add(t.symbol)
+        for entry in self.config.get("manual_cost_basis", []):
+            buy_symbols.add(entry["symbol"])
+            if entry.get("isin"):
+                buy_isin_to_syms[entry["isin"]].add(entry["symbol"])
+
         net: dict[str, Decimal] = defaultdict(lambda: ZERO)
         for t in transactions:
             if t.txn_type == TransactionType.BUY:
                 net[t.symbol] += (t.quantity or ZERO).copy_abs()
             elif t.txn_type == TransactionType.SELL:
                 effective = self.symbol_aliases.get(t.symbol, t.symbol)
+                if effective not in buy_symbols and t.isin:
+                    candidates = buy_isin_to_syms.get(t.isin, set()) - {t.symbol, effective}
+                    if len(candidates) == 1:
+                        effective = next(iter(candidates))
                 net[effective] -= (t.quantity or ZERO).copy_abs()
         for entry in self.config.get("manual_cost_basis", []):
             net[entry["symbol"]] += Decimal(str(entry["quantity"]))
@@ -195,7 +212,35 @@ class TaxEngine:
 
             cost_matched = ZERO
             effective_symbol = self.symbol_aliases.get(sell.symbol, sell.symbol)
-            queue = fifo.get(effective_symbol, deque())
+            queue = fifo.get(effective_symbol)
+
+            # Auto-resolve broker ticker renames via ISIN: when the sell has no
+            # lots *prior to* the sell date under its own symbol, check whether
+            # the same ISIN exists under exactly one other symbol that does have
+            # older lots with sufficient open qty → alias silently.
+            # Covers two cases: (a) no FIFO queue at all; (b) queue only contains
+            # same-day-or-newer lots (e.g. same-day rebuy after ticker rename).
+            # Same ISIN both sides = plain rename. Different ISIN = corporate
+            # action → still requires manual symbol_aliases.
+            queue_has_prior_lots = any(
+                lot["qty_remaining"] > ZERO and lot["date"] < sell.trade_date
+                for lot in (queue or [])
+            )
+            if sell.isin and not queue_has_prior_lots:
+                auto_sym = self._try_isin_auto_alias(
+                    sell.symbol, effective_symbol, sell.isin,
+                    qty_to_match, sell.trade_date, isin_to_symbols, fifo,
+                )
+                if auto_sym:
+                    log.info(
+                        "ISIN auto-alias: %s → %s on %s (ISIN %s, qty plausible)",
+                        sell.symbol, auto_sym, sell.trade_date, sell.isin,
+                    )
+                    effective_symbol = auto_sym
+                    queue = fifo[auto_sym]
+
+            if queue is None:
+                queue = deque()
 
             while qty_to_match > ZERO and queue:
                 lot = queue[0]
@@ -287,6 +332,36 @@ class TaxEngine:
             if total_qty > ZERO:
                 remaining[sym] = {"qty": total_qty, "has_synthetic": has_synthetic}
         self.remaining_positions = remaining
+
+    def _try_isin_auto_alias(
+        self,
+        sell_symbol: str,
+        effective_symbol: str,
+        isin: str,
+        sell_qty: Decimal,
+        sell_date,
+        isin_to_symbols: dict,
+        fifo: dict,
+    ) -> Optional[str]:
+        """Return the unique buy-symbol sharing the same ISIN with sufficient open qty
+        and at least one lot purchased before sell_date.
+
+        Returns None when ambiguous (multiple candidates) or no candidate passes
+        both the qty plausibility and older-lot filters.
+        """
+        candidates = isin_to_symbols.get(isin, set()) - {sell_symbol, effective_symbol}
+        plausible = []
+        for sym in candidates:
+            q = fifo.get(sym)
+            if q is None:
+                continue
+            open_qty = sum(lot["qty_remaining"] for lot in q)
+            has_older_lot = any(
+                lot["qty_remaining"] > ZERO and lot["date"] < sell_date for lot in q
+            )
+            if open_qty >= sell_qty and has_older_lot:
+                plausible.append(sym)
+        return plausible[0] if len(plausible) == 1 else None
 
     # ── Interest ──────────────────────────────────────────────────────────────
 

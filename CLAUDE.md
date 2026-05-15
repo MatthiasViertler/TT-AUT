@@ -91,9 +91,9 @@ Account IDs are **placeholders only** in this file — real IDs are in `users/{p
   E*Trade 2022-2023 statements obtained ✓; NXPI FIFO chain complete 2020–2026. Sep 2023 account migration handled via `etrade_skip_transfers`.
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
-  1COV/1CO Covestro tender (symbol_aliases) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓,
-  VER→OEWA Verbund AG ticker rename (symbol_aliases) ✓ — ⚠️ remove alias for 2026+ tax year
-  NOV→NOVd Novo Nordisk German listing (IB: NOV.d → normalized NOVd; 2025 sell as NOV) ✓
+  1COV/1CO Covestro tender (symbol_aliases — different ISIN, must stay explicit) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓,
+  VER→OEWA Verbund AG ticker rename (same ISIN → ISIN auto-alias, no config needed) ✓
+  NOV→NOVd Novo Nordisk German listing (same ISIN → ISIN auto-alias, no config needed) ✓
 - GAZ (Russian ADR) — held, likely worthless, no tax impact yet
 - **New 2025**: HENSOLDT, RENK, RHEINMETALL, TKMS, 4SC, DRONESHIELD, BLACKSKY
 
@@ -125,7 +125,7 @@ All land in `users/{person}/output/{year}/`:
 - `at_residency_start_year: 2024` — enables WHT reclaim report
 - `anv: {home_office_days, commute_km, commute_type, kirchenbeitrag_eur, ...}` — enables ANV checklist
 - `manual_cost_basis: [{symbol, isin, purchase_date, quantity, cost_eur}]` — seeds FIFO for spin-offs
-- `symbol_aliases: {NEWTICKER: OLDTICKER}` — tender/merger FIFO matching
+- `symbol_aliases: {NEWTICKER: OLDTICKER}` — **only needed for corporate actions where IB assigns a new ISIN** (tender offers, mergers). Plain broker ticker renames (same ISIN, new symbol) are resolved automatically by ISIN auto-alias — no entry needed.
 - `freedom_dashboard: {portfolio_eur, monthly_expenses_eur, monthly_contribution_eur, yield_pct, growth_pct}`
 - `meldefonds: [{isin, symbol}]` — OeKB-registered funds; AE/WA looked up from `data/oekb_ae.yaml`
 - `nichtmeldefonds: [{symbol, isin, name, type, currency}]`
@@ -139,7 +139,8 @@ All land in `users/{person}/output/{year}/`:
 - **Negative position**: warns if total sells > total buys per symbol across all input years
 - **FX sanity**: warns (log) if ECB rate deviates >20% from prior cached day
 - **FIFO all-years**: all years' sells are processed through FIFO queue in date order (prior-year sells drain lots correctly); only current-year gains/losses added to summary
-- **ISIN rename hint**: unmatched sell with same ISIN under a different buy symbol → suggests exact `symbol_aliases` entry (e.g. broker renames ticker mid-year)
+- **ISIN auto-alias** (`core/tax_engine.py`): when a sell has no lots prior to the sell date under its own symbol, the engine searches for a unique other symbol sharing the same ISIN with sufficient open qty → aliases silently (log only). Covers plain broker ticker renames (e.g. VER→OEWA, NOV→NOVd) including same-day rebuy patterns. Ambiguous (multiple candidates) or qty-insufficient cases still warn and fall through to the rename hint below.
+- **ISIN rename hint**: unmatched sell where ISIN matches lots under a different symbol but auto-alias couldn't resolve (ambiguous or qty mismatch) → suggests exact `symbol_aliases` entry
 - **Same-day round-trip**: sell + same-day repurchase of same symbol with |gain| < 1% of proceeds (>€500) → warns FIFO may have matched against new buy instead of older lots
 
 ## Nichtmeldefonds (§ 186 InvFG)
@@ -151,7 +152,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 342 tests, all green
+- `python -m pytest tests/` — 344 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 

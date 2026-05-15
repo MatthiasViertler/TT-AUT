@@ -1,8 +1,10 @@
 """
 Tests for FIFO diagnostic warnings:
-- ISIN-based ticker rename hint (unmatched sell + same ISIN under different symbol)
+- ISIN-based auto-alias (single-candidate ticker rename resolved silently)
+- ISIN rename hint (ambiguous / qty-mismatch cases still warn)
 - Same-day round-trip detection (sell + repurchase, tiny gain → possible FIFO mismatch)
 """
+import dataclasses
 from datetime import date
 from decimal import Decimal
 
@@ -19,35 +21,56 @@ def _engine(cfg: dict) -> TaxEngine:
     return TaxEngine(cfg, tax_year=2025, person_label="Test")
 
 
-# ── ISIN rename hint ──────────────────────────────────────────────────────────
+# ── ISIN auto-alias ───────────────────────────────────────────────────────────
 
-def test_isin_rename_hint_fires(cfg):
-    """Unmatched sell: if same ISIN exists under a different buy symbol, hint at symbol_aliases."""
+def test_isin_auto_alias_resolves_single_candidate(cfg):
+    """Single matching buy-symbol with same ISIN and sufficient qty → auto-resolved, no warning."""
     buy  = make_trade("OEWA", "AT0000746409", TransactionType.BUY,
                       quantity=10, price_eur=70.0, trade_date=date(2024, 1, 1))
     sell = make_trade("VER",  "AT0000746409", TransactionType.SELL,
                       quantity=10, price_eur=60.0, trade_date=date(2025, 6, 1))
     summary = _engine(cfg).calculate([buy, sell])
-    # "ticker rename" is unique to the ISIN rename hint (negative-position check says "symbol_aliases" too)
-    rename_warnings = [w for w in summary.warnings if "ticker rename" in w]
-    assert rename_warnings, f"Expected rename hint, got: {summary.warnings}"
-    assert "VER" in rename_warnings[0]
-    assert "OEWA" in rename_warnings[0]
+    assert summary.unmatched_sells == 0
+    assert not any("ticker rename" in w or "no purchase record" in w
+                   for w in summary.warnings)
 
 
-def test_isin_rename_hint_suggests_correct_alias(cfg):
-    """The hint should suggest adding the sell symbol → buy symbol mapping."""
+def test_isin_auto_alias_gain_correct(cfg):
+    """After auto-alias, gain/loss is computed against the correct FIFO lots."""
     buy  = make_trade("OEWA", "AT0000746409", TransactionType.BUY,
                       quantity=10, price_eur=70.0, trade_date=date(2024, 1, 1))
     sell = make_trade("VER",  "AT0000746409", TransactionType.SELL,
                       quantity=10, price_eur=60.0, trade_date=date(2025, 6, 1))
     summary = _engine(cfg).calculate([buy, sell])
-    w = next(w for w in summary.warnings if "ticker rename" in w)
-    assert "VER: OEWA" in w or "VER': 'OEWA" in w
+    # proceeds=600, cost=700 → net loss €100 → foreign loss KZ 892
+    assert summary.kz_892 == Decimal("100.00")
 
 
-def test_isin_rename_hint_not_fired_when_alias_resolves(cfg):
-    """When symbol_aliases maps sell → buy, lots are found → no unmatched/rename warning."""
+def test_isin_auto_alias_multiple_candidates_warns(cfg):
+    """Two buy-symbols share the same ISIN → ambiguous, can't auto-resolve → rename hint fires."""
+    buy_a = make_trade("OEWA",  "AT0000746409", TransactionType.BUY,
+                       quantity=10, price_eur=70.0, trade_date=date(2024, 1, 1))
+    buy_b = make_trade("VBUND", "AT0000746409", TransactionType.BUY,
+                       quantity=10, price_eur=72.0, trade_date=date(2024, 2, 1))
+    sell  = make_trade("VER",   "AT0000746409", TransactionType.SELL,
+                       quantity=10, price_eur=60.0, trade_date=date(2025, 6, 1))
+    summary = _engine(cfg).calculate([buy_a, buy_b, sell])
+    assert summary.unmatched_sells == 1
+    assert any("ticker rename" in w for w in summary.warnings)
+
+
+def test_isin_auto_alias_qty_mismatch_warns(cfg):
+    """Buy qty < sell qty → auto-alias skipped (qty plausibility fails) → unmatched warning."""
+    buy  = make_trade("OEWA", "AT0000746409", TransactionType.BUY,
+                      quantity=5, price_eur=70.0, trade_date=date(2024, 1, 1))
+    sell = make_trade("VER",  "AT0000746409", TransactionType.SELL,
+                      quantity=10, price_eur=60.0, trade_date=date(2025, 6, 1))
+    summary = _engine(cfg).calculate([buy, sell])
+    assert summary.unmatched_sells == 1
+
+
+def test_isin_auto_alias_not_triggered_when_explicit_alias_resolves(cfg):
+    """Explicit symbol_aliases resolves it first — FIFO queue found, auto-alias not needed."""
     cfg["symbol_aliases"] = {"VER": "OEWA"}
     buy  = make_trade("OEWA", "AT0000746409", TransactionType.BUY,
                       quantity=10, price_eur=70.0, trade_date=date(2024, 1, 1))
@@ -58,9 +81,8 @@ def test_isin_rename_hint_not_fired_when_alias_resolves(cfg):
     assert not any("ticker rename" in w for w in summary.warnings)
 
 
-def test_isin_rename_hint_absent_when_no_isin(cfg):
-    """Without an ISIN on the sell, no rename hint is added (just the standard unmatched warning)."""
-    import dataclasses
+def test_isin_auto_alias_not_triggered_without_isin(cfg):
+    """Without an ISIN on the sell, auto-alias can't run → unmatched warning (no rename hint)."""
     buy  = make_trade("OEWA", "AT0000746409", TransactionType.BUY,
                       quantity=10, price_eur=70.0, trade_date=date(2024, 1, 1))
     sell = make_trade("VER",  "AT0000746409", TransactionType.SELL,
