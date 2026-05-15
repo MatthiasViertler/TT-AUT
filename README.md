@@ -12,13 +12,13 @@ For each run (`--person`, `--year`):
 
 | File | Contents |
 |------|----------|
-| `users/{person}/output/{person}_{year}_tax_summary.txt` | E1kv Kennziffern ready to copy into FinanzOnline |
-| `users/{person}/output/{person}_{year}_transactions.csv` | Full transaction log with FX rates, cost basis, gain/loss |
-| `users/{person}/output/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds], [Meldefonds] |
-| `users/{person}/output/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
-| `users/{person}/output/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
-| `users/{person}/output/{person}_{year}_anv_checklist.txt` | L1 deduction checklist — Werbungskosten, Pendlerpauschale, Sonderausgaben, Familienbonus (if `anv:` set) |
-| `users/{person}/output/{person}_{year}_summary.json` | Machine-readable year snapshot; populates the multi-year Overview tab |
+| `users/{person}/output/{year}/{person}_{year}_tax_summary.txt` | E1kv Kennziffern ready to copy into FinanzOnline |
+| `users/{person}/output/{year}/{person}_{year}_transactions.csv` | Full transaction log with FX rates, cost basis, gain/loss |
+| `users/{person}/output/{year}/{person}_{year}_dashboard.xlsx` | Excel workbook — E1kv Summary, Overview (Verlustausgleich), Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds], [Meldefonds] |
+| `users/{person}/output/{year}/{person}_{year}_freedom.html` | Interactive financial independence dashboard (sliders) |
+| `users/{person}/output/{year}/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
+| `users/{person}/output/{year}/{person}_{year}_anv_checklist.txt` | L1 deduction checklist — Werbungskosten, Pendlerpauschale, Sonderausgaben, Familienbonus (if `anv:` set) |
+| `users/{person}/output/{year}/{person}_{year}_summary.json` | Machine-readable year snapshot; populates the multi-year Overview tab |
 
 FX rates are fetched from the ECB and cached locally — no API key needed.
 
@@ -83,12 +83,12 @@ users/
     data/
       IB/2025/activity.csv
       SAXO/2025/ClosedPositions_...xlsx
-    output/              ← generated files land here
+    output/2025/         ← generated files land here
   spouse/
     config.local.yaml
     data/
       IB/2025/activity.csv
-    output/
+    output/2025/
 ```
 
 **`users/{yourname}/config.local.yaml`** — person-specific settings:
@@ -259,7 +259,7 @@ All options:
 --input FILE [FILE ...]   broker export file(s) or folder(s); optional when --person is given
 --users-dir DIR           root for per-user data (default: ./users)
 --config FILE             universal config file (default: config.yaml)
---output-dir DIR          output directory override (default: users/{person}/output/)
+--output-dir DIR          output directory override (default: users/{person}/output/{year}/)
 --fetch-ibkr              download activity statement from IBKR Flex Web Service before processing
 --force-fetch-ibkr        re-download even if a cached file already exists (implies --fetch-ibkr)
 --fetch-ibkr-positions    download Open Positions report separately (if using a dedicated query)

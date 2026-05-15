@@ -207,6 +207,13 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## ✅ Done
 
+- [x] **IBKR cash interest parser + Freedom net income** *(2026-05-15)* — `parse_ibkr_interest()` in `brokers/ib_csv.py`.
+      Reads CTRN section (Cash Transactions) — already in standard Activity Flex Query, no new config needed.
+      Deduplicates across multiple input files by `(currency, description)` key. Adds to KZ 863 / net_taxable.
+      Freedom dashboard now shows post-tax net income: `(divs + interest) × 0.725 − excess_WHT`.
+      New "Income After Tax" breakdown panel. 7 new tests → 342 total. Tagged v0.3.0.
+- [x] **Output directory restructure** *(2026-05-15)* — `users/{person}/output/{year}/` (was flat).
+
 - [x] **IBKR Cash Report parser** *(2026-05-15)* — `parse_ibkr_cash_report()` in `brokers/ib_csv.py`.
       Parses CRTT section (BOS/EOS + HEADER/DATA + Classic). Uses `BASE_SUMMARY` EndingCash (IB pre-converts
       to EUR). Adds to `portfolio_eur_computed`; shows as "IBKR Cash" position in Freedom dashboard.

@@ -1,30 +1,39 @@
 # Session Handoff — 2026-05-15
 
 ## What was done
-- **IBKR Cash Report parser** (`parse_ibkr_cash_report` in `brokers/ib_csv.py`) — parses the CRTT section (BOS/EOS, HEADER/DATA, Classic formats). Uses the `BASE_SUMMARY` row (IB pre-converts to EUR; no ECB FX lookup needed). Adds cash to `portfolio_eur_computed` and shows as "IBKR Cash" in the Freedom holdings table. Re-normalises `portfolio_pct` across all positions after adding cash.
-- **`TaxSummary.ibkr_cash_eur`** — new optional field; stores cash component separately from securities value.
-- **`summary.json` enriched** — now serialises `portfolio_eur_computed`, `ibkr_cash_eur`, `dividend_yield_computed`, and full `portfolio_positions` list (all were missing before).
-- **CLAUDE.md + README.md updated** — Cash Report setup documented as optional IBKR Flex Query section. Privacy note explicit: omit CRTT if you prefer not to expose cash balances.
-- **7 new tests → 335 total**. Tagged v0.2.5.
-
-Confirmed at session start: IBKR error 1001 is usage-related (consecutive fetch cooldown ~10 min), not a query structure issue.
+- **IBKR cash interest parser**: reads CTRN section from existing Flex CSV automatically; no new flex query section or manual config needed. Deduplicates across multiple input files using `(currency, description)` key (same monthly payment appears in full-year and per-month exports). Adds to KZ 863 / net_taxable / kest_due.
+- **Freedom dashboard — net income**: replaced pre-tax dividend display with post-tax `net_monthly_income = (dividends + interest) × 0.725 − excess_WHT`. New "Income After Tax" breakdown panel shows dividends, cash interest, gross total, and a reclaimable WHT note.
+- **Output directory restructure**: `users/{person}/output/{year}/` (was flat `users/{person}/output/`). Updated main.py, CLAUDE.md, README.md.
+- **NOV/NOVd ticker alias** (user config, gitignored): Novo Nordisk held as `NOV.d` on German exchange → IB normalises to `NOVd`; 2025 sell/rebuy parsed as `NOV`. Added `NOV: NOVd` to `symbol_aliases` in `users/matthias/config.local.yaml`. Round-trip warning gone; KeSt remaining dropped €579.
+- **7 new tests** for `parse_ibkr_interest` (BOS/EOS EUR+USD, year filtering, no-interest, no-CTRN, HEADER/DATA, missing file, full-year sum) → 342 total.
+- Jessie 2025 tax questions answered: ANX/EMWE warnings safe to ignore (2024 data, nothing held 2025); dental costs below Selbstbehalt; ANV/L1 worth filing (~€485 Werbungskosten → ~€106 refund).
 
 ## Current state
-- Tests: **335 passed**, 0 failed
-- Tagged **v0.2.5**
-- Matthias 2025 portfolio (with cash): EUR 387,124.89 (36 equity positions + EUR 82,830.65 cash)
-- Matthias 2025 tax figures unchanged: KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €2,628 | KeSt remaining **€3,560**
-- Known issues / open warnings:
-  - PLACEHOLDER AE/WA values in `data/oekb_ae.yaml` — verify on my.oekb.at before filing (KZ 937 = €4.71)
-  - ⚠️ Remove `VER: OEWA` alias from `config.local.yaml` before 2026 tax run
-  - `tradesdownload.csv` (×2) skipped — E*Trade CSV parser not yet built
+- **Tests**: 342 passed, 0 failed
+- **Matthias 2025 key figures** (after NOV alias + interest):
+  - KZ 863 (foreign dividends + interest): EUR 11,340.73
+  - KZ 994 (foreign gains): EUR 9,291.87
+  - KZ 891 (domestic losses): EUR 1,107.12
+  - KZ 892 (foreign losses): EUR 4,735.24
+  - KeSt due: EUR 4,512.21
+  - WHT creditable: EUR 1,244.58
+  - **KeSt remaining: EUR 3,267.63**
+  - Cash interest: EUR 679.29 (24 unique payments)
+- **Known issues / open warnings**:
+  - Negative positions: ADS, GAZ (Russian ADR), HEN3, IFX, UNVB, SOLV — pre-2024 SAXO lots missing from IB history. Cosmetic only (no effect on tax).
+  - SOLV spin-off negative position — expected (manual_cost_basis cost=0).
+  - 33 total warnings in last run (mostly WHT excess per stock, covered by WHT reclaim).
 
 ## Next session priorities
-1. **🔴 WHT reclaim paper filings** — France deadline 2026-12-31 (Cerfa n°12816, €12.06 excess); Germany BZSt (€775.00); Denmark SKAT (€37.91). AT Ansässigkeitsbescheinigung in hand ✓
-2. **SAXO Holdings parser** — auto-compute SAXO portfolio value; eliminate manual `portfolio_eur_supplement`. Blocked on Holdings export sample from user.
-3. **E*Trade CSV parser** (`brokers/etrade_csv.py`) — `tradesdownload.csv` format; eliminates PDF scan dependency for Morgan Stanley statements.
-4. **OeKB data license inquiry** — email taxdata@oekb.at for structured AE/WA feed.
+1. **WHT reclaim paper filings** (user action, not coding):
+   - France: Cerfa n°12816 (Formulaire 5000 + 5001), deadline 2026-12-31, €12.06 excess
+   - Germany: BZSt portal, €775.00 excess
+   - Denmark: SKAT, €37.91 excess
+2. **Jessie 2025 filing**: E1kv data ready; consider submitting ANV/L1 (~€106 refund)
+3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement`; blocked on Holdings export sample from user
+4. **E*Trade CSV parser** (`brokers/etrade_csv.py`) — `tradesdownload.csv` format
+5. **OeKB data license** — email taxdata@oekb.at
 
 ## Blockers
-- SAXO Holdings parser: need a Holdings export sample from SAXO Client Portal.
-- WHT paper filings: action on user side (forms + mailing).
+- SAXO Holdings parser: waiting for user to export a sample Holdings xlsx from SAXO portal
+- WHT filings: user has the Ansässigkeitsbescheinigung (ZS-AD) signed 2026-05-13 — ready to file

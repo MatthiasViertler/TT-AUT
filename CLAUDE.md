@@ -43,24 +43,25 @@ users/matthias/
   data/IB/2025/matthias_2025.csv
   data/IB/matthias_ibkr_flex.csv        ← auto-fetched (--fetch-ibkr); picked up by rglob
   data/SAXO/2025/ClosedPositions_19999999_2025-01-01_2025-12-31.xlsx
-  output/matthias_2025_tax_summary.txt  ← generated
+  output/2025/matthias_2025_tax_summary.txt  ← generated
 users/jessie/
   config.local.yaml
   data/IB/2025/jessie_2025.csv
-  output/jessie_2025_tax_summary.txt    ← generated
+  output/2025/jessie_2025_tax_summary.txt    ← generated
 ```
 
 ## Key behaviours
 - FIFO cost basis — NO state between runs, pass ALL years via `--input` (or place all in data/)
 - `--person` auto-detected: scan `users/*/config.local.yaml` for matching `account_id`
 - `--input` optional: when omitted, scans `users/{person}/data/` recursively
-- Output lands in `users/{person}/output/` by default
+- Output lands in `users/{person}/output/{year}/` by default
 - WHT warning only fires if excess > €0.05 (suppresses rounding noise)
 - Domestic = ISIN starts AT or exchange WBAG/XWBO
 - **KZ 937 (Meldefonds AE)**: auto-calculated for ISINs configured in `meldefonds:` with verified values in `data/oekb_ae.yaml`. PLACEHOLDER entries produce zero — verify each AE/WA figure on my.oekb.at before filing.
 - **OPT rows (AssetClass=OPT) — SKIPPED intentionally.** Derivatives KZ deferred.
 - **Dynamic portfolio value**: IBKR Open Positions mark prices used when available (POST section in flex CSV, auto-detected). Falls back to FIFO lots × yfinance. SAXO AggregatedAmounts (`broker='saxo'`) and `manual_cost_basis` lots (`synthetic=True`) excluded. `portfolio_eur_supplement` adds SAXO manual estimate. IBKR Cash Report (CRTT section, optional) adds cash balance. Stored in `summary.portfolio_eur_computed`; `summary.ibkr_cash_eur` holds cash component separately.
 - **Freedom FIRE model**: total return = `portfolio × (yield + growth)` — not dividends-only. Chart shows both total-return and dividends-only lines.
+- **Cash interest**: parsed from CTRN section of IBKR Flex CSV automatically (no config needed). Deduplicated across multiple input files by `(currency, description)`. Adds to KZ 863 / net_taxable. Freedom dashboard shows net income = `gross × 0.725 − excess_WHT`.
 
 ## Security rule — NEVER violate
 **Never write real account IDs, API keys, passwords, or any PII into committed files.**
@@ -86,12 +87,13 @@ account_id:           # scalar or list — supports multi-broker and migrated ac
 Account IDs are **placeholders only** in this file — real IDs are in `users/{person}/config.local.yaml`.
 - Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
 - Matthias: IB + SAXO DK + E*Trade accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
-  2025 run: KZ 863 €10,138 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €2,628 | KeSt remaining **€3,560** (IB+SAXO, no double-count)
+  2025 run: KZ 863 €11,340.73 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €4,735 | KeSt remaining **€3,267.63** (IB+SAXO+E*Trade+interest)
   E*Trade 2022-2023 statements obtained ✓; NXPI FIFO chain complete 2020–2026. Sep 2023 account migration handled via `etrade_skip_transfers`.
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
   1COV/1CO Covestro tender (symbol_aliases) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓,
   VER→OEWA Verbund AG ticker rename (symbol_aliases) ✓ — ⚠️ remove alias for 2026+ tax year
+  NOV→NOVd Novo Nordisk German listing (IB: NOV.d → normalized NOVd; 2025 sell as NOV) ✓
 - GAZ (Russian ADR) — held, likely worthless, no tax impact yet
 - **New 2025**: HENSOLDT, RENK, RHEINMETALL, TKMS, 4SC, DRONESHIELD, BLACKSKY
 
@@ -109,7 +111,7 @@ python main.py --input users/matthias/data/IB/2025/file.csv --year 2025
 ```
 
 ## Output files (per run)
-All land in `users/{person}/output/`:
+All land in `users/{person}/output/{year}/`:
 - `{person}_{year}_tax_summary.txt`   — E1kv Kennziffern for FinanzOnline
 - `{person}_{year}_transactions.csv`  — full transaction log
 - `{person}_{year}_dashboard.xlsx`    — E1kv Summary, Overview, Transactions, Dividends, Trades, Freedom, [Nichtmeldefonds], [Meldefonds]
@@ -149,7 +151,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 335 tests, all green
+- `python -m pytest tests/` — 342 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -260,6 +262,11 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 - Pipeline priority: explicit positions file → Open Positions section in any input file → FIFO × yfinance fallback.
 - Solves European stock ticker issues (RENK, RHM, TKMS, etc.) where yfinance returns no price.
 
+### Cash Transactions (interest, automatic)
+- **Already included** in the standard Activity Flex Query (CTRN section) — no new config needed.
+- The pipeline parses "Broker Interest Received" rows automatically; deduplicates across files.
+- Adds interest to KZ 863 / net_taxable / kest_due. Shown in Freedom "Income After Tax" breakdown.
+
 ### Cash Report (portfolio value, optional)
 - **Optional**: add "Cash Report" section to the existing Activity Flex Query.
   - IBKR: Reports → Flex Queries → edit existing query → tick **Cash Report** (trade date basis)
@@ -275,9 +282,10 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 1. **🔴 WHT reclaim forms** — AT Ansässigkeitsbescheinigung (ZS-AD) received signed 2026-05-13.
    - France 2024 deadline 2026-12-31: Cerfa n°12816 (Formulaire 5000 + 5001); MC + SAF, €12.06 excess.
    - Germany: DE €775.00 excess; BZSt portal. Denmark: €37.91 excess; SKAT. Paper filings only.
-2. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement`; blocked on Holdings export sample
-3. **E*Trade CSV parser** — parse `tradesdownload.csv`; eliminates iPhone-scan PDF reliance
-4. **OeKB data license inquiry** — email taxdata@oekb.at; unlocks automated AE/WA for all Meldefonds
+2. **Jessie 2025 filing** — E1kv data ready; ANV/L1 worth submitting (~€485 Werbungskosten, ~€106 refund).
+3. **SAXO Holdings parser** — eliminate `portfolio_eur_supplement`; blocked on Holdings export sample
+4. **E*Trade CSV parser** — parse `tradesdownload.csv`; eliminates iPhone-scan PDF reliance
+5. **OeKB data license inquiry** — email taxdata@oekb.at; unlocks automated AE/WA for all Meldefonds
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
