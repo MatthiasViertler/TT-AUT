@@ -83,6 +83,12 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] **Freedom tab — per-symbol holdings table** *(2026-05-13)* — Symbol [Type] / Qty / EUR Value /
       Port% / Divs EUR / Yield% in both Freedom HTML and Excel tab. Synthetic lots: ~qty + —.
       Sold positions at bottom. Sort: value|yield|alpha. Optional group_by_type. 26 tests → 261 total.
+- [ ] **Multi-year dividend trend** — chart/table in Overview tab showing dividend income
+      year-over-year. Data is already in `summary.json` per year — no new parsing needed.
+      Shows growth trajectory at a glance; useful for FIRE progress tracking.
+- [ ] **FinanzOnline filing guide** — `docs/finanz-online-guide.md` with screenshots and
+      step-by-step navigation for E1kv entry, KZ fields, and submission. FinanzOnline is
+      non-obvious to navigate; a companion guide adds real value alongside the XML output feature.
 
 ---
 
@@ -99,6 +105,10 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       only fires if prior day is in cache (no extra fetches). 5 tests. *(2026-05-04)*
 - [x] **Pytest skeleton** (`tests/`) — 65 tests across parser, WHT reclaim, sanity, manual
       cost basis, FIFO cross-check, position check, FX sanity. *(2026-05-04)*
+- [ ] **OPT rows warning** — currently OPT (options/derivatives) rows are silently dropped.
+      Emit a visible warning when any are skipped: "N options transactions skipped —
+      Termingeschäfte not tracked. Declare gains/losses manually on KZ 802."
+      Quick win; prevents users unknowingly under-declaring.
 
 ---
 
@@ -123,8 +133,26 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
 - [ ] **Regelbesteuerungsoption mode** — `--regelbesteuerung` flag, recalculates
       at progressive income tax rate instead of flat 27.5% KESt
-      Low priority: Matthias income level → progressive rate likely worse than 27.5%;
-      N/A for Jessie 2025. Useful only if a user's marginal rate < 27.5%.
+      Very low priority: very few AT investors have marginal rate < 27.5%; N/A for Jessie 2025.
+- [ ] **Options / Termingeschäfte (KZ 802)** — full support: separate FIFO queue, KZ 802 output,
+      loss segregation (AT law: option losses cannot offset stock gains — separate loss bucket).
+      Prerequisite: OPT rows warning (above). Complex — future session.
+- [ ] **Bond / Anleihen income tracking** — Anleihen interest is KeSt 27.5% (same as dividends)
+      but not yet broken out separately. Add to KZ 863 with "interest" source label. Popular
+      among AT FIRE investors; distinct from dividend income in reporting.
+- [ ] **Savings account interest** (Sparbuch/Festgeld) — manual config block `savings_accounts:`
+      with `steuereinfach: true` and `net_interest_eur`. Steuereinfach = KeSt already deducted
+      at source, no E1kv entry needed; net amount feeds Freedom dashboard net income.
+- [ ] **Prior-year loss carryforward input** — allow user to specify prior-year unabsorbed losses
+      via config (e.g. `loss_carryforward_dom_eur`, `loss_carryforward_fgn_eur`); deducted from
+      current-year gains before KeSt. Note: AT standard KeSt has no carryforward (losses offset
+      same-year gains only); Regelbesteuerung allows it. Higher priority for users with 2022-2024 losses.
+- [ ] **Nichtmeldefonds AE cost basis step-up on sale** — each year's AE is added to
+      steuerliche Anschaffungskosten (§ 186 InvFG). When a NMF position is sold, the FIFO
+      engine must use the original cost + cumulative AE paid to date, not just the original cost.
+      Without this, taxable gain is overstated (or tax loss understated) at sale time.
+      Implementation: accumulate AE per symbol per year in pipeline; inject as a cost-basis
+      adjustment into FIFO lots before processing sells. Required for correctness on exit.
 
 ---
 
@@ -157,9 +185,34 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       `secrets.local.yaml`: 4th config layer for credentials (gitignored; pre-commit scans all values ≥ 6 chars).
       `portfolio_eur_supplement`: SAXO manual add-on on top of IBKR auto-computed value.
       18 new tests → 300 total. Tagged v0.2.2.
+- [ ] **Steuereinfach broker architecture** — add `kest_already_withheld: true` flag at broker/
+      config level. Steuereinfach brokers (Trade Republic, AT banks) deduct KeSt at source →
+      no E1kv entry, net amounts used directly in Freedom dashboard. Prerequisite for Trade Republic
+      and Sparbuch/Festgeld parsers. Design in before adding those brokers.
 - [ ] **Local web UI** — Flask/FastAPI + HTML; folder picker, pipeline progress, inline results,
-      download buttons. One command to start. No CLI knowledge required.
-- [ ] **FinanzOnline XML output** — machine-readable upload format for direct e-filing
+      download buttons. One command to start. No CLI knowledge required. Priority: after core features.
+- [ ] **FinanzOnline XML output** — machine-readable upload format for direct e-filing.
+      Pair with filing guide (see Dashboard section above).
+- [ ] **Household view** — combined run for two people (e.g. Matthias + Jessie): total household
+      KeSt, combined WHT reclaims, side-by-side Freedom projections. Not a "compare" — a
+      combined picture for joint tax planning. (Was labelled `--compare` in backlog.)
+
+---
+
+## 🔵 Portfolio Intelligence
+
+- [ ] **AT tax efficiency analyzer** — per-position report flagging tax-inefficient holdings:
+      Nichtmeldefonds (punitive AE + embedded tax loss estimate), high-WHT-excess countries,
+      positions with cost basis > current price. Outputs actionable recommendations:
+      "O: ~€290 KeSt credit available in 2026 if sold; consider OeKB-registered REIT ETF alternative."
+      Data sources: existing FIFO lots + NMF results + WHT reclaim report. No new external APIs needed.
+- [ ] **Nichtmeldefonds alternative suggestions** — when a position is flagged as Nichtmeldefonds,
+      suggest OeKB-registered equivalents (e.g. European REIT ETF instead of US REIT). Requires
+      a curated mapping file (nichtmeldefonds_isin → suggested_meldefonds_alternative). Start small.
+- [ ] **Portfolio health scraper** — automated fetch of key metrics per holding: OeKB registration
+      status (Meldefonds/Nichtmelde), dividend yield, domicile, WHT treaty rate. Uses OeKB public
+      registry CSV + yfinance. Produces a per-holding "AT investor score" (tax drag, yield, simplicity).
+      More complex: needs scraping + curation. Scope carefully before building.
 
 ---
 
@@ -176,6 +229,12 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       (e.g. Sep 1 2023 old→Morgan Stanley migration of 123.977 NXPI — not a fresh RSU vest).
       Standalone "Recap of Cash Management Activity" PDFs correctly skipped (no year header).
       2022 + 2023 statements obtained and in data/; NXPI FIFO chain complete 2020–2026.
+- [ ] **Trade Republic parser** — widely used in AT; steuereinfach broker (KeSt deducted at source).
+      Parse TR account statements/exports. High value for AT user base. Requires steuereinfach
+      architecture flag (see Usability section above) as prerequisite.
+- [ ] **Physical metals** (gold/silver) — AT §30 EStG: gains tax-free if held > 1 year.
+      Add SELL transactions for metals with automatic KeSt-free flag based on FIFO holding period.
+      Spot price for portfolio value via yfinance (gold/silver futures). Low complexity, high AT completeness.
 - [ ] **SAXO Holdings parser** — eliminate `portfolio_eur_supplement` manual override; blocked on SAXO
       Holdings export sample from Matthias. Would make SAXO portfolio value automatic.
 - [ ] **E\*Trade CSV parser** (`brokers/etrade_csv.py`) — parse `tradesdownload.csv` exports (currently
@@ -183,8 +242,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       account statements; cleaner data source for dividends and RSU vests.
 - [ ] **IB NAV Statement parser** — alternative route to portfolio value; lower priority than IBKR Open Positions (already solved via mark prices in POST section).
 - [ ] REIT/BDC handling (US return of capital, §199A dividends, 1099-DIV boxes)
-- [ ] `--compare` mode — merge self + jessie into one dashboard
-- [ ] Prior-year loss carryforward input
+- [ ] **Crypto** — AT crypto tax: held >1yr was tax-free pre-Mar 2022; post-Mar 2022 taxed as
+      capital income at 27.5% (same KZ as stocks). Complex rules, mixed lot treatment.
+      Low-medium priority; high complexity. Future session.
 
 ---
 

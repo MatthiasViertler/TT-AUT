@@ -78,7 +78,12 @@ def _calc_position(
     # Manual overrides in config take precedence; auto-fetch fills the rest
     manual_prices = {str(k): Decimal(str(v)) for k, v in entry.get("dec31_prices", {}).items()}
 
-    shares = _net_shares_at_year_end(all_transactions, symbol, tax_year)
+    override_map = {str(k): Decimal(str(v)) for k, v in entry.get("shares_held_override", {}).items()}
+    if str(tax_year) in override_map:
+        shares = override_map[str(tax_year)]
+        log.debug(f"NMF {symbol}: using shares_held_override for {tax_year}: {shares}")
+    else:
+        shares = _net_shares_at_year_end(all_transactions, symbol, tax_year)
     if shares <= ZERO:
         log.debug(f"NMF {symbol}: no shares held at end of {tax_year}, skipping")
         return None
