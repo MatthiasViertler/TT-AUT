@@ -106,6 +106,14 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       cost basis, FIFO cross-check, position check, FX sanity. *(2026-05-04)*
 - [x] **OPT rows warning** *(2026-05-16, v0.3.5)* — `brokers/ib_csv.py`: `log.info` → visible
       `[warn]` print when options trades are skipped.
+- [x] **IBKR flex CTRN missing-columns warning** *(2026-05-16, v0.4.1)* — `brokers/ib_csv.py`:
+      `[warn]` once per file when Flex Query CTRN lacks Symbol/ISIN; description fallback still works.
+      Fix path: IBKR Reports → Flex Queries → Cash Transactions → add Symbol + ISIN. 2 tests → 380.
+- [x] **KZ 899 credit in KeSt remaining** *(2026-05-16, v0.4.0)* — `core/tax_engine.py` + `pipeline.py`.
+      2025 remaining: €4,251.72 → €3,808.12.
+- [x] **Freedom Excel portfolio supplement** *(2026-05-16, v0.4.0)* — `generators/writer.py`:
+      `_fill_freedom_sheet` applies `portfolio_eur_supplement` to computed value; matches HTML.
+      Updated 250k → 272k. Excel now shows full portfolio (~€603k) not IBKR-only (~€331k).
 
 ---
 

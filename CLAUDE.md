@@ -304,12 +304,12 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 3. **E*Trade CSV parser** — `tradesdownload.csv` format.
 4. **OeKB data license inquiry** — email taxdata@oekb.at.
 
-## Done this session (v0.4.0)
-- **IBKR flex CTRN symbol/ISIN extraction** ✅ — `brokers/ib_csv.py`: fallback regex extracts symbol+ISIN from description when flex CSV CTRN lacks those columns. Fixes "unknown country" WHT warnings and ALV 2026 dividend not showing in Freedom tab.
-- **KZ 899 credit in KeSt remaining** ✅ — `core/tax_engine.py` + `core/pipeline.py` (3 sites): KZ 899 (AT domestic KeSt withheld at source) now subtracted when computing `kest_remaining`. Fixes 2025 remaining: €4,251.72 → €3,808.12 (Δ €443.60 = 27.5% × KZ 862 €1,613.10).
-- **SOLV cost basis** ✅ — `users/matthias/config.local.yaml`: SOLV (Solventum spin-off from 3M) allocated cost_eur=366.56 via FMV-ratio method (BMF §78 EStG). Was incorrectly 0, causing phantom gain.
-- **Pre-2021 IBKR lots** ✅ — `users/matthias/config.local.yaml`: added ADS/GAZ/HEN3/IFX/UNVB with real quantities and cost from old account U4251654 2020-12-31 portfolio report. Fixes negative position warnings for all 5 symbols.
-- **Freedom Excel portfolio supplement** ✅ — `generators/writer.py` `_fill_freedom_sheet`: applies `portfolio_eur_supplement` to computed portfolio value, matching HTML freedom.py. Excel now shows full portfolio (~€603k), not IBKR-only (~€331k). Supplement updated 250k → 272k.
+## Done this session (v0.4.0 + v0.4.1)
+- **IBKR flex CTRN symbol/ISIN extraction** ✅ — `brokers/ib_csv.py`: fallback regex + one-time `[warn]` when Flex Query lacks Symbol/ISIN in CTRN. Fixes "unknown country" WHT warnings and missing Freedom tab dividends (e.g. ALV 2026).
+- **KZ 899 credit in KeSt remaining** ✅ — `core/tax_engine.py` + `pipeline.py` (3 sites). 2025: €4,251.72 → €3,808.12.
+- **SOLV cost basis** ✅ — cost_eur=366.56 via FMV-ratio method (BMF §78 EStG). Was 0.
+- **Pre-2021 IBKR lots** ✅ — ADS/GAZ/HEN3/IFX/UNVB in `manual_cost_basis` (real quantities, old account U4251654).
+- **Freedom Excel portfolio supplement** ✅ — `generators/writer.py`: applies `portfolio_eur_supplement`; updated 250k → 272k. Excel now shows ~€603k not IBKR-only ~€331k.
 
 <!-- v0.3.0–v0.3.5 session notes → CLAUDE-archive.md -->
 
