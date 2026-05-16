@@ -125,13 +125,26 @@ class FXRateProvider:
         return cache.get(str(on_date))
 
     def _ensure_fetched(self, currency: str, start: date, end: date) -> None:
-        """Fetch all years in [start.year, end.year] range if not cached."""
+        """Fetch all years in [start.year, end.year] range if not cached.
+
+        Past years are fetched once and never refreshed (they are complete).
+        The current calendar year is re-fetched if the cache is >1 day old,
+        because ECB publishes rates daily and the year-file would otherwise
+        stay frozen at its creation date.
+        """
         if not self.fetch_live:
             return
+        today = date.today()
         for year in range(start.year, end.year + 1):
             cache_file = self._cache_file(currency, year)
-            if not cache_file.exists():
-                self._fetch_year(currency, year)
+            if cache_file.exists():
+                if year < today.year:
+                    continue  # complete past year — never stale
+                # Current year: re-fetch if cache is more than 1 day old
+                mtime = date.fromtimestamp(cache_file.stat().st_mtime)
+                if (today - mtime).days <= 1:
+                    continue
+            self._fetch_year(currency, year)
 
     def _fetch_year(self, currency: str, year: int) -> None:
         """Download a full year of daily rates from ECB and cache to disk."""
