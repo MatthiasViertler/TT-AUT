@@ -22,6 +22,7 @@ from typing import Optional
 try:
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
+    from openpyxl.chart import BarChart, Reference
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
@@ -876,6 +877,7 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         c.border = _border()
     ws.row_dimensions[r].height = 28
+    data_start_row = row[0]  # first data row (after title + header)
 
     def _d(entry: dict, key: str) -> float:
         try:
@@ -970,6 +972,23 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
     ws.row_dimensions[r].height = 18
 
     ws.freeze_panes = "A3"
+
+    # ── Dividend trend chart (shown only when 2+ years of history) ────────────
+    if len(history) >= 2:
+        data_end_row = r - 1  # last data row (excludes TOTAL)
+        chart = BarChart()
+        chart.type = "col"
+        chart.grouping = "clustered"
+        chart.title = "Dividend Income by Year"
+        chart.y_axis.title = "EUR"
+        chart.width = 18
+        chart.height = 10
+        # col 2 (Dividends), header row (min_row=2) included so openpyxl picks up label
+        data_ref = Reference(ws, min_col=2, min_row=2, max_row=data_end_row)
+        cats_ref = Reference(ws, min_col=1, min_row=data_start_row, max_row=data_end_row)
+        chart.add_data(data_ref, titles_from_data=True)
+        chart.set_categories(cats_ref)
+        ws.add_chart(chart, f"A{r + 2}")
 
 
 # ── Freedom tab ──────────────────────────────────────────────────────────────

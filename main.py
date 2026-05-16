@@ -22,6 +22,7 @@ from core.pipeline import run_pipeline
 from core.config import load_config, scan_account_ids
 from brokers.ibkr_flex_fetch import fetch_flex_report, FlexFetchError
 from brokers.ibkr_positions import parse_ibkr_positions
+from generators.household import run_household
 
 # File extensions recognised as potential broker exports
 _BROKER_EXTENSIONS = {'.csv', '.xml', '.xlsx', '.xls', '.pdf'}
@@ -77,6 +78,12 @@ def main():
     )
     parser.add_argument("--year", type=int, required=True,
                         help="Tax year to calculate for (e.g. 2025)")
+    parser.add_argument(
+        "--household", default=None,
+        help="Comma-separated list of persons for combined household report "
+             "(e.g. 'matthias,jessie'). Reads existing per-person summary.json files. "
+             "Run per-person first, then --household.",
+    )
     parser.add_argument("--person", default="auto",
                         help="Person label (e.g. 'matthias'). "
                              "Default: auto-detected from account_id in users/*/config.local.yaml.")
@@ -107,6 +114,16 @@ def main():
 
     args = parser.parse_args()
     users_dir = Path(args.users_dir)
+
+    # ── Household combined report (short-circuit normal pipeline) ─────────────
+    if args.household:
+        persons = [p.strip() for p in args.household.split(",") if p.strip()]
+        if len(persons) < 2:
+            print("ERROR: --household requires at least two persons (e.g. matthias,jessie).",
+                  file=sys.stderr)
+            sys.exit(1)
+        run_household(persons, args.year, users_dir)
+        return
 
     # ── Resolve person ────────────────────────────────────────────────────────
     person = args.person  # may be "auto"

@@ -565,8 +565,8 @@ def _parse_trades(rows: list[dict], config: dict,
         results.append(txn)
 
     if opt_skipped:
-        log.info(f"IB: skipped {opt_skipped} OPT rows in {Path(source).name} "
-                 f"(derivatives KZ deferred)")
+        print(f"  [warn]   IB: {opt_skipped} OPT row(s) skipped in {Path(source).name} "
+              f"— derivatives KZ (982/993) not yet implemented")
 
     return results
 
