@@ -89,11 +89,14 @@ account_id:           # scalar or list — supports multi-broker and migrated ac
 Account IDs are **placeholders only** in this file — real IDs are in `users/{person}/config.local.yaml`.
 - Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
 - Matthias: IB + SAXO DK + E*Trade accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
-  2025 run: KZ 863 €11,340.73 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €4,735 | NMF KeSt €985 | KeSt remaining **€4,251.72** (IB+SAXO+E*Trade+interest+NMF)
+  2025 run: KZ 862 €1,613.10 | KZ 863 €11,340.73 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €4,735 | KZ 899 €443.60 | KeSt remaining **€3,808.12** (IB+SAXO+E*Trade+interest+NMF)
+  2026 run (as of 2026-05-16): KZ 862 €2,085.60 | KZ 863 €12,882.68 | KZ 994 €17,598.66 | KZ 899 €573.54 | KZ 998 €1,449.48 | KeSt remaining **€6,932.89**
   E*Trade 2022-2023 statements obtained ✓; NXPI FIFO chain complete 2020–2026. Sep 2023 account migration handled via `etrade_skip_transfers`.
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
-  1COV/1CO Covestro tender (symbol_aliases — different ISIN, must stay explicit) ✓, SOLV spin-off (manual_cost_basis, cost=0) ✓,
+  1COV/1CO Covestro tender (symbol_aliases — different ISIN, must stay explicit) ✓,
+  SOLV spin-off (manual_cost_basis, cost_eur=366.56 via FMV-ratio method, BMF §78 EStG) ✓,
+  Pre-2021 IBKR lots ADS/GAZ/HEN3/IFX/UNVB (manual_cost_basis with real quantities, old account U4251654) ✓,
   VER→OEWA Verbund AG ticker rename (same ISIN → ISIN auto-alias, no config needed) ✓
   NOV→NOVd Novo Nordisk German listing (same ISIN → ISIN auto-alias, no config needed) ✓
 - GAZ (Russian ADR) — held, likely worthless, no tax impact yet
@@ -158,6 +161,13 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 ## Manual cost basis
 `manual_cost_basis` in person config seeds FIFO lots in date order alongside real buys.
 Negative-position check accounts for manual lots.
+
+## Documentation
+- **Source of truth**: `docs/kapitalertrag_documentation.md` — edit this with every `/wrap-up`
+- **Human-readable Word doc**: `docs/kapitalertrag_documentation.docx` — regenerated from the md at major version bumps (v0.3 → v0.4 etc.) using `python scripts/build_docs.py`
+- **Why not edit `.docx` directly**: binary format, not editable with Claude's text tools
+- `python-docx` is installed in the venv; `scripts/build_docs.py` does the conversion
+- Other docs: `docs/faq-*.md` — update inline when relevant FAQ content changes
 
 ## Testing
 - `python -m pytest tests/` — 378 tests, all green
@@ -275,6 +285,7 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 - **Already included** in the standard Activity Flex Query (CTRN section) — no new config needed.
 - The pipeline parses "Broker Interest Received" rows automatically; deduplicates across files.
 - Adds interest to KZ 863 / net_taxable / kest_due. Shown in Freedom "Income After Tax" breakdown.
+- **CTRN column format difference**: the ibkr_flex.csv CTRN section uses fewer columns than the annual TT-AUT export CSV. Flex format: `ClientAccountID, CurrencyPrimary, FXRateToBase, Description, Amount, Type` (no Symbol/ISIN columns). Annual format adds `Symbol` and `ISIN`. The parser falls back to extracting symbol and ISIN from the description string (format: `"SYMBOL(ISIN) ..."`) when those columns are absent — this is by design and correct. If you prefer Symbol/ISIN columns in the flex CSV, add them in IBKR Reports → Flex Queries → Cash Transactions section fields. Not required — the fallback handles it.
 
 ### Cash Report (portfolio value, optional)
 - **Optional**: add "Cash Report" section to the existing Activity Flex Query.
@@ -293,17 +304,14 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 3. **E*Trade CSV parser** — `tradesdownload.csv` format.
 4. **OeKB data license inquiry** — email taxdata@oekb.at.
 
-## Done this session (v0.3.5)
-- **OPT rows warning** ✅ — `brokers/ib_csv.py`: promote silent `log.info` to visible `[warn]` print when options trades are skipped.
-- **Dividend trend chart** ✅ — `generators/writer.py`: openpyxl `BarChart` added to Overview tab; shows dividend income year-over-year when 2+ years of history exist.
-- **Household combined report** ✅ — `generators/household.py` + `--household` CLI flag.
-  `python main.py --household matthias,jessie --year 2025`
-  Freshness-checks per-person `summary.json` (warns if >7 days old, errors if missing).
-  Handles new `output/{year}/` and legacy `output/` path layouts.
-  Writes `users/household/output/{year}/household_{year}_{persons}.xlsx` with side-by-side
-  KeSt / dividends / gains / losses / portfolio + combined totals column.
+## Done this session (v0.4.0)
+- **IBKR flex CTRN symbol/ISIN extraction** ✅ — `brokers/ib_csv.py`: fallback regex extracts symbol+ISIN from description when flex CSV CTRN lacks those columns. Fixes "unknown country" WHT warnings and ALV 2026 dividend not showing in Freedom tab.
+- **KZ 899 credit in KeSt remaining** ✅ — `core/tax_engine.py` + `core/pipeline.py` (3 sites): KZ 899 (AT domestic KeSt withheld at source) now subtracted when computing `kest_remaining`. Fixes 2025 remaining: €4,251.72 → €3,808.12 (Δ €443.60 = 27.5% × KZ 862 €1,613.10).
+- **SOLV cost basis** ✅ — `users/matthias/config.local.yaml`: SOLV (Solventum spin-off from 3M) allocated cost_eur=366.56 via FMV-ratio method (BMF §78 EStG). Was incorrectly 0, causing phantom gain.
+- **Pre-2021 IBKR lots** ✅ — `users/matthias/config.local.yaml`: added ADS/GAZ/HEN3/IFX/UNVB with real quantities and cost from old account U4251654 2020-12-31 portfolio report. Fixes negative position warnings for all 5 symbols.
+- **Freedom Excel portfolio supplement** ✅ — `generators/writer.py` `_fill_freedom_sheet`: applies `portfolio_eur_supplement` to computed portfolio value, matching HTML freedom.py. Excel now shows full portfolio (~€603k), not IBKR-only (~€331k). Supplement updated 250k → 272k.
 
-<!-- v0.3.0–v0.3.4 session notes → CLAUDE-archive.md -->
+<!-- v0.3.0–v0.3.5 session notes → CLAUDE-archive.md -->
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)

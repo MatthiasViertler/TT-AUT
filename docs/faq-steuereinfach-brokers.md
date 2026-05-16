@@ -71,7 +71,32 @@ Trade Republic alone can show you your TR account. This tool shows you the compl
 
 ---
 
-## 4. You already file E1kv for another broker anyway
+## 4. Steuereinfach brokers assume worst-case — and over-withhold
+
+A steuereinfach broker applies KeSt automatically but cannot know your full tax picture. This
+means they often withhold **more than necessary**:
+
+- **No cross-broker loss offset**: as described in point 1, the broker sees only its own
+  account. Losses you hold at IBKR or SAXO do not reduce its withholding.
+
+- **Conservative Meldefonds assumptions**: a steuereinfach broker applies KeSt at the statutory
+  27.5% rate on the full distribution or AE figure. It may not apply the specific WA (Withhaltungsabzug)
+  that would reduce your KeSt, because it relies on simplified OeKB data processing.
+
+- **Foreign WHT over-withholding**: brokers apply the full foreign withholding regardless of
+  whether you are entitled to a reduced treaty rate. They cannot apply a DBA exemption on your
+  behalf — that is the investor's responsibility to reclaim.
+
+- **No NMF step-up**: if you hold Nichtmeldefonds (US REITs, BDCs) and previously paid AE-based
+  KeSt, that step-up to your Anschaffungskosten is never reflected in a steuereinfach broker's
+  cost basis — so at exit they will withhold on a gain larger than your actual taxable gain.
+
+The consequence is that every year you do not file an E1kv return, these excess withholdings are
+simply lost. Filing recaptures them.
+
+---
+
+## 5. You already file E1kv for another broker anyway
 
 If you hold even one non-steuereinfach account (IBKR, SAXO, E*Trade, etc.), you are already
 required to file an E1kv return. In that case, excluding your Trade Republic account makes no
@@ -90,6 +115,7 @@ complete and optimised.
 | Foreign dividends via TR | Identify and file excess WHT reclaims |
 | Multiple brokers | Single unified FIRE dashboard |
 | Already filing E1kv for another broker | Complete the return correctly at no extra effort |
+| Steuereinfach broker withholding too much | Correct overpayment via E1kv filing (NMF step-up, WA, cross-broker losses) |
 
 Even if Trade Republic is your only broker and you had no losses and no foreign dividends in a
 given year, this tool produces your FIRE projection and WHT report — at which point the filing

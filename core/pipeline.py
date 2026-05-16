@@ -157,7 +157,7 @@ def run_pipeline(
         summary.kest_due_eur    += summary.nichtmeldefonds_kest_eur
         summary.kest_remaining_eur = max(
             ZERO,
-            (summary.kest_due_eur - summary.wht_creditable_eur).quantize(Decimal("0.01"))
+            (summary.kest_due_eur - summary.kz_899 - summary.wht_creditable_eur).quantize(Decimal("0.01"))
         )
         positions_ok    = sum(1 for r in nmf_results if not r.warning)
         positions_warn  = sum(1 for r in nmf_results if r.warning)
@@ -187,6 +187,7 @@ def run_pipeline(
         summary.kest_remaining_eur = max(
             ZERO,
             (summary.kest_due_eur
+             - summary.kz_899
              - summary.wht_creditable_eur
              - summary.meldefonds_wa_eur).quantize(Decimal("0.01"))
         )
@@ -298,6 +299,7 @@ def run_pipeline(
         summary.kest_remaining_eur = max(
             ZERO,
             (summary.kest_due_eur
+             - summary.kz_899
              - summary.wht_creditable_eur
              - summary.meldefonds_wa_eur).quantize(Decimal("0.01"))
         )

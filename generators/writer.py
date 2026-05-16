@@ -22,7 +22,7 @@ from typing import Optional
 try:
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    from openpyxl.chart import BarChart, Reference
+    from openpyxl.chart import BarChart, LineChart, Reference
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
@@ -49,7 +49,7 @@ def write_all(
 
     # Save machine-readable snapshot first so Excel Overview tab can include current year
     p = output_dir / f"{slug}_summary.json"
-    _save_summary_json(summary, p)
+    _save_summary_json(summary, p, transactions)
     print(f"  [out]    {p}")
 
     if opts.get("csv", True):
@@ -113,7 +113,8 @@ _SUMMARY_FIELDS = [
 ]
 
 
-def _save_summary_json(summary: TaxSummary, path: Path) -> None:
+def _save_summary_json(summary: TaxSummary, path: Path,
+                       transactions: "list | None" = None) -> None:
     data: dict = {
         "tax_year": summary.tax_year,
         "person_label": summary.person_label,
@@ -128,6 +129,22 @@ def _save_summary_json(summary: TaxSummary, path: Path) -> None:
 
     # Interest income (always present; ZERO if no IBKR interest section found)
     data["interest_eur"] = str(summary.interest_eur)
+
+    # Monthly breakdown (for dashboard trend charts)
+    if transactions is not None:
+        monthly_divs: dict[str, str] = {}
+        monthly_tx: dict[str, int] = {}
+        for txn in transactions:
+            if txn.trade_date.year != summary.tax_year:
+                continue
+            key = f"{txn.trade_date.month:02d}"
+            monthly_tx[key] = monthly_tx.get(key, 0) + 1
+            if txn.txn_type == TransactionType.DIVIDEND:
+                prev = Decimal(monthly_divs.get(key, "0"))
+                monthly_divs[key] = str(prev + txn.eur_amount)
+        data["monthly_dividends"] = monthly_divs
+        data["monthly_transaction_counts"] = monthly_tx
+        data["transaction_count"] = sum(monthly_tx.values())
 
     # portfolio_positions: serialize for the multi-year Overview tab
     data["portfolio_positions"] = [
@@ -304,7 +321,7 @@ def _write_excel(txns: list[NormalizedTransaction],
 
     # ── Tab 2: Year-over-year overview (Verlustausgleich) ─────────────────────
     wo = wb.create_sheet("Overview")
-    _fill_overview_sheet(wo, history or [], summary.tax_year)
+    _fill_overview_sheet(wo, history or [], summary.tax_year, config)
 
     # ── Tab 3: All Transactions ───────────────────────────────────────────────
     wt = wb.create_sheet("Transactions")
@@ -855,10 +872,12 @@ _OV_COLS = [
     ("KeSt 27.5%",        14),
     ("WHT Credited",      14),
     ("KeSt Remaining",    15),
+    ("Div YoY %",         10),
 ]
 
 
-def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
+def _fill_overview_sheet(ws, history: list[dict], current_year: int,
+                         config: dict | None = None) -> None:
     # Column widths
     for i, (_, w) in enumerate(_OV_COLS, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
@@ -892,6 +911,13 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         c.border = _border()
     ws.row_dimensions[r].height = 28
+    # Supplementary chart data headers (cols 20-22, 25-27) — chart-only, no styling
+    ws.cell(r, 20, "Interest EUR")
+    ws.cell(r, 21, "Transactions")
+    ws.cell(r, 22, "FIRE %")
+    ws.cell(r, 25, "Month")
+    ws.cell(r, 26, "Div/Month EUR")
+    ws.cell(r, 27, "Tx/Month")
     data_start_row = row[0]  # first data row (after title + header)
 
     def _d(entry: dict, key: str) -> float:
@@ -902,7 +928,7 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
 
     # Data rows — use per-KZ fields for domestic/foreign split
     totals = [0.0] * (len(_OV_COLS) - 1)  # skip Year column
-    for entry in history:
+    for i, entry in enumerate(history):
         yr         = entry.get("tax_year")
         divs       = _d(entry, "total_dividends_eur")
         dom_gains  = _d(entry, "kz_981")
@@ -943,6 +969,30 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
             cell.fill = _hfill(color or (LIGHT_FILL if is_current else WHITE))
             cell.border = _border()
 
+        # Div YoY % (col 11)
+        if i > 0:
+            prev_divs = _d(history[i - 1], "total_dividends_eur")
+            yoy = ((divs - prev_divs) / prev_divs * 100) if prev_divs > 0 else 0.0
+            yoy_txt   = f"{yoy:+.1f}%"
+            yoy_color = "008000" if yoy > 0.05 else ("C00000" if yoy < -0.05 else "000000")
+        else:
+            yoy_txt   = "—"
+            yoy_color = "888888"
+        c11 = ws.cell(r, 11, yoy_txt)
+        c11.font      = _font(bold=is_current, size=10, color=yoy_color)
+        c11.fill      = _hfill(row_fill)
+        c11.alignment = _center()
+        c11.border    = _border()
+
+        # Supplementary data for charts (cols 20-22, hidden area)
+        ws.cell(r, 20, _d(entry, "interest_eur"))
+        ws.cell(r, 21, int(entry.get("transaction_count") or 0))
+        if config:
+            _mexp = float(
+                (config.get("freedom_dashboard") or {}).get("monthly_expenses_eur", 0) or 0
+            )
+            ws.cell(r, 22, round(divs / (_mexp * 12) * 100, 1) if _mexp > 0 else 0.0)
+
         totals[0] += divs
         totals[1] += dom_gains
         totals[2] += dom_losses
@@ -976,10 +1026,12 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
         totals[6],           # kest
         totals[7],           # wht
         totals[8],           # remaining
+        "",                  # Div YoY % — not aggregated
     ]
     for col_idx, val in enumerate(signed_totals, 2):
-        cell = ws.cell(r, col_idx, val)
-        cell.number_format = '#,##0.00'
+        cell = ws.cell(r, col_idx, val if val != "" else None)
+        if isinstance(val, float):
+            cell.number_format = '#,##0.00'
         cell.alignment = _right()
         cell.font = _font(bold=True, size=10, color=WHITE)
         cell.fill = _hfill(ACCENT_FILL)
@@ -988,22 +1040,116 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int) -> None:
 
     ws.freeze_panes = "A3"
 
-    # ── Dividend trend chart (shown only when 2+ years of history) ────────────
-    if len(history) >= 2:
-        data_end_row = r - 1  # last data row (excludes TOTAL)
-        chart = BarChart()
-        chart.type = "col"
-        chart.grouping = "clustered"
-        chart.title = "Dividend Income by Year"
-        chart.y_axis.title = "EUR"
-        chart.width = 18
-        chart.height = 10
-        # col 2 (Dividends), header row (min_row=2) included so openpyxl picks up label
-        data_ref = Reference(ws, min_col=2, min_row=2, max_row=data_end_row)
-        cats_ref = Reference(ws, min_col=1, min_row=data_start_row, max_row=data_end_row)
-        chart.add_data(data_ref, titles_from_data=True)
-        chart.set_categories(cats_ref)
-        ws.add_chart(chart, f"A{r + 2}")
+    if len(history) < 2:
+        return
+
+    data_end_row = r - 1  # last data row before TOTAL
+    cats = Reference(ws, min_col=1, min_row=data_start_row, max_row=data_end_row)
+    chart_top = r + 2
+    CW, CH = 15, 9
+    CROW   = 18
+
+    # Monthly mini-table (cols 25-27, rows data_start_row to data_start_row+11)
+    monthly_entry = next(
+        (e for e in reversed(history) if e.get("monthly_dividends")),
+        None,
+    )
+    monthly_year = (monthly_entry.get("tax_year", current_year)
+                    if monthly_entry else current_year)
+    month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    for m_idx, m_label in enumerate(month_labels, 1):
+        key  = f"{m_idx:02d}"
+        mrow = data_start_row + m_idx - 1
+        ws.cell(mrow, 25, m_label)
+        m_div = float(Decimal(str(
+            ((monthly_entry or {}).get("monthly_dividends") or {}).get(key) or "0"
+        ))) if monthly_entry else 0.0
+        m_tx = int(
+            (((monthly_entry or {}).get("monthly_transaction_counts") or {}).get(key) or 0)
+        )
+        ws.cell(mrow, 26, m_div)
+        ws.cell(mrow, 27, m_tx)
+    month_end_row = data_start_row + 11
+
+    def _col_chart(title: str, y_title: str = "EUR") -> BarChart:
+        ch = BarChart()
+        ch.type = "col"
+        ch.grouping = "clustered"
+        ch.title = title
+        ch.y_axis.title = y_title
+        ch.width = CW
+        ch.height = CH
+        return ch
+
+    # Chart 1 (ROW 0, LEFT): Dividends per Year
+    c1 = _col_chart("Dividend Income by Year")
+    c1.add_data(Reference(ws, min_col=2, min_row=2, max_row=data_end_row), titles_from_data=True)
+    c1.set_categories(cats)
+    ws.add_chart(c1, f"A{chart_top}")
+
+    # Chart 2 (ROW 0, RIGHT): KeSt Remaining per Year
+    c2 = _col_chart("KeSt Remaining by Year")
+    c2.add_data(Reference(ws, min_col=10, min_row=2, max_row=data_end_row), titles_from_data=True)
+    c2.set_categories(cats)
+    ws.add_chart(c2, f"L{chart_top}")
+
+    # Chart 3 (ROW 1, LEFT): Income Sources stacked (Dividends + Interest)
+    c3 = BarChart()
+    c3.type = "col"
+    c3.grouping = "stacked"
+    c3.title = "Income Sources by Year"
+    c3.y_axis.title = "EUR"
+    c3.width = CW
+    c3.height = CH
+    c3.add_data(Reference(ws, min_col=2,  min_row=2, max_row=data_end_row), titles_from_data=True)
+    c3.add_data(Reference(ws, min_col=20, min_row=2, max_row=data_end_row), titles_from_data=True)
+    c3.set_categories(cats)
+    ws.add_chart(c3, f"A{chart_top + CROW}")
+
+    # Chart 4 (ROW 1, RIGHT): Transactions per Year
+    c4 = _col_chart("Transactions by Year", y_title="Count")
+    c4.add_data(Reference(ws, min_col=21, min_row=2, max_row=data_end_row), titles_from_data=True)
+    c4.set_categories(cats)
+    ws.add_chart(c4, f"L{chart_top + CROW}")
+
+    has_fire = bool(
+        config and (config.get("freedom_dashboard") or {}).get("monthly_expenses_eur")
+    )
+    if has_fire:
+        # Chart 5 (ROW 2, LEFT): FIRE Coverage % per Year
+        c5 = LineChart()
+        c5.title = "FIRE Coverage % by Year"
+        c5.y_axis.title = "%"
+        c5.width = CW
+        c5.height = CH
+        c5.add_data(Reference(ws, min_col=22, min_row=2, max_row=data_end_row), titles_from_data=True)
+        c5.set_categories(cats)
+        ws.add_chart(c5, f"A{chart_top + CROW * 2}")
+
+        # Chart 6 (ROW 2, RIGHT): Dividends per Month
+        c6 = _col_chart(f"Dividends by Month ({monthly_year})")
+        c6.add_data(Reference(ws, min_col=26, min_row=data_start_row, max_row=month_end_row))
+        c6.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
+        ws.add_chart(c6, f"L{chart_top + CROW * 2}")
+
+        # Chart 7 (ROW 3, LEFT): Transactions per Month
+        c7 = _col_chart(f"Transactions by Month ({monthly_year})", y_title="Count")
+        c7.add_data(Reference(ws, min_col=27, min_row=data_start_row, max_row=month_end_row))
+        c7.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
+        ws.add_chart(c7, f"A{chart_top + CROW * 3}")
+    else:
+        # Chart 5 (ROW 2, LEFT): Dividends per Month
+        c5 = _col_chart(f"Dividends by Month ({monthly_year})")
+        c5.add_data(Reference(ws, min_col=26, min_row=data_start_row, max_row=month_end_row))
+        c5.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
+        ws.add_chart(c5, f"A{chart_top + CROW * 2}")
+
+        # Chart 6 (ROW 2, RIGHT): Transactions per Month
+        c6 = _col_chart(f"Transactions by Month ({monthly_year})", y_title="Count")
+        c6.add_data(Reference(ws, min_col=27, min_row=data_start_row, max_row=month_end_row))
+        c6.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
+        ws.add_chart(c6, f"L{chart_top + CROW * 2}")
 
 
 # ── Freedom tab ──────────────────────────────────────────────────────────────
@@ -1029,11 +1175,13 @@ def _fill_freedom_sheet(
 ) -> None:
     fd = {**_FD_DEFAULTS, **config.get("freedom_dashboard", {})}
 
-    # Use computed portfolio value if available, else fall back to config
+    # Use computed portfolio value if available, else fall back to config.
+    # Add portfolio_eur_supplement (e.g. SAXO manual estimate) — mirrors freedom.py HTML logic.
+    supplement = float(fd.get("portfolio_eur_supplement", 0))
     computed = summary.portfolio_eur_computed
     if computed is not None and computed > ZERO:
-        portfolio = float(computed)
-        portfolio_label = "Portfolio Value (computed)"
+        portfolio = float(computed) + supplement
+        portfolio_label = "Portfolio Value (computed)" + (" + manual supplement" if supplement else "")
     else:
         portfolio = float(fd["portfolio_eur"])
         portfolio_label = "Portfolio Value (config)"

@@ -423,10 +423,12 @@ class TaxEngine:
         max_credit = (foreign_div_gross * self.max_creditable_wht).quantize(TWO, ROUND_HALF_UP)
         summary.wht_creditable_eur = min(summary.kz_998, max_credit)
 
-        # Remaining KESt to pay
+        # Remaining KESt to pay.
+        # KZ 899 (domestic AT KeSt already withheld at source) is a full credit —
+        # exactly equals 27.5% × KZ 862, so subtracting it avoids double taxation.
         summary.kest_remaining_eur = max(
             ZERO,
-            (summary.kest_due_eur - summary.wht_creditable_eur).quantize(TWO, ROUND_HALF_UP)
+            (summary.kest_due_eur - summary.kz_899 - summary.wht_creditable_eur).quantize(TWO, ROUND_HALF_UP)
         )
 
         summary.total_wht_paid_eur = summary.kz_998 + summary.kz_899

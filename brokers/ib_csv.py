@@ -48,6 +48,10 @@ ISIN_RE = re.compile(r'\b([A-Z]{2}[A-Z0-9]{10})\b')
 # Matches "USD 1.51 PER SHARE" or "EUR 0.81683669 PER SHARE" in IB descriptions
 PER_SHARE_RE = re.compile(r'([A-Z]{3}\s+\d+(?:\.\d+)?\s+PER\s+SHARE)', re.IGNORECASE)
 
+# Matches "SYMBOL(ISIN) ..." at the start of IB cash-transaction descriptions
+# Used as fallback when Symbol/ISIN columns are absent (e.g. ibkr_flex.csv CTRN format)
+_DESC_SYMBOL_ISIN_RE = re.compile(r'^([A-Z][A-Z0-9.]+)\(([A-Z]{2}[A-Z0-9]{10})\)\s')
+
 FULL_TYPE_MAP = {
     "Withholding Tax":               "DIVNRA",
     "Dividends":                     "DIV",
@@ -329,6 +333,16 @@ def _parse_cash_rows_netted(
         description = row.get("Description", "").strip()
         currency    = (row.get("CurrencyPrimary") or row.get("Currency") or "").strip()
         isin        = (row.get("ISIN") or "").strip()
+
+        # Fallback: extract symbol and ISIN from description when row columns absent.
+        # Handles ibkr_flex.csv CTRN format whose headers lack Symbol/ISIN columns.
+        if not symbol or not isin:
+            m = _DESC_SYMBOL_ISIN_RE.match(description)
+            if m:
+                if not symbol:
+                    symbol = m.group(1)
+                if not isin:
+                    isin = m.group(2)
 
         symbol = _normalize_de_symbol(symbol, isin or None)
         per_share = _extract_per_share(description) or description[:60]

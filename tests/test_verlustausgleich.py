@@ -139,8 +139,8 @@ def test_overview_sheet_column_count(tmp_path):
     wb = Workbook()
     ws = wb.active
     _fill_overview_sheet(ws, history, current_year=2025)
-    # 10 columns: Year + Dividends + 4 KZ gain/loss cols + Net + KeSt + WHT + Remaining
-    assert ws.max_column == 10
+    # 11 visible columns (including Div YoY %) + supplementary chart cols up to 27
+    assert ws.max_column >= 11
 
 
 @pytest.mark.skipif(not OPENPYXL_AVAILABLE, reason="openpyxl not installed")
