@@ -201,11 +201,10 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🔵 Portfolio Intelligence
 
-- [ ] **AT tax efficiency analyzer** — per-position report flagging tax-inefficient holdings:
-      Nichtmeldefonds (punitive AE + embedded tax loss estimate), high-WHT-excess countries,
-      positions with cost basis > current price. Outputs actionable recommendations:
-      "O: ~€290 KeSt credit available in 2026 if sold; consider OeKB-registered REIT ETF alternative."
-      Data sources: existing FIFO lots + NMF results + WHT reclaim report. No new external APIs needed.
+- [x] **AT tax efficiency analyzer** *(2026-05-16, v0.3.3)* — `generators/tax_efficiency.py` + 13 tests (366 total).
+      Section 1: per-NMF-symbol: annual KeSt, cumulative AE step-up, embedded P&L, KeSt credit if sold.
+      Section 2: dividend frequency (monthly/quarterly/semi-annual/annual). Section 3: summary + action items.
+      Auto-generates `{person}_{year}_tax_efficiency.txt` whenever NMF positions exist.
 - [ ] **Nichtmeldefonds alternative suggestions** — when a position is flagged as Nichtmeldefonds,
       suggest OeKB-registered equivalents (e.g. European REIT ETF instead of US REIT). Requires
       a curated mapping file (nichtmeldefonds_isin → suggested_meldefonds_alternative). Start small.

@@ -19,6 +19,7 @@ For each run (`--person`, `--year`):
 | `users/{person}/output/{year}/{person}_{year}_wht_reclaim.txt` | Per-country WHT reclaim report (if `at_residency_start_year` set) |
 | `users/{person}/output/{year}/{person}_{year}_anv_checklist.txt` | L1 deduction checklist — Werbungskosten, Pendlerpauschale, Sonderausgaben, Familienbonus (if `anv:` set) |
 | `users/{person}/output/{year}/{person}_{year}_summary.json` | Machine-readable year snapshot; populates the multi-year Overview tab |
+| `users/{person}/output/{year}/{person}_{year}_tax_efficiency.txt` | AT tax efficiency report: NMF embedded P&L, KeSt credits if sold, dividend frequency analysis (generated when NMF positions exist) |
 
 FX rates are fetched from the ECB and cached locally — no API key needed.
 
@@ -422,7 +423,7 @@ Lots are injected into the FIFO queue in date order alongside real buy records.
 python -m pytest tests/ -v
 ```
 
-300 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), IBKR Flex Web Service auto-fetch (retry logic, error handling, file management), IBKR Open Positions parser (BOS/EOS + HEADER/DATA + Classic; OPT/FUT filtering, ISIN extraction, multi-lot summing), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, Verlustausgleich year-over-year tracking, ISIN rename hint, same-day round-trip detection, Meldefonds AE/WA calculation (KZ 936/937, WA credit, share inference), portfolio holdings table (sort, grouping, synthetic positions, sold positions).
+366 tests covering: both IB parser formats, SAXO xlsx parser (AggregatedAmounts + ShareDividends + ClosedPositions), IBKR Flex Web Service auto-fetch (retry logic, error handling, file management), IBKR Open Positions parser (BOS/EOS + HEADER/DATA + Classic; OPT/FUT filtering, ISIN extraction, multi-lot summing), WHT reclaim calculations (ground truth validated against IBKR German Tax Report), ANV checklist (Pendlerpauschale rates, deduction calculations), plausibility sanity checks, manual cost basis FIFO logic, FIFO cross-check, FX sanity, negative-position detection, Verlustausgleich year-over-year tracking, ISIN rename hint, same-day round-trip detection, Meldefonds AE/WA calculation (KZ 936/937, WA credit, share inference), portfolio holdings table (sort, grouping, synthetic positions, sold positions), NMF tax efficiency (embedded P&L, KeSt credit, dividend frequency).
 
 ---
 

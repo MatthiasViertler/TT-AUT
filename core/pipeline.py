@@ -19,6 +19,7 @@ from core.nichtmeldefonds import calculate_nichtmeldefonds
 from core.price_fetcher import get_year_end_price
 from core.tax_engine import TaxEngine
 from generators.writer import write_all
+from generators.tax_efficiency import write_tax_efficiency_report, compute_nmf_embedded_pnl
 
 log = logging.getLogger(__name__)
 ZERO = Decimal("0")
@@ -298,12 +299,23 @@ def run_pipeline(
               f"(EUR {float(summary.total_dividends_eur):,.2f} dividends "
               f"/ EUR {float(summary.portfolio_eur_computed):,.2f} portfolio){note}")
 
+    # ── 3g. Tax efficiency analysis ──────────────────────────────────────────
+    if nmf_results:
+        emb_list = compute_nmf_embedded_pnl(config, tax_year, all_transactions, nmf_results, fx)
+        underwater = [(d["symbol"], d["credit_eur"]) for d in emb_list if d["credit_eur"] > ZERO]
+        if underwater:
+            total_credit = sum(c for _, c in underwater)
+            syms = ", ".join(f"{s} ~EUR {c:,.0f}" for s, c in underwater)
+            print(f"  [tax-eff] NMF embedded credits if sold in {tax_year}: {syms}")
+            print(f"           Total: EUR {total_credit:,.2f} — see _tax_efficiency.txt for details")
+
     # ── 4. Output ─────────────────────────────────────────────────────────────
     write_all(
         transactions=all_transactions,
         summary=summary,
         output_dir=output_dir,
         config=config,
+        fx=fx,
     )
 
     # ── 5. Console summary ────────────────────────────────────────────────────

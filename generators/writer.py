@@ -29,6 +29,7 @@ except ImportError:
 from core.models import NormalizedTransaction, TaxSummary, TransactionType
 from generators.anv_checklist import write_anv_checklist
 from generators.freedom import write_freedom_html
+from generators.tax_efficiency import write_tax_efficiency_report
 from generators.wht_reclaim import write_wht_reclaim_report
 
 log = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ def write_all(
     summary: TaxSummary,
     output_dir: Path,
     config: dict,
+    fx=None,
 ) -> None:
     slug = f"{summary.person_label}_{summary.tax_year}"
     opts = config.get("output", {})
@@ -86,6 +88,19 @@ def write_all(
         write_anv_checklist(config, summary.tax_year, summary.person_label, p)
         if p.exists() and p.stat().st_size > 0:
             print(f"  [out]    {p}")
+
+    if opts.get("tax_efficiency", True) and fx is not None and summary.nichtmeldefonds:
+        p = output_dir / f"{slug}_tax_efficiency.txt"
+        write_tax_efficiency_report(
+            config=config,
+            tax_year=summary.tax_year,
+            all_transactions=transactions,
+            nmf_results=summary.nichtmeldefonds,
+            portfolio_positions=summary.portfolio_positions,
+            fx=fx,
+            output_path=p,
+        )
+        print(f"  [out]    {p}")
 
 
 # ── Summary JSON (Verlustausgleich history) ───────────────────────────────────

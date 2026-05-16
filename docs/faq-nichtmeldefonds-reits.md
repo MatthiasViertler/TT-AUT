@@ -137,22 +137,147 @@ calculations is marginal. If REITs were your only investment, the annual calcula
 
 ---
 
+## Why gross yield comparisons mislead — the full cost breakdown
+
+The most common mistake when evaluating US REITs vs OeKB-registered alternatives is comparing
+**gross yield** figures without accounting for all the layers of cost on each side.
+
+### Step-by-step for US REITs (e.g. Realty Income at 6% gross, AT resident)
+
+| Layer | Impact | Note |
+|---|---|---|
+| Gross dividend yield | +6.0% | Starting point |
+| − US WHT on dividends (15%) | −0.9% | Withheld at source; partially creditable against AT KeSt |
+| − AT KeSt on net dividend (27.5%) | −1.4% | On the post-WHT amount |
+| − NMF pauschal AE KeSt (≈2% of position value) | −2.0% | 27.5% × 10% minimum × Dec31 price — even if price fell |
+| **Effective after-all-taxes yield** | **≈1.7%** | What actually flows into your account |
+
+### Step-by-step for an OeKB-registered world ETF (e.g. VHYL at 3.5% gross)
+
+| Layer | Impact | Note |
+|---|---|---|
+| Gross dividend yield | +3.5% | |
+| − TER (ongoing fund cost) | −0.22% | e.g. VHYL: 0.22%/yr; iShares EU REIT: 0.40% |
+| − WHT at fund level (blended ~10%) | −0.35% | Fund recovers much of this via treaty; lower than REIT direct |
+| − AT KeSt on distributions (27.5%) | −0.89% | Unified AE/WA calculation from OeKB |
+| **Effective after-all-taxes yield** | **≈2.0%** | |
+
+The ETF's 3.5% gross yield nets **more** than the REIT's 6% gross yield for an Austrian
+resident, purely because the NMF overhead consumes nearly the entire yield premium.
+
+### The TER comparison
+
+| Alternative | TER | Cost on €50k | Net yield after TER |
+|---|---|---|---|
+| VHYL (Vanguard FTSE All-World High Div Yield) | 0.22% | €110/yr | ≈3.3% |
+| iShares European Property Yield (IQQP) | 0.40% | €200/yr | ≈3.1% |
+| STOXX Europe Select Dividend 30 (EXSB) | 0.30% | €150/yr | ≈4.2% |
+| US REIT individual stocks | 0% TER | €0 | 6% gross → ≈1.7% net (AT) |
+
+Individual stocks have zero TER — a real, compounding advantage. But the NMF overhead
+erases it entirely while you are an Austrian tax resident.
+
+---
+
+## The decision framework: how long are you staying in Austria?
+
+This is the single most important question, because the NMF overhead is entirely
+Austria-specific. The moment you become a tax resident of Germany, Switzerland, the US,
+or almost any other country, it disappears.
+
+### Arguments for keeping US REITs despite the NMF overhead
+
+**1. Country-move option value**
+If there is any non-negligible probability you will leave Austria within 3–5 years, the
+gross yield advantage (6% vs 3.5%) fully materialises the moment you move. Switching to
+VHYL today and then moving abroad locks in the lower yield for your Austrian years, and
+you can simply switch back after — but you lose the optionality. The option has real value
+if your tenure in Austria is uncertain.
+
+**2. No TER drag — ever**
+Individual stocks have no ongoing management fee. The longer you hold, the more this
+compounds. VHYL at 0.22%/yr is cheap as ETFs go, but €110/yr on €50k is €1,100 over
+ten years before compounding.
+
+**3. Monthly cash flow (structural rarity)**
+Realty Income (O), ARCC, and similar US names pay monthly. This is genuinely rare for
+OeKB-registered instruments — most ETFs pay quarterly. For a FIRE investor who wants
+smooth monthly income without maintaining a cash buffer, monthly payers have utility that
+quarterly ETFs don't replicate without active management.
+
+**4. Individual position control**
+With individual stocks you can make targeted decisions: sell the underwater ones for tax
+credits, keep the outperformers, add on dips. An ETF packages everything together and
+removes that optionality.
+
+**5. The 10% minimum already fired — the damage is done**
+For existing positions bought years ago, the past AE KeSt is a sunk cost. The forward
+question is whether the remaining NMF drag justifies exiting *now* vs waiting.
+
+### Arguments for switching to OeKB-registered alternatives
+
+**1. After-all-costs math says switch (for long-term AT residents)**
+As shown above, the effective net yield of a 6% REIT is approximately 1.7% after all
+Austrian-specific costs. A 3.5% OeKB ETF nets approximately 2.0%. You earn more
+*while* being an Austrian resident by switching.
+
+**2. The 10% minimum fires on flat or declining assets**
+This is the most painful scenario: prices go nowhere or fall, but you owe KeSt on 10%
+of the Dec-31 price every year. Rising interest rates (which suppress REIT valuations)
+combined with the 10% minimum AE create a double loss: paper losses plus phantom tax.
+
+**3. No annual NMF calculation overhead**
+Every year you hold NMF positions: fetch prices, compute AE, file E1kv KZ 937, track
+cost basis step-up. Automating this (as this tool does) reduces but doesn't eliminate
+the burden.
+
+**4. High-dividend equity ETFs have their own problems**
+Worth stating clearly: high-dividend equity ETFs are not a clean substitute. They tend
+to overweight mature or declining industries (utilities, tobacco, telecoms, legacy banks)
+that pay dividends *because* they cannot reinvest profitably. Over 10–15 year periods,
+broad-market accumulating ETFs (VWCE) have significantly outperformed dividend-focused
+indices in total return. If you are still in the accumulation phase, optimising for
+dividend yield at the expense of total return is often a mistake.
+
+### Recommended framework by situation
+
+| Your situation | Recommendation |
+|---|---|
+| Likely leaving Austria within 2–3 years | Keep REITs. NMF overhead is temporary; gross yield advantage real. |
+| Definite long-term AT resident, income-focused | Switch to OeKB Meldefonds. Net yield is higher; no AE overhead. |
+| Definite long-term AT resident, accumulation phase | VWCE (accumulating, no distributions) + individual stocks opportunistically. Ignore dividend yield — focus on total return. |
+| Uncertain; underwater positions (O/EPR/WPC) | Sell the underwater ones in a high-gain year to crystallise the credit; keep the above-water performer (OHI). Redeploy thoughtfully. |
+| Mixed portfolio (some NMF, some Meldefonds, some stocks) | Reduce NMF to just positions you would hold anyway on fundamentals; let this tool track the rest. |
+
+### The partial exit strategy
+
+A full exit is not the only option. A targeted partial exit can:
+1. Crystallise the embedded KeSt credit on underwater positions (O, EPR, WPC)
+2. Keep outperformers or positions above water (OHI, ARCC)
+3. Redeploy into OeKB-registered alternatives gradually (avoid deploying all at once into an expensive market)
+
+The key constraint: the loss credit from selling underwater NMF positions **only offsets
+same-year capital gains**. There is no AT carryforward under standard KeSt. Sell in a
+year when you have at least as much in realised gains as the embedded loss.
+
+---
+
 ## What are the AT-friendly alternatives for dividend / passive income?
 
-| Alternative | Yield range | Tax treatment | Admin burden |
-|---|---|---|---|
-| European REIT ETF (OeKB-registered, distributing) | 2–4% | Single OeKB AE/WA; KeSt on distributions | Low (OeKB automated) |
-| European high-dividend equity ETF (OeKB-registered) | 2–4% | Same as above | Low |
-| AT-listed individual stocks (Erste, OMV, Verbund, Telekom) | 3–5% | Steuereinfach if via AT bank; domestic KeSt | Very low |
-| European individual stocks (BMW, Allianz, Nestlé, etc.) | 3–5% | KeSt via E1kv; treaty WHT rates apply | Medium |
-| Bonds / Anleihen | 3–5% currently | KeSt on interest (KZ 863); no AE complexity | Low–medium |
-| Distributing US ETF (if OeKB-registered) | 1.5–3% | OeKB AE/WA, no double charge | Low |
+| Alternative | Gross yield | TER | AT tax treatment | Admin burden |
+|---|---|---|---|---|
+| European REIT ETF, dist. (e.g. IQQP — if OeKB) | 3–4% | 0.40% | OeKB AE/WA single calculation | Low |
+| Vanguard FTSE All-World High Div Yield, dist. (VHYL) | 3.5% | 0.22% | OeKB AE/WA | Low |
+| iShares Core MSCI World (IWDA), dist. | 1.5–2% | 0.20% | OeKB AE/WA | Low |
+| AT/EU individual stocks (Allianz, MunichRe, OMV, ENI) | 4–6% | 0% | KeSt via E1kv; treaty WHT (DE 25%→15%, IT 26%→15%) | Medium |
+| AT-listed stocks via AT bank (steuereinfach) | 3–5% | 0% | KeSt deducted at source; no E1kv | Very low |
+| Bond / Anleihen ETF (short duration, OeKB) | 3–5% (rising rate env.) | 0.10–0.20% | KeSt on interest (KZ 863); no AE complexity | Low |
+| Cash / money market (IBKR interest) | 3–4% (rising rates) | 0% | KeSt on interest (KZ 863) | Very low |
 
-**The income gap from exiting US REITs**: if O, EPR, OHI, WPC generated ~$3,000–4,000 USD gross
-dividends annually (5–7% yield on ~$55k position), replacing them with a European dividend ETF
-at 3% yield on the same capital produces ~$1,600–2,000 USD — roughly half. To maintain the same
-gross income, you either accept a higher allocation to equities or seek higher-yielding European
-alternatives (e.g. European infrastructure, utilities, or individual high-yielders).
+**The income gap from exiting US REITs**: if O, EPR, WPC generated ~$2,400–3,000 USD gross
+dividends annually (5–6% yield on ~$45k position), replacing them with VHYL at 3.5% on the
+same capital produces ~$1,575 USD gross — but after NMF costs are removed, the effective
+income is similar or slightly higher. The real gap only appears if you leave Austria.
 
 One practical middle ground: check whether any European REIT ETF covering US real estate
 is registered with OeKB. The exposure is similar, the tax treatment is Meldefonds (single AE/WA),

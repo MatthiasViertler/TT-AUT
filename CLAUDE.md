@@ -27,6 +27,7 @@ generators/writer.py             write_all() — orchestrates all output files
 generators/freedom.py            Freedom dashboard HTML generator
 generators/wht_reclaim.py        WHT reclaim report generator
 generators/anv_checklist.py      Arbeitnehmerveranlagung deduction checklist (L1 form)
+generators/tax_efficiency.py     AT tax efficiency report — NMF embedded P&L, dividend frequency
 config.yaml                  universal settings — committed; NO personal data
 users/{person}/              gitignored entirely — all sensitive data lives here
   config.local.yaml          person-specific overrides (account_id, anv, freedom_dashboard, …)
@@ -120,6 +121,7 @@ All land in `users/{person}/output/{year}/`:
 - `{person}_{year}_anv_checklist.txt` — L1 deduction checklist (if anv: section in config)
 - `{person}_{year}_summary.json`      — machine-readable snapshot; drives the multi-year Overview tab
 - `{person}_{year}_nichtmeldefonds.txt` — per-symbol NMF breakdown (shares, prices, AE, KeSt); generated on demand via script, not pipeline
+- `{person}_{year}_tax_efficiency.txt` — NMF embedded P&L, KeSt credit estimates, dividend frequency analysis (auto-generated when NMF positions exist)
 
 ## Key config knobs (users/{person}/config.local.yaml)
 - `account_id: [...]` — account ID(s); scalar or list; drives auto-detection
@@ -157,7 +159,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 353 tests, all green
+- `python -m pytest tests/` — 366 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -285,23 +287,25 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 - Error 1001 on `--fetch-ibkr`: cooldown between consecutive fetches (~10 min). Not a query structure issue.
 
 ## Next up (priority order)
-1. **🔴 AT tax efficiency analyzer** — per-position NMF flag + embedded loss estimate + alternatives.
-   Data already available; no new APIs. Most urgent coding task next session.
-2. **🔴 NMF AE cost basis step-up on sale** — FIFO must use original cost + cumulative AE at sell time.
-   Required before Matthias 2026 filing (plans to exit O/EPR/WPC/ARCC for tax-loss harvesting).
-3. **WHT reclaim forms** — paper filings (user action). France deadline 2026-12-31.
-4. **Jessie 2025 filing** — E1kv data entered; considered done.
-5. **SAXO Holdings parser** — blocked on Holdings export sample.
-6. **E*Trade CSV parser** — `tradesdownload.csv` format.
-7. **OeKB data license inquiry** — email taxdata@oekb.at.
+1. **🔴 NMF AE cost basis step-up on sale** — FIFO must use original cost + cumulative AE at sell time.
+   Required before Matthias 2026 filing (plans to exit O/EPR/WPC). Without this, taxable gain is overstated.
+2. **WHT reclaim forms** — paper filings (user action). France deadline 2026-12-31.
+3. **Jessie 2025 filing** — E1kv data entered; considered done.
+4. **SAXO Holdings parser** — blocked on Holdings export sample.
+5. **E*Trade CSV parser** — `tradesdownload.csv` format.
+6. **OeKB data license inquiry** — email taxdata@oekb.at.
 
-## Done this session (v0.3.2)
-- **NMF share count fix** ✅ — `shares_held_override` per year; 2025 KeSt remaining €3,268 → **€4,252**.
-- **FAQ docs** ✅ — 3 new files in `docs/`: steuereinfach brokers, Meldefonds, Nichtmeldefonds REITs.
-- **TASKS.md** ✅ — 12+ new tasks: Portfolio Intelligence section, bonds, savings interest, Trade Republic, physical metals, crypto, FinanzOnline guide, etc.
+## Done this session (v0.3.3)
+- **AT tax efficiency analyzer** ✅ — `generators/tax_efficiency.py` + `tests/test_tax_efficiency.py` (13 tests → 366 total).
+  Section 1: per-NMF-position: annual KeSt burden, cumulative AE step-up, embedded P&L, KeSt credit if sold.
+  Section 2: dividend payment frequency (monthly/quarterly/semi-annual/annual) per symbol.
+  Section 3: summary + action items. Auto-generated when NMF positions exist (`_tax_efficiency.txt`).
+- **Investment strategy doc** ✅ — `docs/investment-strategy-matthias-2026.md`. Hold/sell decisions for O/EPR/WPC/OHI/ARCC,
+  redeployment options (VHYL vs individual stocks), cash deployment, existing holdings (Allianz, MunichRe, OMV, Verbund, Rio Tinto, BASF).
+- **NMF FAQ expanded** ✅ — `docs/faq-nichtmeldefonds-reits.md` updated with full after-all-costs yield comparison
+  (US REIT 6% gross → 1.7% net; VHYL 3.5% gross → 2.0% net) and full decision framework.
 
-## Done this session (v0.3.1)
-- **ISIN auto-alias** ✅ — same-ISIN ticker renames resolved without any config; `symbol_aliases` now only for corporate actions (different ISIN). VER→OEWA and NOV→NOVd entries removed.
+<!-- v0.3.0–v0.3.2 session notes → CLAUDE-archive.md -->
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
