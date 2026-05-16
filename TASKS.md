@@ -5,6 +5,25 @@ Move completed items to ## Done with the date.
 
 ---
 
+## 🟠 Priority Backlog — Architectural Review 2026-05-16
+
+Scope: multi-broker per-person ✓ | separate per-person tax filings ✓ | household = FIRE/progress only ✓
+Cross-person Verlustausgleich: explicitly out of scope (AT law; Matthias & Jessie file separately).
+Steuereinfach cross-account Verlustausgleich: within one person's own accounts only (e.g. IBKR gains vs. TR losses).
+
+| P | Item | Detail |
+|---|------|--------|
+| P1 | **FinanzOnline XML export** | Eliminate manual KZ entry; AT e-filing schema; see 🔵 Usability |
+| P1 | **OeKB AE/WA auto-fetch** | Last manual step in Meldefonds; email taxdata@oekb.at first; see 🟡 Correctness |
+| P2 | **Steuereinfach architecture flag** | `kest_already_withheld: true`; prerequisite for TR; see 🔵 Usability |
+| P2 | **E\*Trade CSV parser** | `tradesdownload.csv`; removes PDF dependency; see 🔵 New Brokers |
+| P3 | **Trade Republic parser** | Largest missing AT broker; needs steuereinfach flag first; see 🔵 New Brokers |
+| P3 | **Config schema validation** | Catch typos in config.local.yaml at startup; see 🟡 Correctness |
+| P4 | **writer.py decomposition** | 1,684 lines, too many responsibilities; split into excel_tabs/; see 🔵 Usability |
+| P4 | **Crypto (§ 27a EStG)** | AT taxed at 27.5% since Mar 2022; see 🔵 New Brokers |
+
+---
+
 ## 🔴 URGENT — WHT Reclaim Forms
 
 AT Ansässigkeitsbescheinigung (ZS-AD) received signed from Finanzamt 2026-05-13 ✓
@@ -139,7 +158,14 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       Excel "Meldefonds" tab auto-generated when positions configured.
       ⚠ Verify PLACEHOLDER AE/WA values on my.oekb.at before filing — especially VWRL 2024 WA.
 - [ ] **OeKB data license inquiry** — email taxdata@oekb.at; open-source tool may qualify for free
-      structured AE/WA feed; do before building v2.0 ETF automation.
+      structured AE/WA feed; do before building v2.0 ETF automation. **[P1 prerequisite]**
+- [ ] **OeKB AE/WA auto-fetch** — [P1] after license confirmed: auto-populate `data/oekb_ae.yaml`
+      from OeKB structured feed or registry CSV scrape. Eliminate manual PLACEHOLDER verification
+      step before filing. One ISIN lookup per configured Meldefonds symbol per year.
+- [ ] **Config schema validation** — [P3] Pydantic or dataclass model for `config.local.yaml`.
+      Catch typos (`portfolio_eur_supplemant`) at startup with actionable error messages instead
+      of silent wrong output. Cover: `freedom_dashboard`, `meldefonds`, `nichtmeldefonds`,
+      `manual_cost_basis`, `symbol_aliases`, `account_id`.
 - [ ] **Nichtmeldefonds detection** — OeKB lookup + punitive tax calculation
 - [ ] **Regelbesteuerungsoption mode** — `--regelbesteuerung` flag, recalculates
       at progressive income tax rate instead of flat 27.5% KESt
@@ -194,14 +220,21 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       `secrets.local.yaml`: 4th config layer for credentials (gitignored; pre-commit scans all values ≥ 6 chars).
       `portfolio_eur_supplement`: SAXO manual add-on on top of IBKR auto-computed value.
       18 new tests → 300 total. Tagged v0.2.2.
-- [ ] **Steuereinfach broker architecture** — add `kest_already_withheld: true` flag at broker/
+- [ ] **Steuereinfach broker architecture** — [P2] add `kest_already_withheld: true` flag at broker/
       config level. Steuereinfach brokers (Trade Republic, AT banks) deduct KeSt at source →
-      no E1kv entry, net amounts used directly in Freedom dashboard. Prerequisite for Trade Republic
-      and Sparbuch/Festgeld parsers. Design in before adding those brokers.
+      no E1kv entry needed; net amounts used directly in Freedom dashboard net income.
+      Verlustausgleich applies within one person's own accounts only (AT law); cross-person
+      combining is explicitly out of scope (Matthias & Jessie file separately).
+      Prerequisite for Trade Republic and Sparbuch/Festgeld parsers. Design before adding those.
+- [ ] **FinanzOnline XML output** — [P1] machine-readable upload format for direct e-filing.
+      AT E1kv XML schema published by BMF; FinanzOnline accepts machine uploads.
+      Pair with filing guide (see Dashboard section above). Eliminates all manual KZ entry.
+- [ ] **writer.py decomposition** — [P4] `generators/writer.py` is 1,684 lines with too many
+      responsibilities (E1kv summary, overview, transactions, dividends, trades, Freedom tab,
+      NMF tab, Meldefonds tab, household view, bar chart). Split into `generators/excel_tabs/`
+      sub-modules. No user-visible change; maintenance debt paydown. Good rainy-day task.
 - [ ] **Local web UI** — Flask/FastAPI + HTML; folder picker, pipeline progress, inline results,
       download buttons. One command to start. No CLI knowledge required. Priority: after core features.
-- [ ] **FinanzOnline XML output** — machine-readable upload format for direct e-filing.
-      Pair with filing guide (see Dashboard section above).
 - [x] **Household view** *(2026-05-16, v0.3.5)* — `generators/household.py` + `--household` CLI flag.
       Reads per-person `summary.json`, freshness-checks (7-day threshold, legacy path fallback),
       writes `users/household/output/{year}/household_{year}_{persons}.xlsx`.
