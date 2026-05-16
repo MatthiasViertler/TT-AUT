@@ -28,6 +28,7 @@ generators/freedom.py            Freedom dashboard HTML generator
 generators/wht_reclaim.py        WHT reclaim report generator
 generators/anv_checklist.py      Arbeitnehmerveranlagung deduction checklist (L1 form)
 generators/tax_efficiency.py     AT tax efficiency report — NMF embedded P&L, dividend frequency
+generators/household.py          Household combined Excel — side-by-side KeSt/dividends for 2+ persons
 config.yaml                  universal settings — committed; NO personal data
 users/{person}/              gitignored entirely — all sensitive data lives here
   config.local.yaml          person-specific overrides (account_id, anv, freedom_dashboard, …)
@@ -159,7 +160,7 @@ Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol und
 Negative-position check accounts for manual lots.
 
 ## Testing
-- `python -m pytest tests/` — 366 tests, all green
+- `python -m pytest tests/` — 378 tests, all green
 - **Rule**: every new feature ships with at least one test
 - Ground truth: 2025 DE €3,808.73 gross / €1,003.18 WHT / €431.87 excess (IBKR report 126354004/20251231)
 
@@ -292,14 +293,17 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 3. **E*Trade CSV parser** — `tradesdownload.csv` format.
 4. **OeKB data license inquiry** — email taxdata@oekb.at.
 
-## Done this session (v0.3.4)
-- **NMF AE cost basis step-up** ✅ — `core/nichtmeldefonds.py` + `core/tax_engine.py` + `core/pipeline.py`.
-  `compute_nmf_cumulative_ae()` sums prior-year AE per symbol (purchase_year → tax_year−1).
-  TaxEngine receives `nmf_ae_step_up` dict, distributes AE proportionally by lot cost fraction into FIFO lot
-  `cost_per_unit` before sell matching. Taxable gain at O/EPR/WPC exit will now correctly reflect AE already paid.
-  12 new tests → **378 total**.
+## Done this session (v0.3.5)
+- **OPT rows warning** ✅ — `brokers/ib_csv.py`: promote silent `log.info` to visible `[warn]` print when options trades are skipped.
+- **Dividend trend chart** ✅ — `generators/writer.py`: openpyxl `BarChart` added to Overview tab; shows dividend income year-over-year when 2+ years of history exist.
+- **Household combined report** ✅ — `generators/household.py` + `--household` CLI flag.
+  `python main.py --household matthias,jessie --year 2025`
+  Freshness-checks per-person `summary.json` (warns if >7 days old, errors if missing).
+  Handles new `output/{year}/` and legacy `output/` path layouts.
+  Writes `users/household/output/{year}/household_{year}_{persons}.xlsx` with side-by-side
+  KeSt / dividends / gains / losses / portfolio + combined totals column.
 
-<!-- v0.3.0–v0.3.3 session notes → CLAUDE-archive.md -->
+<!-- v0.3.0–v0.3.4 session notes → CLAUDE-archive.md -->
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)

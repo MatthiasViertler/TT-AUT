@@ -250,6 +250,9 @@ python main.py --person matthias --input users/matthias/data/IB/2025/file.csv --
 
 # Auto-detect person from account_id (when input paths are under users/)
 python main.py --input users/matthias/data/IB/2025/file.csv --year 2025
+
+# Household combined report (run per-person first, then household)
+python main.py --household matthias,jessie --year 2025
 ```
 
 All options:
@@ -258,6 +261,7 @@ All options:
 --person NAME             person label; auto-detected from account_id in users/*/config.local.yaml
 --year INT                tax year to calculate
 --input FILE [FILE ...]   broker export file(s) or folder(s); optional when --person is given
+--household NAMES         comma-separated persons for combined household Excel (e.g. matthias,jessie)
 --users-dir DIR           root for per-user data (default: ./users)
 --config FILE             universal config file (default: config.yaml)
 --output-dir DIR          output directory override (default: users/{person}/output/{year}/)

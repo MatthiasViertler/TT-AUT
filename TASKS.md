@@ -83,9 +83,8 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] **Freedom tab — per-symbol holdings table** *(2026-05-13)* — Symbol [Type] / Qty / EUR Value /
       Port% / Divs EUR / Yield% in both Freedom HTML and Excel tab. Synthetic lots: ~qty + —.
       Sold positions at bottom. Sort: value|yield|alpha. Optional group_by_type. 26 tests → 261 total.
-- [ ] **Multi-year dividend trend** — chart/table in Overview tab showing dividend income
-      year-over-year. Data is already in `summary.json` per year — no new parsing needed.
-      Shows growth trajectory at a glance; useful for FIRE progress tracking.
+- [x] **Multi-year dividend trend** *(2026-05-16, v0.3.5)* — openpyxl `BarChart` added below Overview
+      table in `generators/writer.py`; shows when 2+ years of history exist.
 - [ ] **FinanzOnline filing guide** — `docs/finanz-online-guide.md` with screenshots and
       step-by-step navigation for E1kv entry, KZ fields, and submission. FinanzOnline is
       non-obvious to navigate; a companion guide adds real value alongside the XML output feature.
@@ -105,10 +104,8 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       only fires if prior day is in cache (no extra fetches). 5 tests. *(2026-05-04)*
 - [x] **Pytest skeleton** (`tests/`) — 65 tests across parser, WHT reclaim, sanity, manual
       cost basis, FIFO cross-check, position check, FX sanity. *(2026-05-04)*
-- [ ] **OPT rows warning** — currently OPT (options/derivatives) rows are silently dropped.
-      Emit a visible warning when any are skipped: "N options transactions skipped —
-      Termingeschäfte not tracked. Declare gains/losses manually on KZ 802."
-      Quick win; prevents users unknowingly under-declaring.
+- [x] **OPT rows warning** *(2026-05-16, v0.3.5)* — `brokers/ib_csv.py`: `log.info` → visible
+      `[warn]` print when options trades are skipped.
 
 ---
 
@@ -192,9 +189,9 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       download buttons. One command to start. No CLI knowledge required. Priority: after core features.
 - [ ] **FinanzOnline XML output** — machine-readable upload format for direct e-filing.
       Pair with filing guide (see Dashboard section above).
-- [ ] **Household view** — combined run for two people (e.g. Matthias + Jessie): total household
-      KeSt, combined WHT reclaims, side-by-side Freedom projections. Not a "compare" — a
-      combined picture for joint tax planning. (Was labelled `--compare` in backlog.)
+- [x] **Household view** *(2026-05-16, v0.3.5)* — `generators/household.py` + `--household` CLI flag.
+      Reads per-person `summary.json`, freshness-checks (7-day threshold, legacy path fallback),
+      writes `users/household/output/{year}/household_{year}_{persons}.xlsx`.
 
 ---
 

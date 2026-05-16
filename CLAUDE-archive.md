@@ -169,3 +169,10 @@ KZ fields not yet output: 864/865 (25% gains), 897 (fund distributions domestic)
 - NMF AE cost-basis step-up at sell time — `compute_nmf_cumulative_ae()` + TaxEngine injection.
   Proportional by lot cost fraction; prior years only (range(purchase_year, tax_year)).
   12 new tests, 378 total.
+
+## Done v0.3.5 (2026-05-16)
+- OPT rows warning: `log.info` → visible `[warn]` print in `brokers/ib_csv.py`.
+- Dividend trend chart: openpyxl BarChart in Overview tab (`generators/writer.py`); appears with 2+ years history.
+- Household combined report: `generators/household.py` + `--household` CLI flag.
+  Reads per-person summary.json, freshness-checks (7-day threshold), handles legacy path layout.
+  Writes `users/household/output/{year}/household_{year}_{persons}.xlsx` with side-by-side figures.
