@@ -156,3 +156,16 @@ data/2024/2025/2026-AUT-TAX-Divi-Trades-Report.csv — Jessie IBKR HEADER/DATA e
 REITs/BDCs (Nichtmeldefonds), capital losses offsetting gains.
 KZ fields not yet output: 864/865 (25% gains), 897 (fund distributions domestic),
 982/993/893–896 (derivatives), 171/173/175 (crypto), 942 (Lichtenstein), 984/900/901.
+
+---
+
+## Done v0.3.3 (2026-05-16)
+- AT tax efficiency analyzer (`generators/tax_efficiency.py` + 13 tests, 366 total).
+  Sections: per-NMF embedded P&L + KeSt credits, dividend frequency, summary action items.
+- Investment strategy doc (`docs/investment-strategy-matthias-2026.md`).
+- NMF FAQ expanded (`docs/faq-nichtmeldefonds-reits.md`) with yield comparison table.
+
+## Done v0.3.4 (2026-05-16)
+- NMF AE cost-basis step-up at sell time — `compute_nmf_cumulative_ae()` + TaxEngine injection.
+  Proportional by lot cost fraction; prior years only (range(purchase_year, tax_year)).
+  12 new tests, 378 total.

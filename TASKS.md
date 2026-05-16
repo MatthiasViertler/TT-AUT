@@ -147,12 +147,11 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
       via config (e.g. `loss_carryforward_dom_eur`, `loss_carryforward_fgn_eur`); deducted from
       current-year gains before KeSt. Note: AT standard KeSt has no carryforward (losses offset
       same-year gains only); Regelbesteuerung allows it. Higher priority for users with 2022-2024 losses.
-- [ ] **Nichtmeldefonds AE cost basis step-up on sale** — each year's AE is added to
-      steuerliche Anschaffungskosten (§ 186 InvFG). When a NMF position is sold, the FIFO
-      engine must use the original cost + cumulative AE paid to date, not just the original cost.
-      Without this, taxable gain is overstated (or tax loss understated) at sale time.
-      Implementation: accumulate AE per symbol per year in pipeline; inject as a cost-basis
-      adjustment into FIFO lots before processing sells. Required for correctness on exit.
+- [x] **Nichtmeldefonds AE cost basis step-up on sale** *(2026-05-16, v0.3.4)*
+      `compute_nmf_cumulative_ae()` in `nichtmeldefonds.py` sums prior-year AE per symbol
+      (range(purchase_year, tax_year)). TaxEngine receives `nmf_ae_step_up` dict; injects
+      AE proportionally by cost fraction into FIFO lot `cost_per_unit` before sell matching.
+      Handles both SAXO qty=1 and real-qty IB lots. 12 new tests → 378 total.
 
 ---
 

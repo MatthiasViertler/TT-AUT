@@ -299,17 +299,7 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
   `cost_per_unit` before sell matching. Taxable gain at O/EPR/WPC exit will now correctly reflect AE already paid.
   12 new tests → **378 total**.
 
-## Done in prior sessions (v0.3.3)
-- **AT tax efficiency analyzer** ✅ — `generators/tax_efficiency.py` + `tests/test_tax_efficiency.py` (13 tests → 366 total).
-  Section 1: per-NMF-position: annual KeSt burden, cumulative AE step-up, embedded P&L, KeSt credit if sold.
-  Section 2: dividend payment frequency (monthly/quarterly/semi-annual/annual) per symbol.
-  Section 3: summary + action items. Auto-generated when NMF positions exist (`_tax_efficiency.txt`).
-- **Investment strategy doc** ✅ — `docs/investment-strategy-matthias-2026.md`. Hold/sell decisions for O/EPR/WPC/OHI/ARCC,
-  redeployment options (VHYL vs individual stocks), cash deployment, existing holdings (Allianz, MunichRe, OMV, Verbund, Rio Tinto, BASF).
-- **NMF FAQ expanded** ✅ — `docs/faq-nichtmeldefonds-reits.md` updated with full after-all-costs yield comparison
-  (US REIT 6% gross → 1.7% net; VHYL 3.5% gross → 2.0% net) and full decision framework.
-
-<!-- v0.3.0–v0.3.2 session notes → CLAUDE-archive.md -->
+<!-- v0.3.0–v0.3.3 session notes → CLAUDE-archive.md -->
 
 ## WHT reclaim status (Matthias)
 - Total reclaimable: **EUR 852.14** (DE: 775.00, DK: 37.91, FR: 39.24)
