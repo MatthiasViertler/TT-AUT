@@ -58,8 +58,13 @@ def write_freedom_html(
     # Round up to nearest million for a clean slider range
     slider_max = ((slider_max + 999_999) // 1_000_000) * 1_000_000
 
-    # Use computed trailing yield if available, else fall back to config
-    if summary.dividend_yield_computed is not None:
+    # Recompute yield against the full portfolio (IBKR + supplement).
+    # summary.dividend_yield_computed uses only the IBKR-computed base and would be
+    # inflated when a supplement is present (e.g. 4.42% on €331k vs 2.43% on €603k).
+    if computed is not None and computed > ZERO and total_div > 0:
+        yield_pct_val = total_div / portfolio_eur * 100.0
+        yield_source = "computed"
+    elif summary.dividend_yield_computed is not None:
         yield_pct_val = summary.dividend_yield_computed
         yield_source = "computed"
     else:

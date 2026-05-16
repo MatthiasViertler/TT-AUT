@@ -1187,8 +1187,16 @@ def _fill_freedom_sheet(
         portfolio_label = "Portfolio Value (config)"
     monthly_exp   = float(fd["monthly_expenses_eur"])
     monthly_cont  = float(fd["monthly_contribution_eur"])
-    # Use computed trailing yield if available, else fall back to config
-    if summary.dividend_yield_computed is not None:
+    annual_div    = float(summary.total_dividends_eur)
+
+    # Recompute yield against the full portfolio (IBKR + supplement).
+    # summary.dividend_yield_computed uses only the IBKR-computed base and would be
+    # inflated when a supplement is present (e.g. 4.42% on €331k vs 2.43% on €603k).
+    if computed is not None and computed > ZERO and annual_div > 0:
+        _yield_raw      = annual_div / portfolio * 100.0
+        yield_pct       = _yield_raw / 100.0
+        yield_pct_label = f"{_yield_raw:.2f}% (computed)"
+    elif summary.dividend_yield_computed is not None:
         yield_pct       = summary.dividend_yield_computed / 100.0
         yield_pct_label = f"{summary.dividend_yield_computed:.2f}% (computed)"
     else:
@@ -1196,7 +1204,6 @@ def _fill_freedom_sheet(
         yield_pct_label = f"{fd['yield_pct']}% (config)"
     growth_pct    = float(fd["growth_pct"]) / 100.0
 
-    annual_div    = float(summary.total_dividends_eur)
     monthly_div   = annual_div / 12.0
     freedom_pct   = (monthly_div / monthly_exp * 100.0) if monthly_exp else 0.0
 

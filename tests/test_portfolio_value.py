@@ -337,3 +337,88 @@ def test_dividend_yield_none_when_no_dividends():
     """Zero dividends → yield is None."""
     s = _make_summary(portfolio_eur=Decimal("100000"), total_dividends_eur=ZERO)
     assert _compute_dividend_yield(s) is None
+
+
+# ── Freedom sheet yield recomputed against full portfolio (IBKR + supplement) ─
+
+try:
+    from openpyxl import Workbook
+    from generators.writer import _fill_freedom_sheet
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+
+
+def _freedom_sheet_yield_label(portfolio_computed, supplement, dividends, config_yield=3.0):
+    """Return the yield label string embedded in the Projection header cell."""
+    wb = Workbook()
+    ws = wb.active
+    s = TaxSummary(tax_year=2025, person_label="Test")
+    s.portfolio_eur_computed = Decimal(str(portfolio_computed)) if portfolio_computed else None
+    s.total_dividends_eur = Decimal(str(dividends))
+    s.dividend_yield_computed = (
+        float(dividends) / float(portfolio_computed) * 100.0
+        if portfolio_computed else None
+    )
+    cfg = {
+        "freedom_dashboard": {
+            "portfolio_eur": 100000,
+            "portfolio_eur_supplement": supplement,
+            "monthly_expenses_eur": 2000,
+            "monthly_contribution_eur": 500,
+            "yield_pct": config_yield,
+            "growth_pct": 7.0,
+        }
+    }
+    _fill_freedom_sheet(ws, [], s, cfg)
+    # The yield label appears in the "Projection: X% yield ..." header cell
+    for row in ws.iter_rows():
+        for cell in row:
+            v = str(cell.value or "")
+            if "Projection:" in v and "yield" in v:
+                # extract "X.XX% (computed)" or "X% (config)" from "Projection: X.XX% (computed) yield ..."
+                part = v.split("Projection:")[1].split("yield")[0].strip()
+                return part
+    return None
+
+
+@pytest.mark.skipif(not OPENPYXL_AVAILABLE, reason="openpyxl not installed")
+def test_freedom_sheet_yield_uses_full_portfolio_when_supplement():
+    """With supplement, yield must be dividends / (ibkr + supplement), not dividends / ibkr."""
+    # IBKR portfolio €331k, supplement €272k → full €603k
+    # Dividends €14 630 → correct yield = 14630/603000 ≈ 2.43%, not 14630/331000 ≈ 4.42%
+    label = _freedom_sheet_yield_label(
+        portfolio_computed=331_000,
+        supplement=272_000,
+        dividends=14_630,
+    )
+    assert label is not None
+    pct = float(label.split("%")[0].strip())
+    assert abs(pct - (14_630 / 603_000 * 100)) < 0.1, f"Expected ~2.43%, got {label}"
+
+
+@pytest.mark.skipif(not OPENPYXL_AVAILABLE, reason="openpyxl not installed")
+def test_freedom_sheet_yield_no_supplement_unchanged():
+    """Without supplement, yield equals dividends / ibkr_portfolio (unchanged behaviour)."""
+    label = _freedom_sheet_yield_label(
+        portfolio_computed=331_000,
+        supplement=0,
+        dividends=14_630,
+    )
+    assert label is not None
+    pct = float(label.split("%")[0].strip())
+    assert abs(pct - (14_630 / 331_000 * 100)) < 0.1
+
+
+@pytest.mark.skipif(not OPENPYXL_AVAILABLE, reason="openpyxl not installed")
+def test_freedom_sheet_yield_falls_back_to_config_when_no_portfolio():
+    """No computed portfolio → config yield_pct used."""
+    label = _freedom_sheet_yield_label(
+        portfolio_computed=None,
+        supplement=272_000,
+        dividends=14_630,
+        config_yield=3.5,
+    )
+    assert label is not None
+    assert "3.5" in label
+    assert "config" in label
