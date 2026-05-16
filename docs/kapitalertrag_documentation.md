@@ -378,17 +378,33 @@ ibkr_flex:
 ### 6.4 Usage
 
 ```bash
-# Fetch + run in one step
+# Fetch + run in one step (skips download if file already exists)
 python main.py --person matthias --year 2025 --fetch-ibkr
 
-# Force re-download even if file already exists today
+# Force re-download even if a file already exists
 python main.py --person matthias --year 2025 --force-fetch-ibkr
 ```
 
 The downloaded file is saved to `users/{person}/data/IB/{person}_ibkr_flex.csv` and picked up
 automatically on subsequent runs (via rglob).
 
-**Error 1001**: IBKR enforces a ~10-minute cooldown between consecutive fetches. Wait and retry.
+### 6.5 --fetch-ibkr vs --force-fetch-ibkr
+
+| Flag | Behaviour |
+|------|-----------|
+| `--fetch-ibkr` | Download from IBKR **only if no file exists** at the save path. If a previously downloaded file is present, it is reused silently. Safe to include in any run without risking rate-limit hits. |
+| `--force-fetch-ibkr` | **Always re-download**, overwriting any existing file. Use this when you need fresh data (e.g. you ran the tool earlier today and new transactions have since settled), or after changing the Flex Query layout in IBKR. Implies `--fetch-ibkr`. |
+
+The same logic applies to the Open Positions variants:
+
+| Flag | Behaviour |
+|------|-----------|
+| `--fetch-ibkr-positions` | Download Open Positions only if no cached file exists. |
+| `--force-fetch-ibkr-positions` | Always re-download Open Positions. Use after editing the Flex Query or when portfolio values look stale. |
+
+**Error 1001**: IBKR enforces a ~10-minute cooldown between consecutive fetches. If you hit it,
+wait 10 minutes and re-run with `--force-fetch-ibkr`. Using plain `--fetch-ibkr` will not
+trigger a new fetch (the existing file is reused), so it is safe to run immediately.
 
 ---
 
@@ -510,8 +526,10 @@ python main.py --person matthias \
 | `--person LABEL` | Person label. Auto-detected from `account_id` in `config.local.yaml` if omitted. |
 | `--year YYYY` | Tax year to calculate. Required. |
 | `--input FILE [...]` | Explicit broker export files. Optional: if omitted, scans `users/{person}/data/` recursively. |
-| `--fetch-ibkr` | Fetch IBKR Flex data automatically before running. Requires `secrets.local.yaml`. |
-| `--force-fetch-ibkr` | Force re-download even if file exists today. |
+| `--fetch-ibkr` | Download IBKR Flex report if no cached file exists. Requires `secrets.local.yaml`. |
+| `--force-fetch-ibkr` | Always re-download IBKR Flex report, overwriting any cached file. Implies `--fetch-ibkr`. |
+| `--fetch-ibkr-positions` | Download Open Positions report if no cached file exists. |
+| `--force-fetch-ibkr-positions` | Always re-download Open Positions report. Implies `--fetch-ibkr-positions`. |
 | `--no-fx-fetch` | Skip live ECB FX fetch. Use only cached rates. |
 
 ### 9.4 Multi-year FIFO
