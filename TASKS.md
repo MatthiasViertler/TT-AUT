@@ -60,6 +60,13 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 
 ## 🟡 Dashboard & Output
 
+- [ ] **Freedom tab — yield computed on full portfolio (IBKR + supplement)** — `generators/writer.py`
+      `_fill_freedom_sheet` and `generators/freedom.py`: `summary.dividend_yield_computed` is
+      computed against IBKR-only portfolio (~€331k). When `portfolio_eur_supplement > 0`, the
+      displayed yield and FIRE projection are overstated (e.g. 4.42% vs correct ~2.43%).
+      Fix: recompute yield as `total_dividends_eur / (computed + supplement)` when supplement > 0.
+      Check both writer.py (Excel) and freedom.py (HTML slider default).
+
 - [x] **Excel audit trail — per-transaction gain/loss** *(2026-05-06)*
       Trades tab: Gain/Loss EUR + Cost Basis EUR columns per sell; SUMPRODUCT summary rows
       (domestic/foreign gains + losses → KZ 981/994/891/892). Dividends tab: SUMIF summary rows
