@@ -125,8 +125,21 @@ def run_pipeline(
     else:
         print(f"  [fx]     All FX rates resolved")
 
+    # ── 2b. NMF AE cost-basis step-up (pre-compute before FIFO matching) ────────
+    # Each prior year's pauschal AE increases steuerliche Anschaffungskosten.
+    # Pre-compute cumulative AE per NMF symbol so TaxEngine can adjust lot cost basis.
+    from core.nichtmeldefonds import compute_nmf_cumulative_ae
+    nmf_ae_step_up = compute_nmf_cumulative_ae(
+        config, tax_year, all_transactions, fx,
+        config.get("price_cache_dir", "./cache/price_cache"),
+    )
+    if nmf_ae_step_up:
+        total_adj = sum(nmf_ae_step_up.values())
+        print(f"  [nmf-adj] Cost-basis step-up: {len(nmf_ae_step_up)} symbol(s), "
+              f"EUR {total_adj:,.2f} cumulative prior-year AE")
+
     # ── 3. Tax calculation ────────────────────────────────────────────────────
-    engine = TaxEngine(config, tax_year, person_label)
+    engine = TaxEngine(config, tax_year, person_label, nmf_ae_step_up=nmf_ae_step_up)
     summary = engine.calculate(all_transactions)
     summary.missing_fx_count = missing_fx
     print(f"  [tax]    Calculated for {summary.transaction_count} transactions in {tax_year}")

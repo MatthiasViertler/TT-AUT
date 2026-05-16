@@ -30,10 +30,15 @@ TWO = Decimal("0.01")
 
 
 class TaxEngine:
-    def __init__(self, config: dict, tax_year: int, person_label: str):
+    def __init__(self, config: dict, tax_year: int, person_label: str,
+                 nmf_ae_step_up: "dict[str, Decimal] | None" = None):
         self.config = config
         self.tax_year = tax_year
         self.person_label = person_label
+        # {symbol: cumulative_ae_eur} — injected from pipeline pre-computation.
+        # Added to each lot's cost_per_unit (proportional by lot cost fraction)
+        # so that FIFO gains at sell time reflect the AE already paid in prior years.
+        self.nmf_ae_step_up: dict[str, Decimal] = nmf_ae_step_up or {}
         self.kest_rate = Decimal(str(config["kest_rate"]))
         self.max_creditable_wht = Decimal(str(config["max_creditable_wht"]))
         self.wht_treaty = {k: Decimal(str(v))
@@ -194,6 +199,32 @@ class TaxEngine:
 
         # Index for same-day round-trip detection: (symbol, date) of every buy
         same_day_buy_syms: set[tuple] = {(b.symbol, b.trade_date) for b in all_buys}
+
+        # NMF AE cost-basis step-up: distribute cumulative prior-year AE across
+        # lots proportionally by cost fraction, so FIFO gains reflect AE already paid.
+        if self.nmf_ae_step_up:
+            sym_total_cost: dict[str, Decimal] = defaultdict(lambda: ZERO)
+            for d, sym, qty, cpu, synthetic in lots:
+                if sym in self.nmf_ae_step_up:
+                    sym_total_cost[sym] += qty * cpu
+
+            adjusted: list[tuple] = []
+            for d, sym, qty, cpu, synthetic in lots:
+                if sym in self.nmf_ae_step_up:
+                    total = sym_total_cost[sym]
+                    if total > ZERO and qty > ZERO:
+                        fraction = (qty * cpu) / total
+                        step_up = (self.nmf_ae_step_up[sym] * fraction / qty).quantize(
+                            Decimal("0.000001"), ROUND_HALF_UP
+                        )
+                        log.info(
+                            "NMF AE step-up: %s lot %s +EUR %.4f/unit "
+                            "(cumulative prior-year AE, fraction %.4f)",
+                            sym, d, step_up, fraction,
+                        )
+                        cpu = cpu + step_up
+                adjusted.append((d, sym, qty, cpu, synthetic))
+            lots = adjusted
 
         # Build FIFO queues in chronological order
         fifo: dict[str, deque] = defaultdict(deque)

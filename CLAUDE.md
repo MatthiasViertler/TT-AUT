@@ -151,7 +151,7 @@ All land in `users/{person}/output/{year}/`:
 AE = max(90% × annual gain, 10% × Dec31 price) per share × FX. KeSt = 27.5% × AE.
 Prices auto-fetched via yfinance, cached in `cache/price_cache/`. Add symbol under `nichtmeldefonds:` in person config.
 - **shares_held_override required for SAXO positions**: SAXO qty=1 convention means transaction history returns 1 share instead of real count. Set `shares_held_override: {2024: N, 2025: N}` per symbol.
-- **AE cost basis step-up (gap)**: each year's AE must be added to steuerliche Anschaffungskosten at FIFO sell time. NOT YET IMPLEMENTED — sells will overstate gain. Fix required before Matthias 2026 filing (plans to exit O/EPR/WPC/ARCC).
+- **AE cost basis step-up**: each prior year's AE is added to steuerliche Anschaffungskosten at FIFO sell time. Implemented in v0.3.4: `compute_nmf_cumulative_ae()` pre-computes per-symbol cumulative AE (purchase_year → tax_year−1); TaxEngine injects it proportionally into FIFO lot cost_per_unit before sell matching.
 - **Double taxation note**: dividends taxed as KZ 863 AND AE charged separately. 10% minimum fires even when price flat/down.
 
 ## Manual cost basis
@@ -287,15 +287,19 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 - Error 1001 on `--fetch-ibkr`: cooldown between consecutive fetches (~10 min). Not a query structure issue.
 
 ## Next up (priority order)
-1. **🔴 NMF AE cost basis step-up on sale** — FIFO must use original cost + cumulative AE at sell time.
-   Required before Matthias 2026 filing (plans to exit O/EPR/WPC). Without this, taxable gain is overstated.
-2. **WHT reclaim forms** — paper filings (user action). France deadline 2026-12-31.
-3. **Jessie 2025 filing** — E1kv data entered; considered done.
-4. **SAXO Holdings parser** — blocked on Holdings export sample.
-5. **E*Trade CSV parser** — `tradesdownload.csv` format.
-6. **OeKB data license inquiry** — email taxdata@oekb.at.
+1. **WHT reclaim forms** — paper filings (user action). France deadline 2026-12-31.
+2. **SAXO Holdings parser** — blocked on Holdings export sample.
+3. **E*Trade CSV parser** — `tradesdownload.csv` format.
+4. **OeKB data license inquiry** — email taxdata@oekb.at.
 
-## Done this session (v0.3.3)
+## Done this session (v0.3.4)
+- **NMF AE cost basis step-up** ✅ — `core/nichtmeldefonds.py` + `core/tax_engine.py` + `core/pipeline.py`.
+  `compute_nmf_cumulative_ae()` sums prior-year AE per symbol (purchase_year → tax_year−1).
+  TaxEngine receives `nmf_ae_step_up` dict, distributes AE proportionally by lot cost fraction into FIFO lot
+  `cost_per_unit` before sell matching. Taxable gain at O/EPR/WPC exit will now correctly reflect AE already paid.
+  12 new tests → **378 total**.
+
+## Done in prior sessions (v0.3.3)
 - **AT tax efficiency analyzer** ✅ — `generators/tax_efficiency.py` + `tests/test_tax_efficiency.py` (13 tests → 366 total).
   Section 1: per-NMF-position: annual KeSt burden, cumulative AE step-up, embedded P&L, KeSt credit if sold.
   Section 2: dividend payment frequency (monthly/quarterly/semi-annual/annual) per symbol.

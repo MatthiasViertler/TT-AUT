@@ -144,6 +144,61 @@ def _calc_position(
     )
 
 
+def compute_nmf_cumulative_ae(
+    config: dict,
+    tax_year: int,
+    all_transactions: list,
+    fx,
+    price_cache_dir: str = "./cache/price_cache",
+) -> "dict[str, Decimal]":
+    """
+    Returns {symbol: cumulative_ae_eur} for each configured NMF symbol.
+
+    Sums ae_total_eur from the symbol's first purchase year through tax_year-1
+    (prior years only — AE is assessed only on Dec-31 holdings; a mid-year sale
+    means no AE charge for that year).
+
+    Used by TaxEngine to adjust FIFO lot cost basis before sell matching.
+    """
+    nmf_config = config.get("nichtmeldefonds", [])
+    result: dict[str, Decimal] = {}
+    for entry in nmf_config:
+        symbol = entry.get("symbol", "")
+        purchase_year = _get_nmf_purchase_year(symbol, config, all_transactions, tax_year)
+        cum_ae = ZERO
+        for year in range(purchase_year, tax_year):
+            yr = _calc_position(entry, year, all_transactions, fx, price_cache_dir)
+            if yr and yr.ae_total_eur:
+                cum_ae += yr.ae_total_eur
+        if cum_ae > ZERO:
+            result[symbol] = cum_ae.quantize(TWO, ROUND_HALF_UP)
+    return result
+
+
+def _get_nmf_purchase_year(
+    symbol: str,
+    config: dict,
+    all_transactions: list,
+    fallback: int,
+) -> int:
+    """Earliest purchase year for an NMF symbol."""
+    from core.models import TransactionType as _TT
+    earliest = None
+    for lot in config.get("manual_cost_basis", []):
+        if lot.get("symbol") != symbol:
+            continue
+        pd_str = str(lot.get("purchase_date", ""))
+        if pd_str and len(pd_str) >= 4:
+            yr = int(pd_str[:4])
+            if earliest is None or yr < earliest:
+                earliest = yr
+    if earliest is not None:
+        return earliest
+    years = [t.trade_date.year for t in all_transactions
+             if t.symbol == symbol and t.txn_type == _TT.BUY]
+    return min(years) if years else fallback
+
+
 def _net_shares_at_year_end(
     transactions: list[NormalizedTransaction],
     symbol: str,
