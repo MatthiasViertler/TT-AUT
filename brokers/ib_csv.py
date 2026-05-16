@@ -311,6 +311,22 @@ def _parse_cash_rows_netted(
         log.warning(f"IB: No BOF date available for {source} — cannot parse undated CTRN rows")
         return []
 
+    # Warn once if Symbol/ISIN columns are absent from the CTRN section.
+    # This means the Flex Query was set up without those fields. The parser falls
+    # back to extracting them from description strings, so output is still correct,
+    # but adding the fields avoids the fallback entirely.
+    # Fix: IBKR → Reports → Flex Queries → edit query → Cash Transactions section
+    #      → add Symbol and ISIN to the field list.
+    if rows:
+        sample_keys = rows[0].keys()
+        missing = [c for c in ("Symbol", "ISIN") if c not in sample_keys]
+        if missing:
+            print(
+                f"  [warn]   {Path(source).name} CTRN: column(s) {missing} absent from Flex Query — "
+                f"extracting from description (fallback works, but consider adding "
+                f"Symbol + ISIN to your Cash Transactions section in IBKR Flex Query settings)"
+            )
+
     groups: dict[tuple, dict] = defaultdict(lambda: {
         "divs": [],
         "whts": [],

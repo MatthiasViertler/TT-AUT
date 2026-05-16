@@ -128,3 +128,40 @@ def test_stk_trades_kept_after_opt_filter(cfg):
     buys = [t for t in txns if t.txn_type == TransactionType.BUY]
     assert len(buys) == 1
     assert buys[0].symbol == "SIE"
+
+
+# ── CTRN missing Symbol/ISIN columns (ibkr_flex.csv format) ───────────────────
+
+FLEX_CTRN_NO_SYMBOL_ISIN = """\
+"BOF","U99999999","ACTIVITY","20251231","20250101","20251231"
+"BOS","CTRN","Cash Transactions"
+"ClientAccountID","CurrencyPrimary","FXRateToBase","Description","Amount","Type"
+"U99999999","EUR","1","ALV(DE0008404005) CASH DIVIDEND EUR 15.40 PER SHARE","1540.00","Dividends"
+"U99999999","EUR","1","ALV(DE0008404005) CASH DIVIDEND EUR 15.40 PER SHARE - DE TAX","-406.17","Withholding Tax"
+"EOS","CTRN","2","0"
+"EOF","U99999999"
+"""
+
+
+def test_ctrn_without_symbol_isin_columns_still_parses(tmp_path, cfg, capsys):
+    """Flex CSV CTRN with no Symbol/ISIN columns: fallback extracts from description."""
+    p = tmp_path / "flex_no_cols.csv"
+    p.write_text(FLEX_CTRN_NO_SYMBOL_ISIN, encoding="utf-8")
+    txns, _ = parse(p, cfg)
+    divs = [t for t in txns if t.txn_type == TransactionType.DIVIDEND]
+    assert len(divs) == 1
+    assert divs[0].symbol == "ALV"
+    assert divs[0].orig_amount == Decimal("1540.00")
+    assert divs[0].wht_amount_orig == Decimal("406.17")
+    assert divs[0].country_code == "DE"
+
+
+def test_ctrn_without_symbol_isin_columns_emits_warning(tmp_path, cfg, capsys):
+    """Flex CSV CTRN without Symbol/ISIN columns must print a visible [warn] message."""
+    p = tmp_path / "flex_no_cols.csv"
+    p.write_text(FLEX_CTRN_NO_SYMBOL_ISIN, encoding="utf-8")
+    parse(p, cfg)
+    out = capsys.readouterr().out
+    assert "[warn]" in out
+    assert "Symbol" in out or "ISIN" in out
+    assert "Flex Query" in out
