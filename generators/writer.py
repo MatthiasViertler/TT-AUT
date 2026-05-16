@@ -150,15 +150,30 @@ def _save_summary_json(summary: TaxSummary, path: Path) -> None:
 
 
 def _load_history(person_label: str, output_dir: Path) -> list[dict]:
-    """Return all saved year snapshots for this person, sorted by year ascending."""
-    if not output_dir.exists():
+    """Return all saved year snapshots for this person, sorted by year ascending.
+
+    Searches the parent output directory (users/{person}/output/) so that
+    prior-year summary.json files from other year subdirectories are included.
+    Falls back to searching output_dir itself for non-standard layouts.
+    """
+    # If output_dir is users/{person}/output/{year}/, walk up to output root
+    search_root = output_dir
+    if output_dir.name.isdigit():
+        search_root = output_dir.parent
+
+    if not search_root.exists():
         return []
+
+    seen: set[int] = set()
     entries = []
-    for p in output_dir.glob(f"{person_label}_*_summary.json"):
+    for p in search_root.rglob(f"{person_label}_*_summary.json"):
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
             if data.get("person_label") == person_label:
-                entries.append(data)
+                yr = data.get("tax_year")
+                if yr not in seen:
+                    seen.add(yr)
+                    entries.append(data)
         except Exception:
             pass
     return sorted(entries, key=lambda x: x.get("tax_year", 0))
