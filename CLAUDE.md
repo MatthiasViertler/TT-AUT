@@ -304,12 +304,13 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 3. **E*Trade CSV parser** — `tradesdownload.csv` format.
 4. **OeKB data license inquiry** — email taxdata@oekb.at.
 
-## Done this session (v0.4.0 + v0.4.1)
+## Done this session (v0.4.0–v0.4.2)
 - **IBKR flex CTRN symbol/ISIN extraction** ✅ — `brokers/ib_csv.py`: fallback regex + one-time `[warn]` when Flex Query lacks Symbol/ISIN in CTRN. Fixes "unknown country" WHT warnings and missing Freedom tab dividends (e.g. ALV 2026).
 - **KZ 899 credit in KeSt remaining** ✅ — `core/tax_engine.py` + `pipeline.py` (3 sites). 2025: €4,251.72 → €3,808.12.
 - **SOLV cost basis** ✅ — cost_eur=366.56 via FMV-ratio method (BMF §78 EStG). Was 0.
-- **Pre-2021 IBKR lots** ✅ — ADS/GAZ/HEN3/IFX/UNVB in `manual_cost_basis` (real quantities, old account U4251654).
+- **Pre-2021 IBKR lots** ✅ — ADS/GAZ/HEN3/IFX/UNVB in `manual_cost_basis` (real quantities, old pre-2021 account).
 - **Freedom Excel portfolio supplement** ✅ — `generators/writer.py`: applies `portfolio_eur_supplement`; updated 250k → 272k. Excel now shows ~€603k not IBKR-only ~€331k.
+- **Freedom yield vs full portfolio** ✅ — `generators/writer.py` + `generators/freedom.py`: yield recomputed as `dividends / (IBKR + supplement)`. Fixes inflated yield (4.42% → 2.43%) and FIRE projection. 3 tests.
 
 <!-- v0.3.0–v0.3.5 session notes → CLAUDE-archive.md -->
 

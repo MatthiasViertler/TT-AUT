@@ -2,41 +2,36 @@
 
 ## What was done
 
-- **IBKR flex CTRN symbol/ISIN extraction** (`brokers/ib_csv.py`)
-  - Added `_DESC_SYMBOL_ISIN_RE` regex fallback: extracts symbol + ISIN from description strings
-    when the Flex Query CTRN section lacks those columns (format: `"SYMBOL(ISIN) ..."`).
-  - Fixes: "unknown country" WHT warnings, ALV 2026 dividend not appearing in Freedom Excel tab.
-  - Emits a single `[warn]` per file when columns are absent, with the exact IBKR fix path.
-  - 2 new tests added (380 total).
+- **Freedom yield recomputed against full portfolio** (`generators/writer.py`, `generators/freedom.py`)
+  - `dividend_yield_computed` is stored against the IBKR-only portfolio base. When
+    `portfolio_eur_supplement` is set (e.g. €272k SAXO estimate), the displayed yield and FIRE
+    projection were overstated (example: 4.42% on €331k vs correct 2.43% on €603k).
+  - Both the Excel Freedom tab (`_fill_freedom_sheet`) and the HTML dashboard (`write_freedom_html`)
+    now recompute yield as `total_dividends_eur / (ibkr_computed + supplement)` when a computed
+    portfolio is available. Falls back to `dividend_yield_computed` (no supplement) or config
+    `yield_pct` (no computed portfolio) as before.
+  - 3 new tests: supplement case, no-supplement case, config fallback.
 
-- **KZ 899 credit in KeSt remaining** (`core/tax_engine.py` + `core/pipeline.py`)
-  - KZ 899 (AT domestic KeSt withheld at source) now correctly subtracted from `kest_remaining`.
-  - Was missing from all 3 recalculation sites (after NMF, after Meldefonds, after interest).
-  - 2025 remaining corrected: **€4,251.72 → €3,808.12** (Δ €443.60 = 27.5% × KZ 862 €1,613.10).
+- **CTRN missing-columns warning** (`brokers/ib_csv.py`)
+  - Single `[warn]` per file when Flex Query CTRN lacks Symbol/ISIN columns.
+  - Actionable message: IBKR Reports → Flex Queries → Cash Transactions → add Symbol + ISIN.
 
-- **SOLV cost basis** (`users/matthias/config.local.yaml`, gitignored)
-  - Allocated cost_eur=366.56 via FMV-ratio method (BMF §78 EStG Abspaltung).
-  - Was 0, causing a phantom €306 gain on the spin-off sell.
-
-- **Pre-2021 IBKR lots** (`users/matthias/config.local.yaml`, gitignored)
-  - Added ADS/GAZ/HEN3/IFX/UNVB to `manual_cost_basis` with real quantities and EUR cost.
-  - Source: old pre-2021 IBKR account 2020-12-31 portfolio report (account migrated in early 2021).
-  - Clears all 5 negative position warnings.
-
-- **Freedom Excel portfolio supplement** (`generators/writer.py`)
-  - `_fill_freedom_sheet` now adds `portfolio_eur_supplement` to the IBKR computed value,
-    matching the behaviour in `generators/freedom.py` (HTML).
-  - Excel Freedom tab now shows full portfolio (~€603k) instead of IBKR-only (~€331k).
-  - Matthias supplement updated 250k → 272k in config.
+- **All v0.4.0 fixes** (from previous sub-session):
+  - IBKR flex CTRN symbol/ISIN description fallback (fixes "unknown country" + Freedom tab)
+  - KZ 899 credit in KeSt remaining (2025: €4,251 → €3,808)
+  - SOLV cost basis = €366.56 (was 0)
+  - Pre-2021 IBKR lots ADS/GAZ/HEN3/IFX/UNVB added
+  - Freedom Excel supplement applied (shows ~€603k not ~€331k)
 
 ## Current state
 
-- Tests: **380 passed**, 0 failed
+- Tests: **383 passed**, 0 failed
 - Matthias 2025: KZ 862 €1,613.10 | KZ 863 €11,340.73 | KZ 899 €443.60 | KZ 994 €9,292 | KZ 892 €4,735 | KeSt remaining **€3,808.12**
 - Matthias 2026 (as of 2026-05-16): KZ 862 €2,085.60 | KZ 863 €12,882.68 | KZ 994 €17,598.66 | KZ 899 €573.54 | KZ 998 €1,449.48 | KeSt remaining **€6,932.89**
+- Freedom dashboard: portfolio ~€603k, yield ~2.43% (both now correct after this fix)
 - Known issues / open warnings:
+  - IBKR Flex Query CTRN: Matthias's query lacks Symbol/ISIN → `[warn]` fires each run. Fix in IBKR settings or leave (fallback is correct).
   - OeKB AE/WA PLACEHOLDER values in `data/oekb_ae.yaml` — verify on my.oekb.at before filing Meldefonds KZ 937.
-  - IBKR Flex Query CTRN: Matthias's query lacks Symbol/ISIN fields → `[warn]` fires each run. Fix in IBKR settings or leave (fallback is correct).
   - NMF O: Dec 31 2026 price unavailable (year in progress) → O AE = 0 for 2026 until year-end.
 
 ## Next session priorities
@@ -52,4 +47,4 @@
 ## Blockers
 
 - SAXO Holdings parser needs a Holdings xlsx export sample from Matthias.
-- IBKR interest WHT (Ireland domicile): user filing Ansässigkeitsbescheinigung with IBKR soon — no code change until confirmed.
+- IBKR interest WHT (Ireland domicile): user filing Ansässigkeitsbescheinigung with IBKR — no code change until confirmed.
