@@ -16,6 +16,7 @@ Typical usage:
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
 from core.pipeline import run_pipeline
@@ -160,7 +161,8 @@ def main():
             )
             sys.exit(1)
         ib_data_dir = users_dir / person / "data" / "IB"
-        flex_save_path = ib_data_dir / f"{person}_ibkr_flex.csv"
+        fetch_date = date.today().strftime("%Y-%m-%d")
+        flex_save_path = ib_data_dir / f"{person}_ibkr_flex_{fetch_date}.csv"
         try:
             fetched = fetch_flex_report(
                 token=flex_token,

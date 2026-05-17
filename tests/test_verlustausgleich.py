@@ -203,3 +203,29 @@ def test_overview_sheet_current_year_highlighted(tmp_path):
     fill = ws.cell(3, 1).fill
     assert fill.patternType == "solid"
     assert fill.fgColor.rgb.upper().endswith("DEEAF1")   # LIGHT_FILL
+
+
+@pytest.mark.skipif(not OPENPYXL_AVAILABLE, reason="openpyxl not installed")
+def test_overview_sheet_multiyear_monthly_data(tmp_path):
+    """Multi-year monthly chart: each year's dividends written to a separate column."""
+    s1 = _make_summary(2024, dividends=500.0)
+    s2 = _make_summary(2025, dividends=700.0)
+    history = _build_history(tmp_path, [s1, s2])
+    # Inject monthly data directly (normally populated by the pipeline from transactions)
+    history[0]["monthly_dividends"] = {"01": "100.00", "05": "400.00"}
+    history[1]["monthly_dividends"] = {"01": "150.00", "05": "550.00"}
+    wb = Workbook()
+    ws = wb.active
+    _fill_overview_sheet(ws, history, current_year=2025)
+
+    # data_start_row = 3 (row 1 = title, row 2 = header, row 3 = first data/month row)
+    data_start = 3
+    # Col 26 = year1 (2024) dividends; col 27 = year2 (2025) dividends
+    assert ws.cell(data_start, 26).value == pytest.approx(100.0)   # 2024 Jan
+    assert ws.cell(data_start, 27).value == pytest.approx(150.0)   # 2025 Jan
+    # May = row data_start + 4
+    assert ws.cell(data_start + 4, 26).value == pytest.approx(400.0)  # 2024 May
+    assert ws.cell(data_start + 4, 27).value == pytest.approx(550.0)  # 2025 May
+    # Year header labels in row 2
+    assert "2024" in str(ws.cell(2, 26).value)
+    assert "2025" in str(ws.cell(2, 27).value)

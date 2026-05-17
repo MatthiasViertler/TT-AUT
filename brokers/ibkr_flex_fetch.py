@@ -12,9 +12,10 @@ Setup in users/{person}/config.local.yaml:
 Usage:
   python main.py --person matthias --year 2025 --fetch-ibkr
 
-The fetched report is saved to users/{person}/data/IB/{person}_ibkr_flex.csv
-and processed by the existing brokers/ib_csv.py parser automatically on the
-same run.
+The fetched report is saved to users/{person}/data/IB/{person}_ibkr_flex_{YYYY-MM-DD}.csv
+using today's date. Files accumulate over time: each fetch extends the history
+window by one query period. The pipeline's raw_id deduplication handles any
+overlapping transactions across files transparently.
 """
 
 import logging

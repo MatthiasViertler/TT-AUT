@@ -95,7 +95,56 @@ def get_account_id(path: Path) -> Optional[str]:
     return None
 
 
-def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Optional[str]]:
+def get_ib_file_info(path: Path) -> tuple[bool, Optional[date], Optional[date]]:
+    """Pre-scan an IB CSV to detect format and date range.
+
+    Returns (is_flex, from_date, to_date):
+    - is_flex: True  = Flex / custom Flex query (BOF col[2] does NOT contain "TT-AUT")
+               False = TT-AUT annual/partial export  (BOF col[2] contains "TT-AUT")
+    - from_date / to_date: from BOF line col[4] / col[5]
+
+    Both the TT-AUT Export and Flex CSV use BOS/EOS section markers, so format cannot
+    be distinguished by structural markers alone. The BOF format-name field (col[2]) is
+    the reliable differentiator: IBKR always writes "TT-AUT Export" there for the
+    standard Austrian annual export, and something like "AUT-TAX-Export ..." for Flex.
+    """
+    is_flex: bool = True   # default to Flex-like (safe: unknown files get full cash)
+    from_date: Optional[date] = None
+    to_date: Optional[date] = None
+
+    try:
+        with open(path, encoding="utf-8-sig", errors="replace") as f:
+            for line in f:
+                parts = line.strip().split(',')
+                marker = parts[0].strip('"').strip()
+
+                if marker == "BOF":
+                    # col[2] = format name: "TT-AUT Export" vs "AUT-TAX-Export ..."
+                    format_name = parts[2].strip('"').strip() if len(parts) > 2 else ""
+                    is_flex = "TT-AUT" not in format_name.upper()
+
+                    if len(parts) > 4:
+                        try:
+                            from_date = _parse_ib_date(parts[4].strip('"'))
+                        except Exception:
+                            pass
+                    if len(parts) > 5:
+                        try:
+                            to_date = _parse_ib_date(parts[5].strip('"'))
+                        except Exception:
+                            pass
+                    break   # BOF is always the first meaningful row — done
+    except Exception:
+        pass
+
+    # TT-AUT BOF may omit from_date; infer as Jan 1 of the to_date year.
+    if not is_flex and to_date is not None and from_date is None:
+        from_date = date(to_date.year, 1, 1)
+
+    return is_flex, from_date, to_date
+
+
+def parse(path: Path, config: dict, suppress_cash: bool = False) -> tuple[list[NormalizedTransaction], Optional[str]]:
     """Parse an IB CSV Activity Statement into normalized transactions.
 
     Returns (transactions, account_id).
@@ -187,10 +236,11 @@ def parse(path: Path, config: dict) -> tuple[list[NormalizedTransaction], Option
 
     transactions: list[NormalizedTransaction] = []
 
-    cash_txns = _parse_cash_transactions(
-        sections.get("Cash Transactions", []), config, str(path), bof_end_date
-    )
-    transactions.extend(cash_txns)
+    if not suppress_cash:
+        cash_txns = _parse_cash_transactions(
+            sections.get("Cash Transactions", []), config, str(path), bof_end_date
+        )
+        transactions.extend(cash_txns)
 
     trade_txns = _parse_trades(
         sections.get("Trades", []), config, str(path)

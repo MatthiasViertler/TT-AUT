@@ -24,26 +24,35 @@ _PARSER_MODULES = [
     # ("brokers.flatex",  "Flatex Austria"),   # TODO: implement
 ]
 
+_IB_MOD = "brokers.ib_csv"
 
-def load_transactions(path: Path, config: dict,
-                      broker_hint: str = "auto") -> tuple[list[NormalizedTransaction], str | None]:
+
+def load_transactions(
+    path: Path,
+    config: dict,
+    broker_hint: str = "auto",
+    suppress_cash: bool = False,
+) -> tuple[list[NormalizedTransaction], str | None]:
     """
     Load and parse a broker export file.
     Returns (transactions, account_id).
     broker_hint: "auto" | "ib" | "degiro" | "flatex"
+    suppress_cash: skip dividend/cash parsing for IB files. Used to prevent
+        double-counting when a TT-AUT annual export overlaps with a Flex CSV.
     """
     import importlib
 
     if broker_hint != "auto":
         hint_map = {
-            "ib":        "brokers.ib_csv",
+            "ib":        _IB_MOD,
             "saxo":      "brokers.saxo_xlsx",
             "closedpos": "brokers.saxo_closedpos_xlsx",
         }
         mod_name = hint_map.get(broker_hint)
         if mod_name:
             mod = importlib.import_module(mod_name)
-            return mod.parse(path, config)
+            kwargs = {"suppress_cash": suppress_cash} if mod_name == _IB_MOD else {}
+            return mod.parse(path, config, **kwargs)
         else:
             log.warning(f"Unknown broker hint '{broker_hint}', falling back to auto-detect")
 
@@ -51,7 +60,8 @@ def load_transactions(path: Path, config: dict,
         mod = importlib.import_module(mod_name)
         if mod.detect(path):
             log.info(f"Auto-detected broker: {label} for {path.name}")
-            return mod.parse(path, config)
+            kwargs = {"suppress_cash": suppress_cash} if mod_name == _IB_MOD else {}
+            return mod.parse(path, config, **kwargs)
 
     log.warning("Skipping unrecognised file (no parser matched): %s", path.name)
     return None, None

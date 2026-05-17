@@ -43,7 +43,7 @@ cache/price_cache/           shared year-end price cache (gitignored)
 users/matthias/
   config.local.yaml
   data/IB/2025/matthias_2025.csv
-  data/IB/matthias_ibkr_flex.csv        ← auto-fetched (--fetch-ibkr); picked up by rglob
+  data/IB/matthias_ibkr_flex_2026-05-17.csv  ← auto-fetched (--fetch-ibkr); dated filename; accumulates over time
   data/SAXO/2025/ClosedPositions_19999999_2025-01-01_2025-12-31.xlsx
   output/2025/matthias_2025_tax_summary.txt  ← generated
 users/jessie/
@@ -269,8 +269,23 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
     query_id: 123456         # Reports → Flex Queries → (open query) → numeric ID in URL
     # positions_query_id: 234567  # optional: separate Open Positions query
   ```
-- Saves to `users/{person}/data/IB/{person}_ibkr_flex.csv`; picked up by rglob automatically.
+- Saves to `users/{person}/data/IB/{person}_ibkr_flex_{YYYY-MM-DD}.csv` (today's date); picked up by rglob automatically.
+- Files **accumulate** over time — each fetch adds a new dated file. The pipeline's `raw_id` deduplication handles overlapping transactions across files (same Flex format = same raw_ids). No need to delete old files.
 - Pre-commit hook scans `secrets.local.yaml` and blocks all its values from leaking into committed files.
+
+### ⚠ Do NOT mix annual TT-AUT exports with the Flex CSV for overlapping date ranges
+
+**Why**: The annual TT-AUT export uses year-end dates for dividends; the Flex CSV uses actual payment dates. Both contain the same transactions (e.g. Shell EXPIRE DIVIDEND RIGHT). The pipeline's `raw_id` deduplication cannot match them because the formats differ → the same dividend is counted twice (double booking).
+
+**Rule — one source per time period**:
+- Keep annual exports ONLY for years **before** the Flex start date.
+- For years covered by the Flex, move annual exports to `users/{person}/archive/IB/`.
+- ⚠️ Check the Flex **date range** (BOF line, field 5–6) to know exactly where coverage starts.
+  - Matthias Flex as of 2026-05-15: starts `2025-05-15` (1-year lookback query setting).
+  - This means **Jan 1–May 14, 2025** is a gap — only in the archived `matthias_2025.csv`.
+  - **Fix for the current gap (Jan 1–May 14 2025)**: the missing months are in the archived `matthias_2025.csv`. Copy it back temporarily with `--input users/matthias/archive/IB/matthias_2025.csv` (alongside the Flex files). The overlap (May 15–Dec 31 2025) has matching raw_ids in both files → deduplicated safely. After 365 days of regular fetches the gap fills naturally and the archive copy is no longer needed.
+
+**Scrip dividends (Shell, Rio Tinto, etc.)**: IBKR records these under temporary rights symbols (SHELL.DRS, SHELL1.DI, SHELL.DDR, SHELL.DVD) with description "EXPIRE DIVIDEND RIGHT". This IS the actual dividend, not a duplicate of a separate SHELL entry. The intermediate debit/credit pair nets to zero; only the EXPIRE DIVIDEND RIGHT remains. Seeing multiple right-series entries on the same date for the same stock is correct if you hold shares across several scrip series (Shell's quarterly program creates a new series each quarter).
 
 ### Open Positions (portfolio value)
 - **Recommended**: add "Open Positions" section to the existing Activity Flex Query — no new config needed.

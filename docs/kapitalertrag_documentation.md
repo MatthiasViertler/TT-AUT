@@ -406,6 +406,34 @@ The same logic applies to the Open Positions variants:
 wait 10 minutes and re-run with `--force-fetch-ibkr`. Using plain `--fetch-ibkr` will not
 trigger a new fetch (the existing file is reused), so it is safe to run immediately.
 
+### 6.6 Avoiding double bookings — annual exports vs. Flex CSV
+
+**Problem**: If you place both an annual TT-AUT export (e.g. `matthias_2025.csv`) and the auto-fetched Flex CSV (`matthias_ibkr_flex.csv`) in the same data directory, the same dividends will be counted twice. The annual export uses year-end dates; the Flex CSV uses actual payment dates. Because the dates differ, the pipeline's deduplication (by `raw_id`) cannot recognise them as the same transaction.
+
+Scrip dividends (Shell, Rio Tinto, etc.) are particularly affected because IBKR records them under temporary rights symbols (`SHELL.DRS`, `SHELL1.DI`, `SHELL.DDR`, `SHELL.DVD`) with the description "EXPIRE DIVIDEND RIGHT". This *is* the actual cash dividend — the intermediate debit/credit pair nets to zero and only the final cash credit appears. Seeing multiple right-series entries on the same date is correct (Shell's quarterly programme creates a new series each quarter).
+
+**Rule — one source per time period**:
+
+| Period | What to keep in `data/` | What to archive |
+|--------|------------------------|-----------------|
+| Years before Flex start date | Annual TT-AUT export | — |
+| Years after Flex start date | Flex CSV only | Annual export → `archive/IB/` |
+
+**How to check the Flex date range**: The first line of the Flex CSV (`BOF` line) contains the start and end date in positions 5–6. Example: `"BOF","U22222222","...",…,"2025-05-15","2026-05-14",…` means the Flex covers May 15 2025 – May 14 2026.
+
+**Closing a gap — configure the Flex Query for a fixed start date (recommended)**:
+
+IBKR's "Last N days" rolling window maxes at 365 days, but you can use a **Date Range** setting instead — this has no cap:
+
+1. IBKR → Reports → Flex Queries → open your Activity query
+2. Change the Period setting from **"Last N days"** to **"Date Range"**
+3. Set **Start Date: 2025-01-01** (or the first day of the earliest year not covered by annual exports); leave End Date blank for open-ended
+4. Save the query, then run: `python main.py --person matthias --year 2025 --force-fetch-ibkr`
+5. Verify the BOF line in the new Flex file shows `"2025-01-01"` as the start date
+6. Archive the 2025 annual export permanently — the Flex now covers it without overlap
+
+With this setup: annual TT-AUT exports in `data/IBKR/` cover 2021–2024; the Flex CSV in `data/IB/` covers 2025 onwards. No overlap, no gap, no double bookings.
+
 ---
 
 ## 7. SAXO Bank Setup

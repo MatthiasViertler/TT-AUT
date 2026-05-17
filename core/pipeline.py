@@ -4,12 +4,15 @@ Wires together: broker parsing → FX enrichment → tax calculation → output.
 """
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
 from brokers import load_transactions
-from brokers.ib_csv import parse_ibkr_cash_report, parse_ibkr_interest, _iter_interest_rows
+from brokers.ib_csv import (
+    parse_ibkr_cash_report, parse_ibkr_interest, _iter_interest_rows,
+    detect as _ib_detect, get_ib_file_info,
+)
 from brokers.ibkr_positions import parse_ibkr_positions
 from core.config import load_config, scan_account_ids, _deep_merge
 from core.fx import FXRateProvider
@@ -45,9 +48,91 @@ def run_pipeline(
     all_transactions: list[NormalizedTransaction] = []
     account_ids: set[str] = set()
 
+    # Pre-scan IB files: classify as TT-AUT or Flex, decide cash suppression.
+    #
+    # Both formats use the BOS/EOS netted-cash parser which embeds BOF to_date in the
+    # raw_id.  Three conflict types can cause double-counting:
+    #
+    # 1. Flex vs Flex (accumulated --fetch-ibkr files): different to_dates → different
+    #    raw_ids for the same dividend → keep cash only from the LATEST Flex per year.
+    #
+    # 2. Flex spanning into a prior full-year TT-AUT: a 365-day Flex (e.g. May 2025–
+    #    May 2026) contains 2025 dividends already counted by TT-AUT 2025, but assigns
+    #    them trade_date=2026-05-15 → they appear AGAIN in 2026.
+    #    Rule: if Flex.from_date.year has a full TT-AUT (Jan 1–Dec 31), suppress Flex
+    #    cash entirely.  The partial TT-AUT for the current year (if any) is NOT
+    #    suppressed and covers Jan 1–partial.to_date.
+    #    ⚠ Small gap: partial.to_date → Flex.to_date dividends are missed.
+    #    Fix: set the Flex query period to "Year to Date" in the IBKR web portal so the
+    #    Flex starts Jan 1 of the current year rather than 365 days ago.
+    #
+    # 3. TT-AUT partial vs "clean" Flex (same year, no spanning conflict): suppress
+    #    the TT-AUT — the Flex is the authoritative source for the ongoing year.
+
+    _ib_info: dict[Path, tuple[bool, date | None, date | None]] = {}
+    for path in input_paths:
+        if _ib_detect(path):
+            _ib_info[path] = get_ib_file_info(path)
+
+    # Years covered by a FULL TT-AUT export (Jan 1 – Dec 28+)
+    _taut_full_years: set[int] = set()
+    for is_flex, fd, td in _ib_info.values():
+        if not is_flex and fd and td:
+            if fd.month == 1 and fd.day == 1 and td.month == 12 and td.day >= 28:
+                _taut_full_years.add(fd.year)
+
+    # Latest Flex file per to_date.year
+    _flex_latest: dict[int, tuple[date, Path]] = {}
+    for path, (is_flex, fd, td) in _ib_info.items():
+        if is_flex and td:
+            yr = td.year
+            if yr not in _flex_latest or td > _flex_latest[yr][0]:
+                _flex_latest[yr] = (td, path)
+
+    # For each latest-Flex, decide: does it span into a prior full-year TT-AUT?
+    _flex_cross_year: set[Path] = set()  # Flex files suppressed due to rule 2
+    _flex_keep_cash:  set[Path] = set()  # Flex files whose cash is authoritative
+    _flex_active_years: set[int] = set()  # years where a non-suppressed Flex provides cash
+
+    for yr, (td, path) in _flex_latest.items():
+        _, fd, _ = _ib_info[path]
+        if fd is not None and fd.year < yr and fd.year in _taut_full_years:
+            _flex_cross_year.add(path)
+            print(
+                f"  [dedup]  {path.name}: Flex spans {fd.year}→{yr} but full TT-AUT "
+                f"covers {fd.year} — suppressing Flex dividends to avoid double-count. "
+                f"Tip: set Flex query period to 'Year to Date' in IBKR web portal."
+            )
+        else:
+            _flex_keep_cash.add(path)
+            _flex_active_years.add(yr)
+
     skipped = 0
     for path in input_paths:
-        txns, account_id = load_transactions(path, config, broker_hint)
+        suppress_cash = False
+        info = _ib_info.get(path)
+        if info is not None:
+            is_flex, fd, td = info
+            if is_flex:
+                if path in _flex_cross_year:
+                    suppress_cash = True  # already printed above
+                elif path not in _flex_keep_cash:
+                    # Non-latest Flex for its year (Flex vs Flex dedup)
+                    suppress_cash = True
+                    print(
+                        f"  [dedup]  {path.name}: older Flex dividends suppressed "
+                        f"(newer Flex covers same period; trades still parsed)."
+                    )
+            elif td is not None and td.year in _flex_active_years:
+                # TT-AUT partial vs clean Flex — suppress TT-AUT (rule 3)
+                suppress_cash = True
+                print(
+                    f"  [dedup]  {path.name}: TT-AUT dividends suppressed "
+                    f"(Flex covers same year {td.year}; trades still parsed)."
+                )
+
+        txns, account_id = load_transactions(path, config, broker_hint,
+                                             suppress_cash=suppress_cash)
         if txns is None:
             skipped += 1
             continue

@@ -887,6 +887,8 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int,
     yr_range = f"{years[0]}–{years[-1]}" if len(years) > 1 else (years[0] if years else "")
 
     row = [1]
+    years_with_monthly = [e for e in history if e.get("monthly_dividends")][-5:]
+    _n_mo = len(years_with_monthly)
 
     def _r():
         r = row[0]; row[0] += 1; return r
@@ -916,8 +918,9 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int,
     ws.cell(r, 21, "Transactions")
     ws.cell(r, 22, "FIRE %")
     ws.cell(r, 25, "Month")
-    ws.cell(r, 26, "Div/Month EUR")
-    ws.cell(r, 27, "Tx/Month")
+    for _yi, _ye in enumerate(years_with_monthly):
+        ws.cell(r, 26 + _yi, f"Div {_ye.get('tax_year', '?')}")
+        ws.cell(r, 26 + _n_mo + _yi, f"Tx {_ye.get('tax_year', '?')}")
     data_start_row = row[0]  # first data row (after title + header)
 
     def _d(entry: dict, key: str) -> float:
@@ -1050,26 +1053,19 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int,
     CROW   = 18
 
     # Monthly mini-table (cols 25-27, rows data_start_row to data_start_row+11)
-    monthly_entry = next(
-        (e for e in reversed(history) if e.get("monthly_dividends")),
-        None,
-    )
-    monthly_year = (monthly_entry.get("tax_year", current_year)
-                    if monthly_entry else current_year)
     month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     for m_idx, m_label in enumerate(month_labels, 1):
         key  = f"{m_idx:02d}"
         mrow = data_start_row + m_idx - 1
         ws.cell(mrow, 25, m_label)
-        m_div = float(Decimal(str(
-            ((monthly_entry or {}).get("monthly_dividends") or {}).get(key) or "0"
-        ))) if monthly_entry else 0.0
-        m_tx = int(
-            (((monthly_entry or {}).get("monthly_transaction_counts") or {}).get(key) or 0)
-        )
-        ws.cell(mrow, 26, m_div)
-        ws.cell(mrow, 27, m_tx)
+        for yi, yr_e in enumerate(years_with_monthly):
+            m_div = float(Decimal(str(
+                (yr_e.get("monthly_dividends") or {}).get(key) or "0"
+            )))
+            ws.cell(mrow, 26 + yi, m_div)
+            m_tx = int((yr_e.get("monthly_transaction_counts") or {}).get(key) or 0)
+            ws.cell(mrow, 26 + _n_mo + yi, m_tx)
     month_end_row = data_start_row + 11
 
     def _col_chart(title: str, y_title: str = "EUR") -> BarChart:
@@ -1092,7 +1088,7 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int,
     c2 = _col_chart("KeSt Remaining by Year")
     c2.add_data(Reference(ws, min_col=10, min_row=2, max_row=data_end_row), titles_from_data=True)
     c2.set_categories(cats)
-    ws.add_chart(c2, f"L{chart_top}")
+    ws.add_chart(c2, f"G{chart_top}")
 
     # Chart 3 (ROW 1, LEFT): Income Sources stacked (Dividends + Interest)
     c3 = BarChart()
@@ -1111,7 +1107,32 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int,
     c4 = _col_chart("Transactions by Year", y_title="Count")
     c4.add_data(Reference(ws, min_col=21, min_row=2, max_row=data_end_row), titles_from_data=True)
     c4.set_categories(cats)
-    ws.add_chart(c4, f"L{chart_top + CROW}")
+    ws.add_chart(c4, f"G{chart_top + CROW}")
+
+    # Monthly multi-year chart helpers (grouped bars, one series per year)
+    month_cats = Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row)
+
+    def _monthly_div_chart() -> BarChart:
+        ch = _col_chart("Dividends by Month")
+        for yi in range(_n_mo):
+            ch.add_data(
+                Reference(ws, min_col=26 + yi,
+                          min_row=data_start_row - 1, max_row=month_end_row),
+                titles_from_data=True,
+            )
+        ch.set_categories(month_cats)
+        return ch
+
+    def _monthly_tx_chart() -> BarChart:
+        ch = _col_chart("Transactions by Month", y_title="Count")
+        for yi in range(_n_mo):
+            ch.add_data(
+                Reference(ws, min_col=26 + _n_mo + yi,
+                          min_row=data_start_row - 1, max_row=month_end_row),
+                titles_from_data=True,
+            )
+        ch.set_categories(month_cats)
+        return ch
 
     has_fire = bool(
         config and (config.get("freedom_dashboard") or {}).get("monthly_expenses_eur")
@@ -1127,29 +1148,17 @@ def _fill_overview_sheet(ws, history: list[dict], current_year: int,
         c5.set_categories(cats)
         ws.add_chart(c5, f"A{chart_top + CROW * 2}")
 
-        # Chart 6 (ROW 2, RIGHT): Dividends per Month
-        c6 = _col_chart(f"Dividends by Month ({monthly_year})")
-        c6.add_data(Reference(ws, min_col=26, min_row=data_start_row, max_row=month_end_row))
-        c6.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
-        ws.add_chart(c6, f"L{chart_top + CROW * 2}")
+        # Chart 6 (ROW 2, RIGHT): Dividends by Month (multi-year grouped)
+        ws.add_chart(_monthly_div_chart(), f"G{chart_top + CROW * 2}")
 
-        # Chart 7 (ROW 3, LEFT): Transactions per Month
-        c7 = _col_chart(f"Transactions by Month ({monthly_year})", y_title="Count")
-        c7.add_data(Reference(ws, min_col=27, min_row=data_start_row, max_row=month_end_row))
-        c7.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
-        ws.add_chart(c7, f"A{chart_top + CROW * 3}")
+        # Chart 7 (ROW 3, LEFT): Transactions by Month (multi-year grouped)
+        ws.add_chart(_monthly_tx_chart(), f"A{chart_top + CROW * 3}")
     else:
-        # Chart 5 (ROW 2, LEFT): Dividends per Month
-        c5 = _col_chart(f"Dividends by Month ({monthly_year})")
-        c5.add_data(Reference(ws, min_col=26, min_row=data_start_row, max_row=month_end_row))
-        c5.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
-        ws.add_chart(c5, f"A{chart_top + CROW * 2}")
+        # Chart 5 (ROW 2, LEFT): Dividends by Month (multi-year grouped)
+        ws.add_chart(_monthly_div_chart(), f"A{chart_top + CROW * 2}")
 
-        # Chart 6 (ROW 2, RIGHT): Transactions per Month
-        c6 = _col_chart(f"Transactions by Month ({monthly_year})", y_title="Count")
-        c6.add_data(Reference(ws, min_col=27, min_row=data_start_row, max_row=month_end_row))
-        c6.set_categories(Reference(ws, min_col=25, min_row=data_start_row, max_row=month_end_row))
-        ws.add_chart(c6, f"L{chart_top + CROW * 2}")
+        # Chart 6 (ROW 2, RIGHT): Transactions by Month (multi-year grouped)
+        ws.add_chart(_monthly_tx_chart(), f"G{chart_top + CROW * 2}")
 
 
 # ── Freedom tab ──────────────────────────────────────────────────────────────
