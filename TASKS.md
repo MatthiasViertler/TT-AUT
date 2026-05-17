@@ -138,6 +138,11 @@ therefore not blocking her filing. Keeping them here for when fund support is ad
 - [x] **Freedom Excel portfolio supplement** *(2026-05-16, v0.4.0)* — `generators/writer.py`:
       `_fill_freedom_sheet` applies `portfolio_eur_supplement` to computed value; matches HTML.
       Updated 250k → 272k. Excel now shows full portfolio (~€603k) not IBKR-only (~€331k).
+- [x] **IB TT-AUT/Flex dividend deduplication** *(2026-05-17, v0.4.3)* — `core/pipeline.py` +
+      `brokers/ib_csv.py`. Three-rule suppression: Flex vs Flex, cross-year Flex vs full TT-AUT,
+      TT-AUT partial vs YTD Flex. All IB files can coexist in data/IB/ without manual archiving.
+      IBKR Flex query changed to "Year to Date". `get_ib_file_info()` added to ib_csv.py.
+      10 new tests → 394 total.
 
 ---
 

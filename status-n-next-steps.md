@@ -1,50 +1,31 @@
-# Session Handoff — 2026-05-16
+# Session Handoff — 2026-05-17
 
 ## What was done
-
-- **Freedom yield recomputed against full portfolio** (`generators/writer.py`, `generators/freedom.py`)
-  - `dividend_yield_computed` is stored against the IBKR-only portfolio base. When
-    `portfolio_eur_supplement` is set (e.g. €272k SAXO estimate), the displayed yield and FIRE
-    projection were overstated (example: 4.42% on €331k vs correct 2.43% on €603k).
-  - Both the Excel Freedom tab (`_fill_freedom_sheet`) and the HTML dashboard (`write_freedom_html`)
-    now recompute yield as `total_dividends_eur / (ibkr_computed + supplement)` when a computed
-    portfolio is available. Falls back to `dividend_yield_computed` (no supplement) or config
-    `yield_pct` (no computed portfolio) as before.
-  - 3 new tests: supplement case, no-supplement case, config fallback.
-
-- **CTRN missing-columns warning** (`brokers/ib_csv.py`)
-  - Single `[warn]` per file when Flex Query CTRN lacks Symbol/ISIN columns.
-  - Actionable message: IBKR Reports → Flex Queries → Cash Transactions → add Symbol + ISIN.
-
-- **All v0.4.0 fixes** (from previous sub-session):
-  - IBKR flex CTRN symbol/ISIN description fallback (fixes "unknown country" + Freedom tab)
-  - KZ 899 credit in KeSt remaining (2025: €4,251 → €3,808)
-  - SOLV cost basis = €366.56 (was 0)
-  - Pre-2021 IBKR lots ADS/GAZ/HEN3/IFX/UNVB added
-  - Freedom Excel supplement applied (shows ~€603k not ~€331k)
+- **Root cause diagnosed**: IBKR Flex "last 365 days" window caused two distinct double-counting bugs:
+  1. Multiple Flex files with different to_dates → different raw_ids for the same dividend
+  2. 365-day Flex spanning May 2025–May 2026 → 2025 dividends re-imported at trade_date=2026-05-15 → counted again in 2026
+- **Three-rule suppression logic** in `core/pipeline.py`:
+  - Rule 1 (Flex vs Flex): keep dividends from latest Flex per year only
+  - Rule 2 (cross-year Flex): if Flex.from_date.year has a full TT-AUT, suppress Flex dividends
+  - Rule 3 (TT-AUT partial vs YTD Flex): suppress TT-AUT, Flex is authoritative
+- **`get_ib_file_info()`** added to `brokers/ib_csv.py`: BOF pre-scan → (is_flex, from_date, to_date)
+- **`suppress_cash` parameter** added to `parse()` and threaded through `brokers/__init__.py`
+- **10 new tests** in `tests/test_ib_flex_taut_dedup.py`
+- **IBKR Flex query changed to "Year to Date"** by user — new Flex from=2026-01-01; cross-year rule no longer fires
+- Real account ID in docs caught and fixed by pre-commit hook ✓
 
 ## Current state
-
-- Tests: **383 passed**, 0 failed
-- Matthias 2025: KZ 862 €1,613.10 | KZ 863 €11,340.73 | KZ 899 €443.60 | KZ 994 €9,292 | KZ 892 €4,735 | KeSt remaining **€3,808.12**
-- Matthias 2026 (as of 2026-05-16): KZ 862 €2,085.60 | KZ 863 €12,882.68 | KZ 994 €17,598.66 | KZ 899 €573.54 | KZ 998 €1,449.48 | KeSt remaining **€6,932.89**
-- Freedom dashboard: portfolio ~€603k, yield ~2.43% (both now correct after this fix)
-- Known issues / open warnings:
-  - IBKR Flex Query CTRN: Matthias's query lacks Symbol/ISIN → `[warn]` fires each run. Fix in IBKR settings or leave (fallback is correct).
-  - OeKB AE/WA PLACEHOLDER values in `data/oekb_ae.yaml` — verify on my.oekb.at before filing Meldefonds KZ 937.
-  - NMF O: Dec 31 2026 price unavailable (year in progress) → O AE = 0 for 2026 until year-end.
+- Tests: 394/394 passing
+- 2025: KZ 862 €1,613.10 | KZ 863 €11,381.01 | KZ 994 €9,291.87 | KZ 891 €1,107.12 | KZ 892 €4,735.24 | KZ 899 €443.60 | KeSt remaining **€3,808.12**
+- 2026 YTD (2026-05-17): KZ 862 €472.50 | KZ 863 €8,741.04 | KZ 994 €17,598.67 | KZ 899 €129.94 | KZ 998 €1,100.14
+- Known issues: NMF year-end prices unavailable for 2026 (expected); AIRD 404 warning (delisted)
 
 ## Next session priorities
-
-1. **WHT reclaim paper filings** (user action, not coding):
-   - France deadline **2026-12-31** — Cerfa n°12816 (Formulaire 5000+5001), MC + SAF, €12.06 excess.
-   - Germany — BZSt portal, €775.00 excess.
-   - Denmark — SKAT, €37.91 excess.
-2. **SAXO Holdings parser** — blocked on Holdings xlsx export sample from user.
-3. **E*Trade CSV parser** (`brokers/etrade_csv.py`) — `tradesdownload.csv` format.
-4. **OeKB data license inquiry** — email taxdata@oekb.at.
+1. **WHT reclaim paper filings** — France deadline 2026-12-31 is top urgency
+2. **SAXO Holdings parser** — blocked on Holdings xlsx export sample
+3. **E*Trade CSV parser** (`tradesdownload.csv`) — removes PDF dependency
+4. **OeKB data license** — email taxdata@oekb.at
 
 ## Blockers
-
-- SAXO Holdings parser needs a Holdings xlsx export sample from Matthias.
-- IBKR interest WHT (Ireland domicile): user filing Ansässigkeitsbescheinigung with IBKR — no code change until confirmed.
+- SAXO Holdings parser: waiting on Holdings export sample from user
+- WHT reclaims: user action (paper filings), no code needed

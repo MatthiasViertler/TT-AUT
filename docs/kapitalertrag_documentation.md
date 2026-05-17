@@ -406,33 +406,43 @@ The same logic applies to the Open Positions variants:
 wait 10 minutes and re-run with `--force-fetch-ibkr`. Using plain `--fetch-ibkr` will not
 trigger a new fetch (the existing file is reused), so it is safe to run immediately.
 
-### 6.6 Avoiding double bookings — annual exports vs. Flex CSV
+### 6.6 TT-AUT exports and Flex CSV can coexist — automatic deduplication
 
-**Problem**: If you place both an annual TT-AUT export (e.g. `matthias_2025.csv`) and the auto-fetched Flex CSV (`matthias_ibkr_flex.csv`) in the same data directory, the same dividends will be counted twice. The annual export uses year-end dates; the Flex CSV uses actual payment dates. Because the dates differ, the pipeline's deduplication (by `raw_id`) cannot recognise them as the same transaction.
+All IBKR files (annual TT-AUT exports and auto-fetched Flex CSVs) can be placed together
+in `users/{person}/data/IB/` without any manual management. The pipeline pre-scans every IB
+file and decides which source provides dividends for each period using three rules:
 
-Scrip dividends (Shell, Rio Tinto, etc.) are particularly affected because IBKR records them under temporary rights symbols (`SHELL.DRS`, `SHELL1.DI`, `SHELL.DDR`, `SHELL.DVD`) with the description "EXPIRE DIVIDEND RIGHT". This *is* the actual cash dividend — the intermediate debit/credit pair nets to zero and only the final cash credit appears. Seeing multiple right-series entries on the same date is correct (Shell's quarterly programme creates a new series each quarter).
+| Conflict | Rule |
+|----------|------|
+| Multiple Flex files (accumulated `--fetch-ibkr` runs) | Keep dividends from latest Flex per year; suppress older ones |
+| 365-day Flex spanning two calendar years | Suppress Flex dividends; use partial TT-AUT for current year |
+| TT-AUT partial + YTD Flex (same year) | Suppress TT-AUT; Flex is authoritative for ongoing year |
 
-**Rule — one source per time period**:
+The `[dedup]` lines in the pipeline output show exactly which files have dividends suppressed.
 
-| Period | What to keep in `data/` | What to archive |
-|--------|------------------------|-----------------|
-| Years before Flex start date | Annual TT-AUT export | — |
-| Years after Flex start date | Flex CSV only | Annual export → `archive/IB/` |
+**⚠️ Set the Flex query to "Year to Date" (critical)**
 
-**How to check the Flex date range**: The first line of the Flex CSV (`BOF` line) contains the start and end date in positions 5–6. Example: `"BOF","U22222222","...",…,"2025-05-15","2026-05-14",…` means the Flex covers May 15 2025 – May 14 2026.
+IBKR Flex queries max at 365 days. A "last 365 days" query spans two calendar years (e.g.
+May 2025–May 2026), which causes the pipeline to trigger rule 2 — Flex dividends are
+suppressed, and only the TT-AUT partial covers the current year. This is correct but may
+leave a small gap at the end (TT-AUT partial.to_date → today).
 
-**Closing a gap — configure the Flex Query for a fixed start date (recommended)**:
+To avoid this: set the query to **Year to Date** in the IBKR web portal:
 
-IBKR's "Last N days" rolling window maxes at 365 days, but you can use a **Date Range** setting instead — this has no cap:
+1. IBKR web portal → Reports → Flex Queries → open your Activity query
+2. Change Period from **"Last N days"** to **"Year to Date"**
+3. Save and re-fetch: `python main.py --person matthias --year 2026 --force-fetch-ibkr`
+4. Verify the BOF line in the new Flex file starts on Jan 1 of the current year
 
-1. IBKR → Reports → Flex Queries → open your Activity query
-2. Change the Period setting from **"Last N days"** to **"Date Range"**
-3. Set **Start Date: 2025-01-01** (or the first day of the earliest year not covered by annual exports); leave End Date blank for open-ended
-4. Save the query, then run: `python main.py --person matthias --year 2025 --force-fetch-ibkr`
-5. Verify the BOF line in the new Flex file shows `"2025-01-01"` as the start date
-6. Archive the 2025 annual export permanently — the Flex now covers it without overlap
+With Year to Date configured: the Flex always starts Jan 1 of the current year, prior TT-AUT
+full-year files are not overlapped, and all three dedup rules resolve cleanly. No manual
+archiving required.
 
-With this setup: annual TT-AUT exports in `data/IBKR/` cover 2021–2024; the Flex CSV in `data/IB/` covers 2025 onwards. No overlap, no gap, no double bookings.
+**Scrip dividends** (Shell, Rio Tinto, etc.): IBKR records these under temporary rights
+symbols (`SHELL.DRS`, `SHELL1.DI`, `SHELL.DDR`, `SHELL.DVD`) with description "EXPIRE
+DIVIDEND RIGHT". This *is* the actual cash dividend. The intermediate debit/credit pair nets
+to zero; only the final cash credit remains. Multiple right-series entries on the same date
+are correct (Shell's quarterly programme creates a new series each quarter).
 
 ---
 

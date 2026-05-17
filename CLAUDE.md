@@ -42,14 +42,15 @@ cache/price_cache/           shared year-end price cache (gitignored)
 ```
 users/matthias/
   config.local.yaml
-  data/IB/2025/matthias_2025.csv
-  data/IB/matthias_ibkr_flex_2026-05-17.csv  ← auto-fetched (--fetch-ibkr); dated filename; accumulates over time
+  data/IB/matthias_2021.csv                         ← TT-AUT annual exports (one per completed year)
+  data/IB/matthias_2025.csv
+  data/IB/matthias_ibkr_flex_2026-05-17.csv         ← auto-fetched YTD Flex (accumulates dated files)
   data/SAXO/2025/ClosedPositions_19999999_2025-01-01_2025-12-31.xlsx
-  output/2025/matthias_2025_tax_summary.txt  ← generated
+  output/2025/matthias_2025_tax_summary.txt          ← generated
 users/jessie/
   config.local.yaml
-  data/IB/2025/jessie_2025.csv
-  output/2025/jessie_2025_tax_summary.txt    ← generated
+  data/IB/jessie_2025.csv
+  output/2025/jessie_2025_tax_summary.txt            ← generated
 ```
 
 ## Key behaviours
@@ -90,7 +91,7 @@ Account IDs are **placeholders only** in this file — real IDs are in `users/{p
 - Jessie: account configured, `anv:` set (45 HO days, 10km commute public, €350 tax advisor, €30k income) ✓ (2026-05-05)
 - Matthias: IB + SAXO DK + E*Trade accounts configured, nichtmeldefonds added (O,EPR,OHI,WPC,ARCC) ✓ (2026-05-05)
   2025 run: KZ 862 €1,613.10 | KZ 863 €11,340.73 | KZ 891 €1,107 | KZ 994 €9,292 | KZ 892 €4,735 | KZ 899 €443.60 | KeSt remaining **€3,808.12** (IB+SAXO+E*Trade+interest+NMF)
-  2026 run (as of 2026-05-16): KZ 862 €2,085.60 | KZ 863 €12,882.68 | KZ 994 €17,598.66 | KZ 899 €573.54 | KZ 998 €1,449.48 | KeSt remaining **€6,932.89**
+  2026 run (as of 2026-05-17, YTD Flex): KZ 862 €472.50 | KZ 863 €8,741.04 | KZ 994 €17,598.67 | KZ 899 €129.94 | KZ 998 €1,100.14 | KeSt remaining **TBD** (NMF prices missing)
   E*Trade 2022-2023 statements obtained ✓; NXPI FIFO chain complete 2020–2026. Sep 2023 account migration handled via `etrade_skip_transfers`.
 - Matthias Nichtmeldefonds: O, EPR, OHI, WPC, ARCC
 - **Special cases**: P911 RoC skipped ✓, BAYN reversal netting ✓, ALVd→ALV DE normalization ✓,
@@ -273,17 +274,24 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 - Files **accumulate** over time — each fetch adds a new dated file. The pipeline's `raw_id` deduplication handles overlapping transactions across files (same Flex format = same raw_ids). No need to delete old files.
 - Pre-commit hook scans `secrets.local.yaml` and blocks all its values from leaking into committed files.
 
-### ⚠ Do NOT mix annual TT-AUT exports with the Flex CSV for overlapping date ranges
+### Automatic dividend dedup — TT-AUT exports + Flex CSV can coexist
 
-**Why**: The annual TT-AUT export uses year-end dates for dividends; the Flex CSV uses actual payment dates. Both contain the same transactions (e.g. Shell EXPIRE DIVIDEND RIGHT). The pipeline's `raw_id` deduplication cannot match them because the formats differ → the same dividend is counted twice (double booking).
+TT-AUT exports and Flex CSVs may be placed together in `data/IB/`. The pipeline pre-scans
+all IB files and applies three suppression rules so dividends are never double-counted:
 
-**Rule — one source per time period**:
-- Keep annual exports ONLY for years **before** the Flex start date.
-- For years covered by the Flex, move annual exports to `users/{person}/archive/IB/`.
-- ⚠️ Check the Flex **date range** (BOF line, field 5–6) to know exactly where coverage starts.
-  - Matthias Flex as of 2026-05-15: starts `2025-05-15` (1-year lookback query setting).
-  - This means **Jan 1–May 14, 2025** is a gap — only in the archived `matthias_2025.csv`.
-  - **Fix for the current gap (Jan 1–May 14 2025)**: the missing months are in the archived `matthias_2025.csv`. Copy it back temporarily with `--input users/matthias/archive/IB/matthias_2025.csv` (alongside the Flex files). The overlap (May 15–Dec 31 2025) has matching raw_ids in both files → deduplicated safely. After 365 days of regular fetches the gap fills naturally and the archive copy is no longer needed.
+1. **Flex vs Flex** (accumulated `--fetch-ibkr` files): keeps dividends only from the latest
+   Flex per year; older files have trades parsed but dividends suppressed.
+2. **Cross-year Flex** (365-day Flex spanning two calendar years): if Flex.from_date.year
+   already has a full TT-AUT (Jan 1–Dec 31), the Flex dividends are suppressed. The partial
+   TT-AUT for the current year (if any) is used instead. Tool prints a tip to set Flex to YTD.
+3. **TT-AUT partial vs clean Flex** (same year, Flex starts Jan 1): suppresses the TT-AUT;
+   the YTD Flex is the authoritative source for the ongoing year.
+
+**⚠️ Flex query MUST be set to "Year to Date"** (not "last 365 days"):
+- IBKR web portal: Reports → Flex Queries → edit query → Period → **Year to Date**
+- Mobile app does not show all period options; use the web portal.
+- YTD Flex always starts Jan 1 of the current year → no overlap with prior TT-AUT files.
+- Matthias Flex configured as YTD since 2026-05-17 ✓ (from=2026-01-01 confirmed).
 
 **Scrip dividends (Shell, Rio Tinto, etc.)**: IBKR records these under temporary rights symbols (SHELL.DRS, SHELL1.DI, SHELL.DDR, SHELL.DVD) with description "EXPIRE DIVIDEND RIGHT". This IS the actual dividend, not a duplicate of a separate SHELL entry. The intermediate debit/credit pair nets to zero; only the EXPIRE DIVIDEND RIGHT remains. Seeing multiple right-series entries on the same date for the same stock is correct if you hold shares across several scrip series (Shell's quarterly program creates a new series each quarter).
 
@@ -319,13 +327,14 @@ Log in → **Documents → Account Statements**. Download **monthly** statements
 3. **E*Trade CSV parser** — `tradesdownload.csv` format.
 4. **OeKB data license inquiry** — email taxdata@oekb.at.
 
-## Done this session (v0.4.0–v0.4.2)
+## Done this session (v0.4.0–v0.4.3)
 - **IBKR flex CTRN symbol/ISIN extraction** ✅ — `brokers/ib_csv.py`: fallback regex + one-time `[warn]` when Flex Query lacks Symbol/ISIN in CTRN. Fixes "unknown country" WHT warnings and missing Freedom tab dividends (e.g. ALV 2026).
 - **KZ 899 credit in KeSt remaining** ✅ — `core/tax_engine.py` + `pipeline.py` (3 sites). 2025: €4,251.72 → €3,808.12.
 - **SOLV cost basis** ✅ — cost_eur=366.56 via FMV-ratio method (BMF §78 EStG). Was 0.
 - **Pre-2021 IBKR lots** ✅ — ADS/GAZ/HEN3/IFX/UNVB in `manual_cost_basis` (real quantities, old pre-2021 account).
 - **Freedom Excel portfolio supplement** ✅ — `generators/writer.py`: applies `portfolio_eur_supplement`; updated 250k → 272k. Excel now shows ~€603k not IBKR-only ~€331k.
 - **Freedom yield vs full portfolio** ✅ — `generators/writer.py` + `generators/freedom.py`: yield recomputed as `dividends / (IBKR + supplement)`. Fixes inflated yield (4.42% → 2.43%) and FIRE projection. 3 tests.
+- **IB TT-AUT/Flex dividend dedup** ✅ (v0.4.3) — three-rule suppression in `core/pipeline.py` + `get_ib_file_info()` in `brokers/ib_csv.py`. All IB files can coexist in data/IB/ without manual management. Flex query changed to "Year to Date". 10 new tests.
 
 <!-- v0.3.0–v0.3.5 session notes → CLAUDE-archive.md -->
 
